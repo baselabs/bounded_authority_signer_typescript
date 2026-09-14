@@ -1,0 +1,29 @@
+{
+  "name": "@bounded-authority-protocol/signer",
+  "version": "0.1.0",
+  "description": "Holder/issuer companion signer for the Bounded Authority Protocol — signs proofs, grants, boundary anchors, and key transitions through a caller-owned key handle whose private key never enters the library.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "dist/src/index.js",
+  "types": "dist/src/index.d.ts",
+  "files": ["dist", "LICENSE", "NOTICE", "README.md"],
+  "engines": { "node": ">=22" },
+  "repository": { "type": "git", "url": "git+https://github.com/baselabs/bounded_authority_signer_typescript.git" },
+  "homepage": "https://github.com/baselabs/bounded_authority_signer_typescript#readme",
+  "bugs": "https://github.com/baselabs/bounded_authority_signer_typescript/issues",
+  "publishConfig": { "access": "public" },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test --import tsx/esm test/*.test.ts",
+    "test:gates": "node --test --import tsx/esm test/gates.test.ts"
+  },
+  "dependencies": {
+    "@bounded-authority-protocol/verifier": "^0.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.4.0",
+    "tsx": "^4.23.12",
+    "typescript": "^6.0.3"
+  }
+}

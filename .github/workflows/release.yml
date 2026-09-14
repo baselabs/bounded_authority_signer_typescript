@@ -1,0 +1,57 @@
+# npm releases of @bounded-authority-protocol/signer. Publishing is bound to THIS
+# repository's workflow identity (GitHub Actions OIDC, no long-lived token) and
+# runs in TWO STAGES per the npm trusted-publisher configuration: the workflow
+# STAGES the artifact (`npm stage publish`, provenance attached), and a human
+# approves the staged release on npmjs.com under the org's 2FA — CI can never
+# make a version live alone.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    name: Verify then stage-publish to npm (human approval required)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.20.0
+
+      - name: Set up Node (24 bundles npm >= 11.5 — required for OIDC trusted publishing)
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install (frozen lockfile)
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+      - name: Full verification gate (typecheck + unit + gates + oracle)
+        run: pnpm typecheck && pnpm test
+
+      # Idempotent releases: a version already on the registry verifies only.
+      - name: Check registry for existing version
+        id: existing
+        run: |
+          if npm view "@bounded-authority-protocol/signer@${GITHUB_REF_NAME#v}" version >/dev/null 2>&1; then
+            echo "published=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "published=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Stage publish to npm with provenance (human approval required)
+        if: steps.existing.outputs.published == 'false'
+        run: npm stage publish --provenance
