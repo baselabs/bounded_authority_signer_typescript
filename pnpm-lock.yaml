@@ -10,7 +10,7 @@ importers:
     dependencies:
       '@bounded-authority-protocol/verifier':
         specifier: ^0.2.0
-        version: 0.2.0
+        version: 0.2.1
     devDependencies:
       '@types/node':
         specifier: ^26.4.0
@@ -24,8 +24,8 @@ importers:
 
 packages:
 
-  '@bounded-authority-protocol/verifier@0.2.0':
-    resolution: {integrity: sha512-rozMlCI3LXb6LO8JdAhnwunK3Gwh7kCfyqrbW5dr5pQbQZuI+RJINLTgaT3LWXffhBjxClJifHElMY2XCux9iw==}
+  '@bounded-authority-protocol/verifier@0.2.1':
+    resolution: {integrity: sha512-SAKeFHvozeXfnsoasrCb9+kfM96diVYXajqq0aAAdCMPoDUaFaeXps4GG7VsRyQq0T6DS3xJAY7NcxZjNxq/iQ==}
     engines: {node: '>=22'}
 
   '@esbuild/aix-ppc64@0.28.2':
@@ -212,7 +212,7 @@ packages:
 
 snapshots:
 
-  '@bounded-authority-protocol/verifier@0.2.0': {}
+  '@bounded-authority-protocol/verifier@0.2.1': {}
 
   '@esbuild/aix-ppc64@0.28.2':
     optional: true

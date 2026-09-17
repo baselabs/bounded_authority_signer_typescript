@@ -1,0 +1,4 @@
+# Tri-platform checkout policy (family standard): a Windows clone with
+# core.autocrlf=true must not rewrite tracked bytes — the lockfile and the
+# workflow manifests stay LF everywhere.
+* text=auto eol=lf

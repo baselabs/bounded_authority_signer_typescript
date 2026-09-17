@@ -6,7 +6,10 @@
 
 The holder/issuer companion **signer** for the Bounded Authority Protocol in TypeScript —
 the port of the Elixir
-[`bounded_authority_report_adapter`](https://hex.pm/packages/bounded_authority_report_adapter).
+[`bounded_authority_report_adapter`](https://hex.pm/packages/bounded_authority_report_adapter)
+([GitHub](https://github.com/baselabs/bounded_authority_report_adapter)). This 0.1.x line signs
+**contract-major 1** (the byte-frozen v1 profile and the local-loopback profile) — the v2
+contract-major is verify-side in the protocol family and is not a signing surface here.
 
 The protocol's verifier package produces each object's deterministic signing input and
 **refuses to sign**. This library takes a caller-owned key handle and a report and produces
@@ -23,7 +26,21 @@ verifies. It is not a decision maker, not a transport, and not the authority run
 npm install @bounded-authority-protocol/signer
 ```
 
-Requires Node.js `>= 22`. One runtime dependency: the verifier package.
+Requires Node.js `>= 22` (the repository develops and runs CI on the pinned 22.23.1 — see
+[`.tool-versions`](.tool-versions)). One runtime dependency: the verifier package.
+
+## Protocol family
+
+- [`@bounded-authority-protocol/verifier`](https://www.npmjs.com/package/@bounded-authority-protocol/verifier)
+  ([GitHub](https://github.com/baselabs/bounded_authority_protocol_typescript)) — the verify
+  side; this library signs, that package verifies. The dependency is one-directional (this
+  signer depends on the verifier, never the reverse).
+- [`baselabs/bounded_authority_protocol`](https://github.com/baselabs/bounded_authority_protocol)
+  — the protocol monorepo: the wire specs (`spec/bap-v1.md`,
+  `spec/bap-local-loopback-http-v1.md`) and the governing ADRs.
+- [`baselabs/bounded_authority_report_adapter`](https://github.com/baselabs/bounded_authority_report_adapter)
+  — the Elixir reference implementation this package ports; signing behavior tracks it, and
+  divergences carry a recorded decision.
 
 ## The five signers
 
@@ -106,7 +123,9 @@ Every compact this library produces is verified in CI through the independent ve
 package (`checkEnvelope`, `verifyGrant`, `verifyHistoricalAnchor`, `verifyKeyTransition`, the
 loopback profile's `checkEnvelope`) — no self-round-trip claims. The closure gates (C1 role
 gate, wrong-key guard, loopback nonce and canonical-target admission, atomic-identity
-requirement) are red-capable: mechanically removing the check fails its test.
+requirement) are red-capable: mechanically removing the check fails its test. CI runs the
+full gate on `ubuntu-24.04`, `windows-latest`, and `macos-latest` — clone → build → test
+holds on all three (the publish lane stays single-OS; it only stages what the gate proved).
 
 ## License
 
