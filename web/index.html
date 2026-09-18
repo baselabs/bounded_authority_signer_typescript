@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Bounded Authority Signer — the envelope playground</title>
-<meta name="description" content="The holder/issuer companion signer for the Bounded Authority Protocol. Private keys never enter the library — not even in this demo.">
+<title>BAP — prove what a caller may do, not just who they are</title>
+<meta name="description" content="The Bounded Authority Protocol: the per-request authority layer for MCP servers, agents, and APIs that authenticate with OAuth. Signed capabilities, holder proofs, independent verification — keys never leave your custody.">
 <link rel="stylesheet" href="./styles.css">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230d9488' stroke-width='2'%3E%3Cpath d='M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z'/%3E%3Cpath d='M9 12l2 2 4-4'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Crect width='48' height='48' rx='10' fill='%230f172a'/%3E%3Ctext x='24' y='32' font-family='Arial,sans-serif' font-size='19' font-weight='800' text-anchor='middle' fill='%232dd4bf'%3E[BAP]%3C/text%3E%3C/svg%3E">
 </head>
 <body>
 
@@ -29,7 +29,7 @@
 
 <header class="familynav">
   <nav>
-    <span class="brand"><svg class="ic"><use href="#i-shield"/></svg> Bounded&nbsp;Authority</span>
+    <span class="brand"><span class="wordmark"><i>[</i>BAP<i>]</i></span></span>
     <span class="fam">
       <a href="https://github.com/baselabs/bounded_authority_protocol" title="The protocol monorepo: specs and ADRs">Protocol</a>
       <a href="https://github.com/baselabs/bounded_authority_protocol_typescript" title="The verifier package">Verifier</a>
@@ -42,13 +42,16 @@
 
 <section class="hero">
   <div class="wrap">
-    <p class="kicker">The Bounded Authority Protocol · the signer package</p>
-    <h1>Transport auth proves <em>who</em> you are.<br>Bounded Authority proves <em>what you may do</em>.</h1>
-    <p class="lede">An issuer signs a capability grant. Your key signs a proof binding that grant to one
-    specific request. The resource verifies the envelope and gets cryptographic facts — never trust in the caller.</p>
+    <p class="kicker"><span class="wordmark hero-mark"><i>[</i>BAP<i>]</i></span> Bounded Authority Protocol</p>
+    <h1>Your OAuth proves <em>who</em> is calling.<br>BAP proves <em>what they may do</em>.</h1>
+    <p class="lede">If you run an MCP server, an agent, or any API that authenticates callers with
+    OAuth, you already have the <strong>who</strong>. BAP is the missing half: every request carries
+    a cryptographically signed capability — one operation, one target, one time window — and a fresh
+    proof from the caller’s own key. The resource verifies the envelope and gets facts, never trust.
+    Keys never leave your custody.</p>
     <div class="hero-actions">
-      <a class="btn primary" href="#playground"><svg class="ic"><use href="#i-terminal"/></svg> Run the flow</a>
-      <a class="btn ghost" href="#install">$ npm i @bounded-authority-protocol/signer</a>
+      <a class="btn primary" href="#playground"><svg class="ic"><use href="#i-terminal"/></svg> See it work — 60 seconds</a>
+      <a class="btn ghost" href="#install">npm i @bounded-authority-protocol/signer</a>
     </div>
     <div class="flow" aria-label="The envelope flow">
       <div class="actor issuer"><svg class="ic"><use href="#i-seal"/></svg><span>Issuer</span><small>signs the grant</small></div>
@@ -57,7 +60,7 @@
       <div class="artifact" id="flow-proof"><svg class="ic"><use href="#i-doc"/></svg><span>proof</span></div>
       <div class="actor verifier"><svg class="ic"><use href="#i-shield"/></svg><span>Verifier</span><small>checks the envelope</small></div>
     </div>
-    <p class="custody-note"><svg class="ic"><use href="#i-lock"/></svg> Private keys never enter the library — <strong>not even in this demo.</strong>
+    <p class="custody-note"><svg class="ic"><use href="#i-lock"/></svg> Private keys never enter the library — <strong>not even in the demo below.</strong>
     <span id="custody-mode" class="pill"></span></p>
     <ul class="badges">
       <li>npm 0.1.2</li><li>CI: green on macOS · Linux · Windows</li><li>Apache-2.0</li>
@@ -66,6 +69,42 @@
 </section>
 
 <main>
+<section id="why" class="wrap why">
+  <div class="why-head">
+    <h2>The piece OAuth leaves out</h2>
+    <p>OAuth and MCP authentication answer <strong>“which client is this?”</strong> — and stop there.
+    What that client may <em>do</em> is left to scopes, hope, and your resource server’s restraint.
+    BAP closes that gap, alongside the OAuth you already run.</p>
+  </div>
+  <div class="grid3">
+    <article class="whycard">
+      <h3>A token says <s>who</s> — not what.</h3>
+      <p class="pain">A stolen or over-scoped token keeps every power it was granted, on every
+      resource, until it expires. “read” means <em>all</em> reads, everywhere, for the token’s whole life.</p>
+      <p class="answer"><svg class="ic"><use href="#i-check"/></svg> With BAP, each capability is a signed grant naming
+      <strong>one operation, one target, one window</strong> — and each request carries a fresh proof
+      bound to exactly that request.</p>
+    </article>
+    <article class="whycard">
+      <h3>Trust moves to facts.</h3>
+      <p class="pain">Today your resource trusts the transport, the introspection endpoint, and the
+      caller’s good behavior. Nothing cryptographic ties this particular request to this particular
+      permission.</p>
+      <p class="answer"><svg class="ic"><use href="#i-check"/></svg> The verifier checks the envelope itself — issuer
+      signature, holder binding, operation match, time window — and returns <strong>cryptographic
+      facts</strong>, with no reason codes for attackers to probe.</p>
+    </article>
+    <article class="whycard">
+      <h3>Your keys stay yours.</h3>
+      <p class="pain">Authority systems usually want your private key, or a vendor to hold it for
+      you. That’s a new blast radius most teams won’t accept.</p>
+      <p class="answer"><svg class="ic"><use href="#i-check"/></svg> BAP never takes key material — issuers and holders
+      sign through their own custody (HSM, KMS, or a browser key store — the demo below uses one).
+      <strong>Nothing to hand over, nothing to leak.</strong></p>
+    </article>
+  </div>
+</section>
+
 <section id="playground" class="wrap">
   <div class="sec-head">
     <h2>The envelope playground</h2>
@@ -176,7 +215,7 @@
 
 <footer class="familynav footer">
   <nav>
-    <span class="brand"><svg class="ic"><use href="#i-shield"/></svg> Bounded&nbsp;Authority</span>
+    <span class="brand"><span class="wordmark"><i>[</i>BAP<i>]</i></span></span>
     <span class="fam">
       <a href="https://github.com/baselabs/bounded_authority_protocol">Protocol</a>
       <a href="https://www.npmjs.com/package/@bounded-authority-protocol/verifier">Verifier</a>
