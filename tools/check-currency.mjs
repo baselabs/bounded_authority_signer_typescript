@@ -51,7 +51,7 @@ import semver from "semver";
 const DELIBERATE_PINS = new Map([
   [
     "typescript",
-    "7.x is the native-compiler major line; adopting it is a review-gated move (strict-build emit plus both conformance corpora), not a currency patch",
+    "7.x is the native-compiler major line; adopting it is a review-gated move (strict-build emit plus this package's oracle battery through the independent verifier package), not a currency patch",
   ],
 ]);
 
