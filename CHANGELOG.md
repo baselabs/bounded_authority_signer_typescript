@@ -3,9 +3,10 @@
 ## [Unreleased]
 
 No library-code change — alignment with the protocol family's 2026-09-17 state (BAP 0.4.1,
-Elixir BARA 0.6.2 + the pin move; the surface comparison recorded in this repository's
-`.kimosabe/` handoff found the five-function surface 1:1 with the Elixir reference and zero
-signing-behavior delta since 0.6.0).
+Elixir BARA 0.6.2 + the pin move). The five-function surface is 1:1 with the Elixir
+reference (compared against its `main` @ `d235a4a`: same signing table, profiles, bounds
+flow, closed error set, and five-span telemetry) with zero signing-behavior delta since
+0.6.0 — BARA 0.6.1/0.6.2 and its Unreleased entries are repository tooling and pins only.
 
 - Dependency currency: the lockfile resolves `@bounded-authority-protocol/verifier` 0.2.0 →
   **0.2.1** (the provenance-bound re-release; content-identical to 0.2.0). The requirement

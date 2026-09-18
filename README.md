@@ -125,7 +125,9 @@ loopback profile's `checkEnvelope`) — no self-round-trip claims. The closure g
 gate, wrong-key guard, loopback nonce and canonical-target admission, atomic-identity
 requirement) are red-capable: mechanically removing the check fails its test. CI runs the
 full gate on `ubuntu-24.04`, `windows-latest`, and `macos-latest` — clone → build → test
-holds on all three (the publish lane stays single-OS; it only stages what the gate proved).
+holds on all three. The publish lane is separate: it re-verifies (build, typecheck, tests)
+on Node 24 — the npm >= 11.5 that trusted publishing requires — before staging a release
+that a human approves.
 
 ## License
 
