@@ -105,6 +105,55 @@
   </div>
 </section>
 
+<section id="cases" class="wrap cases">
+  <div class="why-head">
+    <h2>Where it pays off</h2>
+    <p>Four places teams already feel the gap between <strong>who</strong> and <strong>what</strong> —
+    every one works with the OAuth you already run.</p>
+  </div>
+  <div class="grid4 cases-grid">
+    <article class="casecard">
+      <h3>An agent that can spend money</h3>
+      <p class="ctx">MCP agent · payments API</p>
+      <p class="pain">Hand the agent a token and whatever it decides — or gets injected to decide —
+      the token allows, until it expires.</p>
+      <p class="grantline">grant: transfer · acct acme-77 · until 14:15</p>
+      <p class="answer"><svg class="ic"><use href="#i-check"/></svg> No proof, no transfer: a hijacked
+      prompt can’t move funds at 14:40, or to a different account — the API enforces the envelope,
+      not the agent’s good behavior.</p>
+    </article>
+    <article class="casecard">
+      <h3>A third-party tool you didn’t write</h3>
+      <p class="ctx">your workspace · someone else’s MCP server</p>
+      <p class="pain">Connecting a tool today often means blanket, long-lived scopes over your files
+      or mail — to code you’ve never audited.</p>
+      <p class="grantline">grant: read · attachments/ only · this session</p>
+      <p class="answer"><svg class="ic"><use href="#i-check"/></svg> Every tool call carries a fresh
+      proof against a narrow grant — the tool, or whoever compromises it, can’t browse an inch past
+      the bound.</p>
+    </article>
+    <article class="casecard">
+      <h3>Just-in-time elevation</h3>
+      <p class="ctx">on-call engineer or automation · production</p>
+      <p class="pain">Standing admin rights “just in case,” and break-glass tokens nobody remembers
+      to revoke.</p>
+      <p class="grantline">grant: deploy + rollback · staging · 30 min</p>
+      <p class="answer"><svg class="ic"><use href="#i-check"/></svg> The window closes itself —
+      yesterday’s grant is cryptographically useless today, with no revocation list to babysit.
+      Key rotation rides the same rails (signKeyTransition).</p>
+    </article>
+    <article class="casecard">
+      <h3>Support reading one customer</h3>
+      <p class="ctx">support agent · multi-tenant SaaS</p>
+      <p class="pain">A “support” role token typically reads every tenant’s records — access decided
+      by policy files, not cryptography.</p>
+      <p class="grantline">grant: read · tenant #4821 · ticket #90112</p>
+      <p class="answer"><svg class="ic"><use href="#i-check"/></svg> Curiosity can’t cross tenants:
+      each read is proven against a grant that names one tenant and one ticket’s lifetime.</p>
+    </article>
+  </div>
+</section>
+
 <section id="playground" class="wrap">
   <div class="sec-head">
     <h2>The envelope playground</h2>
