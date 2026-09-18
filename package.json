@@ -29,13 +29,19 @@
     "typecheck": "tsc --noEmit",
     "test": "node --test --import tsx/esm test/*.test.ts",
     "test:gates": "node --test --import tsx/esm test/gates.test.ts",
-    "check:currency": "node tools/check-currency.mjs"
+    "check:currency": "node tools/check-currency.mjs",
+    "typecheck:web": "tsc -p tsconfig.web.json",
+    "build:site": "node web/build.mjs && esbuild web/main.ts --bundle --minify --format=iife --target=es2022 --outfile=site-dist/app.js --alias:node:crypto=./web/shim/node-crypto.ts --inject:./web/shim/buffer-global.ts"
   },
   "dependencies": {
     "@bounded-authority-protocol/verifier": "^0.2.0"
   },
   "devDependencies": {
+    "@noble/ed25519": "^3.2.0",
+    "@noble/hashes": "^2.4.0",
     "@types/node": "^26.6.1",
+    "buffer": "^6.0.3",
+    "esbuild": "^0.28.2",
     "semver": "^7.8.5",
     "tsx": "^4.23.12",
     "typescript": "^6.0.3"

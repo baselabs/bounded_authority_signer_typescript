@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bounded Authority Signer — the envelope playground</title>
+<meta name="description" content="The holder/issuer companion signer for the Bounded Authority Protocol. Private keys never enter the library — not even in this demo.">
+<link rel="stylesheet" href="./styles.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230d9488' stroke-width='2'%3E%3Cpath d='M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z'/%3E%3Cpath d='M9 12l2 2 4-4'/%3E%3C/svg%3E">
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <g id="i-key"><path d="M10.6 13.4L21 3"/><path d="M18 4l2 2"/><path d="M15 7l2 2"/><circle cx="7.2" cy="16.8" r="3.8"/></g>
+    <g id="i-seal"><path d="M6 21h12"/><path d="M8 21v-2c0-1.1.9-2 2-2h4c1.1 0 2 .9 2 2v2"/><path d="M12 3a3.2 3.2 0 0 1 3.2 3.2c0 2.2-3.2 3.3-3.2 5.8 0-2.5-3.2-3.6-3.2-5.8A3.2 3.2 0 0 1 12 3z"/></g>
+    <g id="i-person"><circle cx="12" cy="8" r="3.3"/><path d="M5.2 20.5a6.8 6.8 0 0 1 13.6 0"/></g>
+    <g id="i-shield"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/><path d="M8.8 12l2.2 2.2 4.2-4.2"/></g>
+    <g id="i-doc"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/><path d="M10 12h5"/><path d="M10 16h5"/></g>
+    <g id="i-lock"><rect x="6" y="11" width="12" height="9" rx="2"/><path d="M9 11V8a3 3 0 0 1 6 0v3"/></g>
+    <g id="i-ban"><circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8"/></g>
+    <g id="i-alert"><path d="M12 4l9 16H3z"/><path d="M12 10.5v4"/><path d="M12 17.5h.01"/></g>
+    <g id="i-x"><circle cx="12" cy="12" r="9"/><path d="M9 9l6 6"/><path d="M15 9l-6 6"/></g>
+    <g id="i-check"><circle cx="12" cy="12" r="9"/><path d="M8.5 12.3l2.4 2.4 4.6-4.9"/></g>
+    <g id="i-terminal"><rect x="3.5" y="5" width="17" height="14" rx="2"/><path d="M7.5 10l2.6 2-2.6 2"/><path d="M12.5 14h4"/></g>
+    <g id="i-wire"><path d="M4 12c2.5-4.5 5.5-4.5 8 0s5.5 4.5 8 0"/></g>
+  </defs>
+</svg>
+
+<header class="familynav">
+  <nav>
+    <span class="brand"><svg class="ic"><use href="#i-shield"/></svg> Bounded&nbsp;Authority</span>
+    <span class="fam">
+      <a href="https://github.com/baselabs/bounded_authority_protocol" title="The protocol monorepo: specs and ADRs">Protocol</a>
+      <a href="https://github.com/baselabs/bounded_authority_protocol_typescript" title="The verifier package">Verifier</a>
+      <a href="#" class="here" title="You are here">Signer</a>
+      <a href="https://github.com/baselabs/bounded_authority_report_adapter" title="The Elixir reference implementation">Elixir&nbsp;reference</a>
+    </span>
+    <a class="gh" href="https://github.com/baselabs/bounded_authority_signer_typescript">GitHub&nbsp;↗</a>
+  </nav>
+</header>
+
+<section class="hero">
+  <div class="wrap">
+    <p class="kicker">The Bounded Authority Protocol · the signer package</p>
+    <h1>Transport auth proves <em>who</em> you are.<br>Bounded Authority proves <em>what you may do</em>.</h1>
+    <p class="lede">An issuer signs a capability grant. Your key signs a proof binding that grant to one
+    specific request. The resource verifies the envelope and gets cryptographic facts — never trust in the caller.</p>
+    <div class="hero-actions">
+      <a class="btn primary" href="#playground"><svg class="ic"><use href="#i-terminal"/></svg> Run the flow</a>
+      <a class="btn ghost" href="#install">$ npm i @bounded-authority-protocol/signer</a>
+    </div>
+    <div class="flow" aria-label="The envelope flow">
+      <div class="actor issuer"><svg class="ic"><use href="#i-seal"/></svg><span>Issuer</span><small>signs the grant</small></div>
+      <div class="artifact" id="flow-grant"><svg class="ic"><use href="#i-doc"/></svg><span>grant</span></div>
+      <div class="actor holder"><svg class="ic"><use href="#i-person"/></svg><span>Holder</span><small>proves the request</small></div>
+      <div class="artifact" id="flow-proof"><svg class="ic"><use href="#i-doc"/></svg><span>proof</span></div>
+      <div class="actor verifier"><svg class="ic"><use href="#i-shield"/></svg><span>Verifier</span><small>checks the envelope</small></div>
+    </div>
+    <p class="custody-note"><svg class="ic"><use href="#i-lock"/></svg> Private keys never enter the library — <strong>not even in this demo.</strong>
+    <span id="custody-mode" class="pill"></span></p>
+    <ul class="badges">
+      <li>npm 0.1.2</li><li>CI: green on macOS · Linux · Windows</li><li>Apache-2.0</li>
+    </ul>
+  </div>
+</section>
+
+<main>
+<section id="playground" class="wrap">
+  <div class="sec-head">
+    <h2>The envelope playground</h2>
+    <p>Everything below is live: this page bundles the real <code>signer</code> and <code>verifier</code>
+    packages and signs with a key generated in your browser. No server, no simulation, no mocks.</p>
+    <button id="reset" class="btn subtle"><svg class="ic"><use href="#i-key"/></svg> New keys · reset</button>
+  </div>
+
+  <div class="lanes">
+    <article class="lane issuer" id="lane-issuer">
+      <header><svg class="ic"><use href="#i-seal"/></svg> Issuer <span class="role-badge">grants authority</span></header>
+      <div class="keychip" id="chip-issuer"></div>
+      <dl class="props">
+        <div><dt>may</dt><dd><code>transfer</code> · <code>{ kind: "all" }</code></dd></div>
+        <div><dt>audience</dt><dd><code>resource.example.test</code></dd></div>
+        <div><dt>window</dt><dd>t=1000 → 2000 <span class="dim">(evaluated at 1500)</span></dd></div>
+      </dl>
+      <button id="btn-grant" class="btn actorbtn issuer"><svg class="ic"><use href="#i-seal"/></svg> Sign the grant</button>
+      <div class="card-slot" id="slot-grant" data-empty="the signed grant appears here"></div>
+    </article>
+
+    <article class="lane holder" id="lane-holder">
+      <header><svg class="ic"><use href="#i-person"/></svg> Holder <span class="role-badge">your agent</span></header>
+      <div class="keychip" id="chip-holder"></div>
+      <dl class="props">
+        <div><dt>request</dt><dd><code>POST /invoke</code> · <code>amount: 5000</code></dd></div>
+        <div><dt>invocation</dt><dd><code>550e8400-…440000</code></dd></div>
+      </dl>
+      <button id="btn-proof" class="btn actorbtn holder" disabled><svg class="ic"><use href="#i-key"/></svg> Prove the request</button>
+      <div class="card-slot" id="slot-proof" data-empty="the holder proof appears here"></div>
+    </article>
+
+    <article class="lane verifier" id="lane-verifier">
+      <header><svg class="ic"><use href="#i-shield"/></svg> Verifier <span class="role-badge">the resource</span></header>
+      <dl class="props">
+        <div><dt>trusts issuer key</dt><dd><code id="trust-key">—</code></dd></div>
+      </dl>
+      <button id="btn-verify" class="btn actorbtn verifier" disabled><svg class="ic"><use href="#i-shield"/></svg> Verify the envelope</button>
+      <div class="verdict" id="verdict" data-state="idle">
+        <span class="verdict-mark"><svg class="ic"><use href="#i-terminal"/></svg></span>
+        <span class="verdict-text">verify an envelope to see the fact sheet</span>
+      </div>
+      <details id="facts" open><summary>fact sheet</summary><pre id="facts-body">—</pre></details>
+    </article>
+  </div>
+
+  <div class="tamper">
+    <h3><svg class="ic"><use href="#i-wire"/></svg> Tamper deck <small>— the verification only means something if it fails</small></h3>
+    <div class="tamper-btns">
+      <button class="btn danger" data-tamper="payload" disabled>Replay against a modified request → amount 9000</button>
+      <button class="btn danger" data-tamper="operation" disabled>Claim a different operation</button>
+      <button class="btn danger" data-tamper="expiry" disabled>Evaluate after expiry</button>
+      <button class="btn danger" data-tamper="impostor" disabled>Steal the grant with another key</button>
+      <button class="btn danger" data-tamper="issuer" disabled>Wrong issuer trusted</button>
+    </div>
+    <p class="hint" id="tamper-hint">Sign and prove first — then break it on purpose.</p>
+  </div>
+
+  <div class="wireviewer">
+    <h3><svg class="ic"><use href="#i-terminal"/></svg> Wire viewer <small>— click an artifact above to inspect the real bytes</small></h3>
+    <div class="seg-tabs" id="seg-tabs"></div>
+    <pre class="wire" id="wire-body">nothing selected yet</pre>
+  </div>
+</section>
+
+<section class="props-band">
+  <div class="wrap grid4">
+    <article><svg class="ic big"><use href="#i-lock"/></svg><h3>Custody boundary</h3>
+      <p>Keys stay in your custody — an HSM, a KMS, or the browser key store this page just used. The library only ever sees a handle.</p></article>
+    <article><svg class="ic big"><use href="#i-ban"/></svg><h3>C1 role gate</h3>
+      <p>A holder handle can never mint its own capability: grants require an issuer-role identity resolved atomically, before <code>sign()</code> is even called.</p></article>
+    <article><svg class="ic big"><use href="#i-alert"/></svg><h3>Wrong-key guard</h3>
+      <p>Every signature is verified against the resolved public key before assembly. A misconfigured custodian fails loudly as <code>signing_failed</code> — never a silent false success.</p></article>
+    <article><svg class="ic big"><use href="#i-x"/></svg><h3>Closed errors</h3>
+      <p>A closed error-code set; no key material, nonce values, or report content ever appears in an error.</p></article>
+  </div>
+</section>
+
+<section class="wrap" id="signers">
+  <div class="sec-head"><h2>The five signers</h2></div>
+  <table class="signers">
+    <thead><tr><th>Function</th><th>Object</th><th>Role</th></tr></thead>
+    <tbody>
+      <tr><td><code>signReport</code></td><td>holder proof — the grant passes through untouched</td><td><span class="role-badge holder">holder</span></td></tr>
+      <tr><td><code>signLocalLoopbackReport</code></td><td>local-loopback application proof (<code>ba+loopback-proof</code>)</td><td><span class="role-badge holder">holder</span></td></tr>
+      <tr><td><code>signAnchor</code></td><td>boundary anchor</td><td><span class="role-badge">role-agnostic</span></td></tr>
+      <tr><td><code>signKeyTransition</code></td><td>key transition</td><td><span class="role-badge">role-agnostic</span></td></tr>
+      <tr><td><code>signGrant</code></td><td>capability grant</td><td><span class="role-badge issuer">issuer-only</span></td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section class="wrap" id="install">
+  <div class="sec-head"><h2>The key-handle contract</h2>
+  <p>One interface, every operation. Every method may be async — remote custodians are first-class.</p></div>
+  <pre class="code">interface KeyHandle {
+  sign(message: Uint8Array): Uint8Array | Promise&lt;Uint8Array&gt;;        // 64-byte Ed25519
+  publicKey(): Uint8Array | Promise&lt;Uint8Array&gt;;                       // 32 bytes
+  thumbprint(): string | Promise&lt;string&gt;;                              // RFC 7638, base64url
+  keyIdentity?(): { keyId, publicKey } | Promise&lt;…&gt;;                  // anchor + transition
+  signingIdentity?(): { role: "issuer" | "holder", keyId, publicKey }; // grants — the C1 gate
+}</pre>
+  <div class="install-row">
+    <pre class="code slim">npm i @bounded-authority-protocol/signer    # Node >= 22, one runtime dep: the verifier</pre>
+  </div>
+</section>
+</main>
+
+<footer class="familynav footer">
+  <nav>
+    <span class="brand"><svg class="ic"><use href="#i-shield"/></svg> Bounded&nbsp;Authority</span>
+    <span class="fam">
+      <a href="https://github.com/baselabs/bounded_authority_protocol">Protocol</a>
+      <a href="https://www.npmjs.com/package/@bounded-authority-protocol/verifier">Verifier</a>
+      <a href="https://www.npmjs.com/package/@bounded-authority-protocol/signer">Signer</a>
+      <a href="https://github.com/baselabs/bounded_authority_report_adapter">Elixir&nbsp;reference</a>
+    </span>
+    <span class="fine">Apache-2.0 · bundled from this repository's source with the published verifier package</span>
+  </nav>
+</footer>
+
+<script src="./app.js"></script>
+</body>
+</html>
