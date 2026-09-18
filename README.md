@@ -34,7 +34,9 @@ Requires Node.js `>= 22` (the repository develops and runs CI on the pinned 22.2
 - [`@bounded-authority-protocol/verifier`](https://www.npmjs.com/package/@bounded-authority-protocol/verifier)
   ([GitHub](https://github.com/baselabs/bounded_authority_protocol_typescript)) — the verify
   side; this library signs, that package verifies. The dependency is one-directional (this
-  signer depends on the verifier, never the reverse).
+  signer depends on the verifier, never the reverse), and the verifier's README carries a
+  worked "Pairing with the signer" example — the three-role production flow with this
+  package's five signers, executed against published versions.
 - [`baselabs/bounded_authority_protocol`](https://github.com/baselabs/bounded_authority_protocol)
   — the protocol monorepo: the wire specs (`spec/bap-v1.md`,
   `spec/bap-local-loopback-http-v1.md`) and the governing ADRs.

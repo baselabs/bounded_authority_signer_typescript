@@ -10,11 +10,14 @@ importers:
     dependencies:
       '@bounded-authority-protocol/verifier':
         specifier: ^0.2.0
-        version: 0.2.1
+        version: 0.2.2
     devDependencies:
       '@types/node':
-        specifier: ^26.4.0
-        version: 26.5.1
+        specifier: ^26.6.1
+        version: 26.6.1
+      semver:
+        specifier: ^7.8.5
+        version: 7.8.5
       tsx:
         specifier: ^4.23.12
         version: 4.23.13
@@ -24,8 +27,8 @@ importers:
 
 packages:
 
-  '@bounded-authority-protocol/verifier@0.2.1':
-    resolution: {integrity: sha512-SAKeFHvozeXfnsoasrCb9+kfM96diVYXajqq0aAAdCMPoDUaFaeXps4GG7VsRyQq0T6DS3xJAY7NcxZjNxq/iQ==}
+  '@bounded-authority-protocol/verifier@0.2.2':
+    resolution: {integrity: sha512-2GEhe+xIh1nZMKRMs8RtgeYTQfChA1qLt/lWJAGpE5KwajR1spvk8cyvkrSEDWmT4HyNzDhFmbtelaMrzClfpA==}
     engines: {node: '>=22'}
 
   '@esbuild/aix-ppc64@0.28.2':
@@ -184,8 +187,8 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@types/node@26.5.1':
-    resolution: {integrity: sha512-CzNm2FezW4VR/LjG6yUdiEgLE/rAQ9Slj5gCu/C2VrdcW7I0ahNZ8DRbHT7zOZ6r3ONgd/bsQIeSaoDGrd1C6g==}
+  '@types/node@26.6.1':
+    resolution: {integrity: sha512-VqGJBMCtdhqkBUCcBLvywI0NJ+KLuVzgNnlBUNFOQjqVxzo2lxLUNg1DSey8+u2u6ktswSAxg+s68QLzWHNOuA==}
 
   esbuild@0.28.2:
     resolution: {integrity: sha512-HKVLS8dvII+xoKW9kmqxbRKrnWEXfJJr/FZhhJmiqIB0e053QNYFqOBouTMO/k5sID4MvCiUCvv8b9M4h32wIA==}
@@ -196,6 +199,11 @@ packages:
     resolution: {integrity: sha512-5xoDfX+fL7faATnagmWPpbFtwh/R77WmMMqqHGS65C3vvB0YHrgF+B1YmZ3441tMj5n63k0212XNoJwzlhffQw==}
     engines: {node: ^8.16.0 || ^10.6.0 || >=11.0.0}
     os: [darwin]
+
+  semver@7.8.5:
+    resolution: {integrity: sha512-Y7/KDsb8LjooZpwaqGyulO6DQlksgCncchHGk+sZIY4SBvUocMBEFH5Ur1fI4dV+Jvl0w6cjvucaIi40puRioA==}
+    engines: {node: '>=10'}
+    hasBin: true
 
   tsx@4.23.13:
     resolution: {integrity: sha512-BL5MGkRln6aDYhb0xbQlEAGw743BaZYWdbWtdJOBriYJboKgUUYCadFp2/FpBBZquBC/ezNBn7wMMPx7FDZUDw==}
@@ -212,7 +220,7 @@ packages:
 
 snapshots:
 
-  '@bounded-authority-protocol/verifier@0.2.1': {}
+  '@bounded-authority-protocol/verifier@0.2.2': {}
 
   '@esbuild/aix-ppc64@0.28.2':
     optional: true
@@ -292,7 +300,7 @@ snapshots:
   '@esbuild/win32-x64@0.28.2':
     optional: true
 
-  '@types/node@26.5.1':
+  '@types/node@26.6.1':
     dependencies:
       undici-types: 8.9.0
 
@@ -327,6 +335,8 @@ snapshots:
 
   fsevents@2.3.3:
     optional: true
+
+  semver@7.8.5: {}
 
   tsx@4.23.13:
     dependencies:

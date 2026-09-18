@@ -8,11 +8,21 @@ reference (compared against its `main` @ `d235a4a`: same signing table, profiles
 flow, closed error set, and five-span telemetry) with zero signing-behavior delta since
 0.6.0 — BARA 0.6.1/0.6.2 and its Unreleased entries are repository tooling and pins only.
 
-- Dependency currency: the lockfile resolves `@bounded-authority-protocol/verifier` 0.2.0 →
-  **0.2.1** (the provenance-bound re-release; content-identical to 0.2.0). The requirement
+- Dependency currency: the lockfile resolves `@bounded-authority-protocol/verifier` **0.2.2**
+  (the verifier's family-alignment release — itself no library-code change; first 0.2.0 →
+  0.2.1 provenance-bound, then 0.2.2 after its own alignment session). The requirement
   deliberately holds the caret `^0.2.0` — an exact pin in a published package's dependencies
   would force every consumer's resolution and block dedupe, and reproducibility is already
   provided by the tracked lockfile plus CI's `--frozen-lockfile` installs.
+- Dependency-currency gate (latest-first, the family ADR 0032 shape): `tools/check-currency.mjs`
+  ported byte-identical from the verifier package's repository — `pnpm outdated` data
+  classified through the canonical `semver` resolver: in-range resolvable drift fails (never
+  pinnable), deliberate pins cover only out-of-range latests and carry inline reasons
+  (typescript stays on 6.x pending the 7.x native-compiler review), and an unverifiable
+  currency state fails closed. Wired as `pnpm check:currency` and a CI `dependency-currency`
+  job; four legs re-proven on this repository (green real lock / red pin-removed / red
+  unreachable registry / green all-current scratch). Dev dependencies at latest:
+  `@types/node` 26.6.1, `semver` 7.8.5 (the gate's resolver).
 - Tri-platform CI (family bar, 2026-09-16): `ci.yml` gains `windows-latest` and `macos-latest`
   lanes beside `ubuntu-24.04` — every step is pnpm/Node, no POSIX shell. `.gitattributes`
   (`* text=auto eol=lf`) keeps a Windows autocrlf checkout byte-stable.

@@ -28,13 +28,15 @@
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "test": "node --test --import tsx/esm test/*.test.ts",
-    "test:gates": "node --test --import tsx/esm test/gates.test.ts"
+    "test:gates": "node --test --import tsx/esm test/gates.test.ts",
+    "check:currency": "node tools/check-currency.mjs"
   },
   "dependencies": {
     "@bounded-authority-protocol/verifier": "^0.2.0"
   },
   "devDependencies": {
-    "@types/node": "^26.4.0",
+    "@types/node": "^26.6.1",
+    "semver": "^7.8.5",
     "tsx": "^4.23.12",
     "typescript": "^6.0.3"
   }
