@@ -45,7 +45,7 @@ jobs:
         run: pnpm build:site
 
       - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@2d650be75b4ab9c95b1b9d702f2c1682c872fd18 # v3.0.0
+        uses: actions/upload-pages-artifact@0252fc4ba7626f0298f0cf00902a25c6afc77fa8 # v3.0.0
         with:
           path: site-dist
 
@@ -62,4 +62,4 @@ jobs:
     steps:
       - name: Deploy
         id: deployment
-        uses: actions/deploy-pages@5c9e06bcbaeb2a5586e4f8410947f4a21eaa7fd2 # v4.0.2
+        uses: actions/deploy-pages@7a9bd943aa5e5175aeb8502edcc6c1c02d398e10 # v4.0.2
