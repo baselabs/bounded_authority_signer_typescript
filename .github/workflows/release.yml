@@ -30,7 +30,9 @@ jobs:
       - name: Set up Node (24 bundles npm >= 11.5 — required for OIDC trusted publishing)
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 24
+          # Exact pin (24.0.0 shipped npm 11.3, below the trusted-publishing floor;
+          # a bare major would float the very constraint the lane depends on).
+          node-version: 24.19.0
           cache: pnpm
 
       - name: Install (frozen lockfile)
@@ -43,7 +45,7 @@ jobs:
         run: pnpm typecheck && pnpm test
 
       # Idempotent releases: a version already on the registry verifies only.
-      - name: Check registry for existing version
+      - name: Verify registry for existing version
         id: existing
         run: |
           if npm view "@bounded-authority-protocol/signer@${GITHUB_REF_NAME#v}" version >/dev/null 2>&1; then
@@ -51,6 +53,14 @@ jobs:
           else
             echo "published=false" >> "$GITHUB_OUTPUT"
           fi
+
+      # The family routine is "a v* tag on a version-bump commit" — enforce the
+      # match instead of trusting it: the idempotency check above keys on the
+      # TAG, while npm stage publish below publishes package.json's version, so
+      # a tag/manifest mismatch would silently stage the wrong version.
+      - name: Tag must match package.json version
+        run: |
+          node --input-type=module -e "const tag = process.env.GITHUB_REF_NAME.replace(/^v/, ''); const pkg = (await import('./package.json', { with: { type: 'json' } })).default.version; if (pkg !== tag) { console.error(\`tag v\${tag} does not match package.json version \${pkg}\`); process.exit(1); } console.log(\`tag v\${tag} matches package.json \${pkg}\`);"
 
       - name: Stage publish to npm with provenance (human approval required)
         if: steps.existing.outputs.published == 'false'
