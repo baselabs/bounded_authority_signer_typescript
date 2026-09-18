@@ -216,7 +216,7 @@ function verifyWith(grant: Uint8Array, proof: Uint8Array, exp: ReturnType<typeof
   const at = checkEnvelope(grant, proof, exp as never);
   if (at.ok) {
     setVerdict("ok", "ENVELOPE OK — cryptographic facts returned");
-    $("facts-body").textContent = JSON.stringify(at.value, factsReplacer, 2);
+    $("facts-body").innerHTML = factPanel("envelope facts", at.value, at.value);
     $("tamper-hint").className = "hint";
     $("tamper-hint").textContent = "Now break it — every button below produces a real, closed INVALID from the verifier.";
     return;
@@ -230,13 +230,40 @@ function verifyWith(grant: Uint8Array, proof: Uint8Array, exp: ReturnType<typeof
   };
   if (!at.ok) {
     setVerdict("fail", "VERIFICATION FAILED — <b>INVALID</b>");
-    $("facts-body").textContent = JSON.stringify(at, null, 2);
+    $("facts-body").innerHTML = factPanel("result", at, at);
     const which = lastTamper ? why[lastTamper] : undefined;
     $("tamper-hint").className = "hint fail";
     $("tamper-hint").textContent = which
       ? `${which} — and the verifier returned exactly {"ok":false}. No reason, no partial: verification is not authority, and there is no oracle for an attacker.`
       : 'the verifier returned exactly {"ok":false} — no reason, no partial (verification is not authority).';
   }
+}
+
+
+// ---------- fact panels (designed key/value view; raw JSON behind a toggle) ----------
+const esc = (s: string): string => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+function factRows(obj: unknown): string {
+  if (obj === null || typeof obj !== "object" || obj instanceof Uint8Array) {
+    const s = obj instanceof Uint8Array ? Array.from(obj.slice(0, 8)).join(",") + "…" : String(obj);
+    return `<span class="fv">${esc(s)}</span>`;
+  }
+  const entries: [string, unknown][] = Array.isArray(obj)
+    ? obj.map((v, i) => [`#${i + 1}`, v])
+    : Object.entries(obj as Record<string, unknown>);
+  return entries.map(([k, v]) => {
+    if (v !== null && typeof v === "object" && !(v instanceof Uint8Array)) {
+      return `<div class="factrow nest"><span class="fk">${esc(k)}</span><div class="subfacts">${factRows(v)}</div></div>`;
+    }
+    const s = String(v);
+    const shown = s.length > 64 ? s.slice(0, 64) + "…" : s;
+    return `<div class="factrow"><span class="fk">${esc(k)}</span><span class="fv" title="${esc(s)}">${esc(shown)}</span></div>`;
+  }).join("");
+}
+
+function factPanel(label: string, facts: unknown, raw: unknown): string {
+  return `<div class="factlabel">${esc(label)}</div><div class="facts">${factRows(facts)}</div>` +
+    `<details class="raw"><summary>raw JSON</summary><pre>${esc(JSON.stringify(raw, (_k, v) => v instanceof Map ? Object.fromEntries(v) : v instanceof Uint8Array ? Array.from(v) : v, 2))}</pre></details>`;
 }
 
 function setVerdict(state: "idle" | "ok" | "fail", html: string): void {
