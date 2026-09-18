@@ -1,5 +1,14 @@
 # Changelog
 
+## [Unreleased]
+
+- The repository's GitHub Pages site is live — the envelope playground
+  (https://baselabs.github.io/bounded_authority_signer_typescript/): a landing page pitched
+  at MCP/OAuth audiences plus a fully in-browser demo bundling this package and the published
+  verifier package (real signatures, real verification, tamper deck, wire viewer; keys
+  generated in the visitor's browser never enter the library). The npm `homepage` field now
+  points there; the README links it at the top. No library-code change.
+
 ## [0.1.2] — 2026-09-18
 
 No library-code change — alignment with the protocol family's 2026-09-17 state (BAP 0.4.1,

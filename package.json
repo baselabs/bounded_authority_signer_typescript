@@ -19,7 +19,7 @@
     "type": "git",
     "url": "git+https://github.com/baselabs/bounded_authority_signer_typescript.git"
   },
-  "homepage": "https://github.com/baselabs/bounded_authority_signer_typescript#readme",
+  "homepage": "https://baselabs.github.io/bounded_authority_signer_typescript/",
   "bugs": "https://github.com/baselabs/bounded_authority_signer_typescript/issues",
   "publishConfig": {
     "access": "public"

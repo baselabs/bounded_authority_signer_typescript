@@ -4,6 +4,11 @@
 [![CI](https://github.com/baselabs/bounded_authority_signer_typescript/actions/workflows/ci.yml/badge.svg)](https://github.com/baselabs/bounded_authority_signer_typescript/actions/workflows/ci.yml)
 [![license](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
+**Try it in your browser — no install:** the [envelope playground](https://baselabs.github.io/bounded_authority_signer_typescript/)
+runs this package and the verifier package for real, in the page, with a key your browser
+generates. For the "why" (what this adds over OAuth for MCP servers, agents, and APIs),
+start at the playground's landing sections.
+
 The holder/issuer companion **signer** for the Bounded Authority Protocol in TypeScript —
 the port of the Elixir
 [`bounded_authority_report_adapter`](https://hex.pm/packages/bounded_authority_report_adapter)
