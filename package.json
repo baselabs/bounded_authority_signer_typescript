@@ -1,6 +1,6 @@
 {
   "name": "@bounded-authority-protocol/signer",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Holder/issuer companion signer for the Bounded Authority Protocol — signs proofs, grants, boundary anchors, and key transitions through a caller-owned key handle whose private key never enters the library.",
   "license": "Apache-2.0",
   "type": "module",

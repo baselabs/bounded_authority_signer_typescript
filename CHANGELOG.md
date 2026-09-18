@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.1.2] — 2026-09-18
 
 No library-code change — alignment with the protocol family's 2026-09-17 state (BAP 0.4.1,
 Elixir BARA 0.6.2 + the pin move). The five-function surface is 1:1 with the Elixir
