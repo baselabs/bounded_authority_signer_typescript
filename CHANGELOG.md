@@ -2,6 +2,39 @@
 
 ## [Unreleased]
 
+- **Contract-major 3 (`BAP3-ES256-SHA256`) producing-side adoption** (protocol
+  [ADR 0035](https://github.com/baselabs/bounded_authority_protocol/blob/main/docs/adr/0035-es256-contract-major-activation.md),
+  `spec/bap-v3.md`; the owner decision of 2026-09-20). Four new signers — `signV3Grant`,
+  `signV3Report`, `signV3Anchor`, `signV3KeyTransition` — mirror the v1 functions under the
+  ES256 suite: `alg: "ES256"` protected headers, payload `v: 3`, the `BAP3-REQUEST\0` digest
+  prefix, the EC proof JWK `{crv, kty, x, y}` with the RFC 7638 EC thumbprint as `cnf.jkt`,
+  the five-kind selector algebra (`all`, `equals`, `one_of`, `lte`, `gte`), 65-byte
+  uncompressed-SEC1 raw public keys, and 64-byte raw `r || s` signatures. The v3 key-handle
+  contract (`Es256KeyHandle`) keeps the same custody boundary with the suite's widths; the
+  local-loopback profile stays contract-major-1-bound (no v3 form exists).
+- **Low-S normalization is load-bearing** (spec/bap-v3.md §3.2; `REQ3-SIGNING-low-s`): the
+  shared v3 signing tail normalizes every handle signature before emission — `s ← n − s`
+  when high, one conditional subtraction — so the emitted `s` satisfies `0 < s ≤ (n−1)/2`
+  always. The retained property run (120 fresh P-256 keys through `signV3Report`) observed
+  natural high-S at the expected ~1/2 rate, every emitted signature verifying under
+  node:crypto both in the raw `ieee-p1363` form and re-encoded as DER.
+- The v3 producing profile lives in this repository for now (`src/v3.ts`): the pinned
+  `@bounded-authority-protocol/verifier` 0.2.2 implements contract-majors 1 and 2 only (v3
+  lands there as 0.2.3+ in its own repository), so the v1 pattern of delegating composition
+  to the verifier's producers is not yet available. Version-neutral algebra (JCS, JSON,
+  base64url, SHA-256, typed projection, URI normalization, Bounds) still single-sources from
+  the verifier package's exported primitives; only the v3-specific bytes are authored here.
+  The v3 test oracle is correspondingly pinned at the crypto level (every produced compact's
+  signature verified over the exact RFC 7515 signing input, raw and DER), with a test
+  asserting the verifier package's v3 gap so the oracle flips to its `checkEnvelope`
+  equivalents when 0.2.3+ lands. Switching the composers onto the verifier's v3 producers at
+  that point is an owner-gated decision recorded here.
+- The v3 closure gates are red-capable (proven at authoring by mechanical removal):
+  low-S normalization, the wrong-key guard (ES256 form), the C1 issuer-role gate (ES256
+  form), and the producer's P-256 on-curve/width check each redden exactly their leg.
+- Dependency currency (the latest-first gate): in-range lockfile updates discovered by
+  running the gate — `@types/node` 26.6.2, `tsx` 4.23.15 (never pinnable, in-range drift).
+  No version bump and no publish in this change (owner-gated two-stage publishing).
 - The repository's GitHub Pages site is live — the envelope playground
   (https://baselabs.github.io/bounded_authority_signer_typescript/): a landing page pitched
   at MCP/OAuth audiences plus a fully in-browser demo bundling this package and the published

@@ -15,6 +15,16 @@ export type {
   ReportInput, AnchorInput, GrantInput, TransitionInput, SignOpts, SignerEvent,
   Envelope, AnchorCompact, GrantCompact, TransitionCompact,
 } from "./api.js";
+export {
+  signV3Report,
+  signV3Anchor,
+  signV3Grant,
+  signV3KeyTransition,
+} from "./apiV3.js";
+export type {
+  V3ReportInput, V3AnchorInput, V3GrantInput, V3TransitionInput, V3SignOpts, V3SignerEvent,
+  Es256KeyHandle,
+} from "./apiV3.js";
 export type {
   KeyHandle, KeyRole, AtomicKeyIdentity, AtomicSigningIdentity,
   SignerErrorCode, SignerResult,

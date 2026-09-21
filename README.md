@@ -13,8 +13,11 @@ The holder/issuer companion **signer** for the Bounded Authority Protocol in Typ
 the port of the Elixir
 [`bounded_authority_report_adapter`](https://hex.pm/packages/bounded_authority_report_adapter)
 ([GitHub](https://github.com/baselabs/bounded_authority_report_adapter)). This 0.1.x line signs
-**contract-major 1** (the byte-frozen v1 profile and the local-loopback profile) — the v2
-contract-major is verify-side in the protocol family and is not a signing surface here.
+**contract-major 1** (the byte-frozen v1 profile and the local-loopback profile) and
+**contract-major 3** — the `BAP3-ES256-SHA256` suite of
+[ADR 0035](https://github.com/baselabs/bounded_authority_protocol/blob/main/docs/adr/0035-es256-contract-major-activation.md)
+(ECDSA P-256 with SHA-256, low-S normalized) — while the v2 contract-major is verify-side in
+the protocol family and not a signing surface here.
 
 The protocol's verifier package produces each object's deterministic signing input and
 **refuses to sign**. This library takes a caller-owned key handle and a report and produces
@@ -64,6 +67,28 @@ Every result is `{ ok: true, value }` or `{ ok: false, error }` with a closed er
 `invalid_key_handle`, `signing_failed`, `producer_error`) — no key material, nonce values, or
 report content ever appears in an error.
 
+## The four v3 signers (ES256)
+
+| Function | Object | Role |
+|---|---|---|
+| `signV3Report` | holder proof (the v3 grant passes through untouched) | holder |
+| `signV3Anchor` | boundary anchor | role-agnostic |
+| `signV3KeyTransition` | key transition | role-agnostic |
+| `signV3Grant` | grant | issuer-only, structurally gated |
+
+The v3 surface mirrors the v1 functions under the `BAP3-ES256-SHA256` suite: `alg: "ES256"`
+protected headers, payload `v: 3`, the `BAP3-REQUEST\0` digest prefix, the EC proof JWK
+`{"crv":"P-256","kty":"EC","x":…,"y":…}` with the RFC 7638 EC thumbprint as `cnf.jkt`, the
+five-kind selector algebra (including `lte`/`gte`), 65-byte uncompressed-SEC1 raw public
+keys (`0x04 || x || y`), and 64-byte raw `r || s` signatures with **low-S normalization** —
+`s` is replaced by `n − s` when high, so every emitted signature satisfies
+`0 < s ≤ (n−1)/2` and cannot be re-spelled into a second valid encoding (ECDSA malleability;
+the backend emits high-`s` about half the time). The v3 key-handle contract
+(`Es256KeyHandle`) keeps the same custody boundary with the suite's widths. The
+local-loopback profile is contract-major-1-bound and has no v3 form. Until the verifier
+package ships its v3 surface (0.2.2 is v1+v2), the v3 producing profile lives in this
+package and CI pins every produced compact at the crypto level — no self-round-trip claims.
+
 ## Quickstart — an edge agent proves a request
 
 ```ts
@@ -110,7 +135,12 @@ interface KeyHandle {
 }
 ```
 
-Two load-bearing rules port unchanged from the Elixir adapter:
+The v3 suite takes the same contract shape under `Es256KeyHandle` with the suite's fixed
+widths: `sign()` returns the 64-byte raw `r || s` (a high-`s` from the custodian is fine —
+the library normalizes before emission), `publicKey()` the 65-byte uncompressed-SEC1 point,
+and `thumbprint()` the RFC 7638 EC thumbprint.
+
+Two load-bearing rules port unchanged from the Elixir adapter (both v1 and v3):
 
 - **The C1 gate** — `signGrant` resolves the handle's role, key id, and public key as ONE
   atomic `signingIdentity()` snapshot and fails closed before `sign()` is ever called unless
@@ -128,9 +158,16 @@ required, and the target must be exactly `http://127.0.0.1[:port]/…` or `http:
 
 Every compact this library produces is verified in CI through the independent verifier
 package (`checkEnvelope`, `verifyGrant`, `verifyHistoricalAnchor`, `verifyKeyTransition`, the
-loopback profile's `checkEnvelope`) — no self-round-trip claims. The closure gates (C1 role
-gate, wrong-key guard, loopback nonce and canonical-target admission, atomic-identity
-requirement) are red-capable: mechanically removing the check fails its test. CI runs the
+loopback profile's `checkEnvelope`) — no self-round-trip claims. The v1 profile composes
+through the verifier package's own producers; the v3 producing profile (authored here until
+the verifier package ships its v3 surface as 0.2.3+) is pinned at the crypto level instead:
+every produced compact's signature is verified over the exact RFC 7515 signing input under
+node:crypto, both in the raw `ieee-p1363` form and re-encoded as DER, plus a byte-level
+assertion that the verifier's 0.2.2 has no v3 surface (the pin that flips the oracle to its
+v3 envelope checks on upgrade). The closure gates (C1 role gate, wrong-key guard, loopback
+nonce and canonical-target admission, atomic-identity requirement, and the v3 additions:
+low-S normalization and the P-256 on-curve check) are red-capable: mechanically removing
+the check fails its test. CI runs the
 full gate on `ubuntu-24.04`, `windows-latest`, and `macos-latest` — clone → build → test
 holds on all three. The publish lane is separate: it re-verifies (build, typecheck, tests)
 on Node 24 — the npm >= 11.5 that trusted publishing requires — before staging a release
