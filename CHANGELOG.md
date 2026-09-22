@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-09-22
+
 - **Contract-major 3 (`BAP3-ES256-SHA256`) producing-side adoption** (protocol
   [ADR 0035](https://github.com/baselabs/bounded_authority_protocol/blob/main/docs/adr/0035-es256-contract-major-activation.md),
   `spec/bap-v3.md`; the owner decision of 2026-09-20). Four new signers — `signV3Grant`,
@@ -18,23 +20,24 @@
   always. The retained property run (120 fresh P-256 keys through `signV3Report`) observed
   natural high-S at the expected ~1/2 rate, every emitted signature verifying under
   node:crypto both in the raw `ieee-p1363` form and re-encoded as DER.
-- The v3 producing profile lives in this repository for now (`src/v3.ts`): the pinned
-  `@bounded-authority-protocol/verifier` 0.2.2 implements contract-majors 1 and 2 only (v3
-  lands there as 0.2.3+ in its own repository), so the v1 pattern of delegating composition
-  to the verifier's producers is not yet available. Version-neutral algebra (JCS, JSON,
-  base64url, SHA-256, typed projection, URI normalization, Bounds) still single-sources from
-  the verifier package's exported primitives; only the v3-specific bytes are authored here.
-  The v3 test oracle is correspondingly pinned at the crypto level (every produced compact's
-  signature verified over the exact RFC 7515 signing input, raw and DER), with a test
-  asserting the verifier package's v3 gap so the oracle flips to its `checkEnvelope`
-  equivalents when 0.2.3+ lands. Switching the composers onto the verifier's v3 producers at
-  that point is an owner-gated decision recorded here.
+- The v3 producing profile lives in this repository (`src/v3.ts`): the verifier package's
+  0.3.0 release now ships its v3 verify surface, but the v1 pattern of delegating
+  composition to the verifier's producers is not yet adopted — that switch remains an
+  owner-gated decision recorded here. Version-neutral algebra (JCS, JSON, base64url,
+  SHA-256, typed projection, URI normalization, Bounds) single-sources from the verifier
+  package's exported primitives; only the v3-specific bytes are authored here. The
+  dependency moves to `@bounded-authority-protocol/verifier` `^0.3.0` (the lockstep
+  latest-first move onto the verifier's ES256 release), and the v3 test oracle —
+  crypto-level while the verifier package lacked a v3 surface — now cross-verifies through
+  the verifier package's `v3` namespace (`v3.verifyGrant`, `v3.checkEnvelope`,
+  `v3.verifyHistoricalAnchor`, `v3.verifyKeyTransition`) per this repository's
+  no-self-round-trip evidence rule, with the crypto-level signature pinning retained as
+  byte-level composition evidence.
 - The v3 closure gates are red-capable (proven at authoring by mechanical removal):
   low-S normalization, the wrong-key guard (ES256 form), the C1 issuer-role gate (ES256
   form), and the producer's P-256 on-curve/width check each redden exactly their leg.
 - Dependency currency (the latest-first gate): in-range lockfile updates discovered by
   running the gate — `@types/node` 26.6.2, `tsx` 4.23.15 (never pinnable, in-range drift).
-  No version bump and no publish in this change (owner-gated two-stage publishing).
 - The repository's GitHub Pages site is live — the envelope playground
   (https://baselabs.github.io/bounded_authority_signer_typescript/): a landing page pitched
   at MCP/OAuth audiences plus a fully in-browser demo bundling this package and the published

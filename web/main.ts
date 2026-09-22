@@ -1,6 +1,7 @@
 // The envelope playground — the live page logic. Everything cryptographic runs
-// through the REAL packages: this repository's signer source (byte-identical to
-// the published 0.1.2) and the published @bounded-authority-protocol/verifier,
+// through the REAL packages: this repository's signer source (byte-identical
+// to what this repository's current tag publishes) and the published
+// @bounded-authority-protocol/verifier,
 // bundled by esbuild with a node:crypto shim over @noble. No mocks, no server.
 import { keygen, sign as nobleSign } from "@noble/ed25519";
 import { signGrant, signReport, type KeyHandle } from "../src/index.js";

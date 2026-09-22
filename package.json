@@ -1,6 +1,6 @@
 {
   "name": "@bounded-authority-protocol/signer",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "Holder/issuer companion signer for the Bounded Authority Protocol — signs proofs, grants, boundary anchors, and key transitions through a caller-owned key handle whose private key never enters the library.",
   "license": "Apache-2.0",
   "type": "module",
@@ -34,7 +34,7 @@
     "build:site": "node web/build.mjs && esbuild web/main.ts --bundle --minify --format=iife --target=es2022 --outfile=site-dist/app.js --alias:node:crypto=./web/shim/node-crypto.ts --inject:./web/shim/buffer-global.ts"
   },
   "dependencies": {
-    "@bounded-authority-protocol/verifier": "^0.2.0"
+    "@bounded-authority-protocol/verifier": "^0.3.0"
   },
   "devDependencies": {
     "@noble/ed25519": "^3.2.0",

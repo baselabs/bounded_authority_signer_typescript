@@ -1,17 +1,15 @@
 // The v3 (BAP3-ES256-SHA256) battery: producer composition at the byte level,
 // the low-S normalization (unit + property), and the four ES256 signers'
-// closure gates. Until the verifier package ships its v3 surface (0.2.2 is
-// v1+v2 only), every produced compact is pinned at the CRYPTO level: each
-// signature is verified over the exact RFC 7515 signing input under node:crypto
-// twice — in the raw ieee-p1363 (r||s) form and re-encoded as DER — so no claim
-// rests on a self-round-trip. When @bounded-authority-protocol/verifier 0.2.3+
-// lands v3, the crypto-level oracle here is replaced by its checkEnvelope
-// equivalents (the no-self-round-trip evidence rule).
+// closure gates. The no-self-round-trip ORACLE for the produced compacts runs
+// in oracle.test.ts through the verifier package's v3 namespace (its 0.3.0
+// release); the byte-level signature pinning here — each compact verified over
+// the exact RFC 7515 signing input under node:crypto twice, in the raw
+// ieee-p1363 (r||s) form and re-encoded as DER — stays as composition
+// evidence under the oracle, not in place of it.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHash, createPublicKey, sign as ecSign, verify as ecVerify } from "node:crypto";
 import { strUtf8 } from "@bounded-authority-protocol/verifier";
-import * as verifierPkg from "@bounded-authority-protocol/verifier";
 import { P256_HALF_ORDER, P256_ORDER, es256Verifies, normalizeLowS } from "../src/es256.js";
 import {
   V3_REQUEST_PREFIX,
@@ -365,9 +363,9 @@ test("v3 low-S: malleability is live on the backend — and excluded from the em
 });
 
 // ---------------------------------------------------------------------------
-// The four signers — API shape, gates, and the crypto-level oracle.
+// The four signers — API shape, gates, and the byte-level signature pinning.
 
-test("v3 signers: issuer grant -> holder report; every compact pinned at the crypto level", async () => {
+test("v3 signers: issuer grant -> holder report; every compact's signature pinned at the byte level", async () => {
   const issuer = ecRawKey();
   const holder = ecRawKey();
 
@@ -497,13 +495,4 @@ test("v3 gates: malformed inputs map to the closed error codes", async () => {
     grantCompact: new TextEncoder().encode("aaa.bbb.ccc"), operation: "transfer", method: "POST",
     targetUri: "HTTPS://x.example.test/invoke", invocationId: INVOCATION_ID, castArguments: amountArgs(),
   }, ecHandleFor(ecRawKey(), { keyId: "k" }), { issuedAt: 1500, proofId: "urn:example:proof:x" })) as { error: string }).error, "producer_error");
-});
-
-test("dependency note: the pinned verifier 0.2.2 has no v3 surface — the v3 oracle is crypto-level", () => {
-  // @bounded-authority-protocol/verifier 0.2.2 (the lockfile pin) implements
-  // contract-majors 1 and 2 only; v3 lands there as 0.2.3+ in its own
-  // repository. This assertion pins the documented gap: when it flips red, the
-  // crypto-level oracle above is replaced by the verifier's v3 envelope
-  // checks per the repository's no-self-round-trip evidence rule.
-  assert.equal((verifierPkg as unknown as Record<string, unknown>).v3, undefined);
 });

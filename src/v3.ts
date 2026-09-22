@@ -1,11 +1,13 @@
 // The contract-major 3 producing profile (`BAP3-ES256-SHA256`, ADR 0035 /
 // spec/bap-v3.md): the deterministic signing-input composers for the ES256
-// suite. Until the verifier package ships its v3 producers (0.2.2 is v1+v2
-// only), this module carries the producing side here — composed to mirror the
+// suite. The producing side lives in this module — composed to mirror the
 // verifier package's v2 producer structure with exactly the v3 deltas the spec
 // names: `alg: "ES256"` in every protected header, payload `v: 3`, the
 // `BAP3-REQUEST\0` digest prefix, the EC proof JWK `{crv, kty, x, y}`, the RFC
-// 7638 EC thumbprint, and 65-byte uncompressed-SEC1 raw public keys.
+// 7638 EC thumbprint, and 65-byte uncompressed-SEC1 raw public keys. The
+// verifier package's 0.3.0 release ships its own v3 verify surface; delegating
+// composition to the verifier's v3 producers remains a recorded, owner-gated
+// switch.
 //
 // Version-neutral algebra (JCS, JSON, base64url, SHA-256, typed projection,
 // URI normalization, Bounds) single-sources from the verifier package's
@@ -667,9 +669,10 @@ export function keyTransitionSigningInput(t: KeyTransitionProducerV3, bounds?: B
 //    then a self-check re-parse of the composed bytes (segments decode, the
 //    header is the closed v3 member set with alg ES256 and the kind's typ, the
 //    payload carries exactly v: 3) so the producer does not mint bytes its own
-//    consumer would reject. The FULL v3 re-validation is the verifier
-//    package's v3 surface (its own repository, landing as 0.2.3+); until that
-//    dependency is available, CI pins produced compacts at the crypto level.
+//    consumer would reject. The FULL v3 re-validation runs through the verifier
+//    package's v3 surface (its 0.3.0 release), which CI cross-verifies the
+//    produced compacts against; the crypto-level signature pinning in the test
+//    tree stays on as byte-level composition evidence.
 
 export function assembleCompact(input: V3SigningInput, signature: Uint8Array, bounds?: Bounds): Result<Uint8Array> {
   return trying(() => {

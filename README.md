@@ -12,7 +12,7 @@ start at the playground's landing sections.
 The holder/issuer companion **signer** for the Bounded Authority Protocol in TypeScript —
 the port of the Elixir
 [`bounded_authority_report_adapter`](https://hex.pm/packages/bounded_authority_report_adapter)
-([GitHub](https://github.com/baselabs/bounded_authority_report_adapter)). This 0.1.x line signs
+([GitHub](https://github.com/baselabs/bounded_authority_report_adapter)). This package signs
 **contract-major 1** (the byte-frozen v1 profile and the local-loopback profile) and
 **contract-major 3** — the `BAP3-ES256-SHA256` suite of
 [ADR 0035](https://github.com/baselabs/bounded_authority_protocol/blob/main/docs/adr/0035-es256-contract-major-activation.md)
@@ -85,9 +85,10 @@ keys (`0x04 || x || y`), and 64-byte raw `r || s` signatures with **low-S normal
 `0 < s ≤ (n−1)/2` and cannot be re-spelled into a second valid encoding (ECDSA malleability;
 the backend emits high-`s` about half the time). The v3 key-handle contract
 (`Es256KeyHandle`) keeps the same custody boundary with the suite's widths. The
-local-loopback profile is contract-major-1-bound and has no v3 form. Until the verifier
-package ships its v3 surface (0.2.2 is v1+v2), the v3 producing profile lives in this
-package and CI pins every produced compact at the crypto level — no self-round-trip claims.
+local-loopback profile is contract-major-1-bound and has no v3 form. The v3 producing profile
+is authored in this package (delegating composition to the verifier's v3 producers remains a
+recorded, owner-gated switch), and the compacts CI produces under it cross-verify through
+the verifier package's own v3 surface — no self-round-trip claims.
 
 ## Quickstart — an edge agent proves a request
 
@@ -158,13 +159,14 @@ required, and the target must be exactly `http://127.0.0.1[:port]/…` or `http:
 
 Every compact this library produces is verified in CI through the independent verifier
 package (`checkEnvelope`, `verifyGrant`, `verifyHistoricalAnchor`, `verifyKeyTransition`, the
-loopback profile's `checkEnvelope`) — no self-round-trip claims. The v1 profile composes
-through the verifier package's own producers; the v3 producing profile (authored here until
-the verifier package ships its v3 surface as 0.2.3+) is pinned at the crypto level instead:
-every produced compact's signature is verified over the exact RFC 7515 signing input under
-node:crypto, both in the raw `ieee-p1363` form and re-encoded as DER, plus a byte-level
-assertion that the verifier's 0.2.2 has no v3 surface (the pin that flips the oracle to its
-v3 envelope checks on upgrade). The closure gates (C1 role gate, wrong-key guard, loopback
+loopback profile's `checkEnvelope`, and the `v3` namespace's equivalents for the ES256 suite) —
+no self-round-trip claims. The v1 profile composes through the verifier package's own
+producers; the v3 producing profile is authored here (delegating composition to the verifier's
+v3 producers remains a recorded, owner-gated switch), and its compacts cross-verify through
+the verifier package's `v3` surface — the flip the former gap pin anticipated — while every
+produced signature is additionally pinned at the byte level: verified over the exact RFC 7515
+signing input under node:crypto, both in the raw `ieee-p1363` form and re-encoded as DER.
+The closure gates (C1 role gate, wrong-key guard, loopback
 nonce and canonical-target admission, atomic-identity requirement, and the v3 additions:
 low-S normalization and the P-256 on-curve check) are red-capable: mechanically removing
 the check fails its test. CI runs the
