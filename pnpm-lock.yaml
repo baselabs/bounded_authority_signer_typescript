@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@bounded-authority-protocol/verifier':
-        specifier: ^0.3.0
-        version: 0.3.0
+        specifier: ^0.4.1
+        version: 0.4.1
     devDependencies:
       '@noble/ed25519':
         specifier: ^3.2.0
@@ -39,8 +39,8 @@ importers:
 
 packages:
 
-  '@bounded-authority-protocol/verifier@0.3.0':
-    resolution: {integrity: sha512-3bfffjp0V4alauvT+KbYw75duowetgOETRpJXQe4/yIOk+J50UhUFV7y6YQr47b3qXA9EdaM3ZBlbMTcJKA9vA==}
+  '@bounded-authority-protocol/verifier@0.4.1':
+    resolution: {integrity: sha512-hUS5HLKe42BC6le2HqEoOuJ8PNYurp4BbQ87H+4hdxzw3SEfgL7b6RUmo6zIqHIiCmoVRo6r6gl+54NLh1sQ1A==}
     engines: {node: '>=22'}
 
   '@esbuild/aix-ppc64@0.28.2':
@@ -248,7 +248,7 @@ packages:
 
 snapshots:
 
-  '@bounded-authority-protocol/verifier@0.3.0': {}
+  '@bounded-authority-protocol/verifier@0.4.1': {}
 
   '@esbuild/aix-ppc64@0.28.2':
     optional: true

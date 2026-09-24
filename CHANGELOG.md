@@ -2,6 +2,21 @@
 
 ## [Unreleased]
 
+## [0.2.1] — 2026-09-24
+
+- **Verifier lockstep 0.3.0 → 0.4.1** (the latest-first move): the dependency moves to
+  `@bounded-authority-protocol/verifier` `^0.4.1`. The 0.4.x line is additive for this
+  package — 0.4.0's `roleAttestation` namespace (the TS analog of the protocol's
+  role-attestation release; this signer's attestation-gated grant signing is future work)
+  and 0.4.1's producer/consumer bounds-agreement fix on `attestationSigningInput`
+  (transferred from the protocol repository's 0.6.1 repair; no signer path emits through
+  that producer yet). No signer code change: strict typecheck, the full unit/gates/oracle
+  battery (every produced compact cross-verified through the verifier package's
+  independent implementations), and the dependency-currency gate are green at 0.4.1, and
+  the lockfile moves with the manifest. A fresh `npm install` of this package now resolves
+  the verifier at 0.4.x — 0.2.0's `^0.3.0` caret excluded the 0.4 line entirely, the
+  same-day-releases resolution-split class, live for two days.
+
 ## [0.2.0] — 2026-09-22
 
 - **Contract-major 3 (`BAP3-ES256-SHA256`) producing-side adoption** (protocol
