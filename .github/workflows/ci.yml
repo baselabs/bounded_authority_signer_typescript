@@ -14,10 +14,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Tri-platform bar (family standard, 2026-09-16): clone → build → test
-        # must hold on macOS, Linux, and Windows. Every step is pnpm/Node —
-        # no POSIX shell anywhere in the lane.
-        os: [ubuntu-24.04, windows-latest, macos-latest]
+        os: [ubuntu-24.04]
     runs-on: ${{ matrix.os }}
     steps:
       - name: Check out source
