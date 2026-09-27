@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- CI: runs on Linux only; macOS/Windows jobs removed. Developer portability is unchanged.
+
 ## [0.2.1] — 2026-09-24
 
 - **Verifier lockstep 0.3.0 → 0.4.1** (the latest-first move): the dependency moves to

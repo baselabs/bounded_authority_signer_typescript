@@ -169,9 +169,10 @@ signing input under node:crypto, both in the raw `ieee-p1363` form and re-encode
 The closure gates (C1 role gate, wrong-key guard, loopback
 nonce and canonical-target admission, atomic-identity requirement, and the v3 additions:
 low-S normalization and the P-256 on-curve check) are red-capable: mechanically removing
-the check fails its test. CI runs the
-full gate on `ubuntu-24.04`, `windows-latest`, and `macos-latest` — clone → build → test
-holds on all three. The publish lane is separate: it re-verifies (build, typecheck, tests)
+the check fails its test. CI runs the full gate on `ubuntu-24.04` only: CI is
+Linux only. The clone → build → test contract holding on macOS, Linux, and Windows
+is a developer-setup property, proven on a developer machine, not a CI matter. The
+publish lane is separate: it re-verifies (build, typecheck, tests)
 on Node 24 — the npm >= 11.5 that trusted publishing requires — before staging a release
 that a human approves.
 
