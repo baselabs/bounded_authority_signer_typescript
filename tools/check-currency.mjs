@@ -48,12 +48,10 @@ import { fileURLToPath } from "node:url";
 import process from "node:process";
 import semver from "semver";
 
-const DELIBERATE_PINS = new Map([
-  [
-    "typescript",
-    "7.x is the native-compiler major line; adopting it is a review-gated move (strict-build emit plus this package's oracle battery through the independent verifier package), not a currency patch",
-  ],
-]);
+// typescript 7.x adopted 2026-09-27 on the former pin's own criterion: the 7.0.2 build
+// emits JS and declarations identical (modulo whitespace) to 6.0.3, and typecheck, the
+// unit/gates/oracle battery, and the site build pass.
+const DELIBERATE_PINS = new Map([]);
 
 const SUBPROCESS_TIMEOUT_MS = 120_000;
 

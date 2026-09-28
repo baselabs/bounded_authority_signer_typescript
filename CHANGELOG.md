@@ -1,8 +1,22 @@
 # Changelog
 
-## [Unreleased]
+## [0.3.0] — 2026-09-28
 
-- CI: runs on Linux only; macOS/Windows jobs removed. Developer portability is unchanged.
+- **Verifier lockstep 0.4.1 → 0.5.0**: the runtime dependency moves to
+  `@bounded-authority-protocol/verifier` `^0.5.0`. Before 1.0 the minor is the breaking
+  boundary, and this move changes signer behavior: the verifier's producers now reject
+  StringOrURI identifiers with repeated fragment delimiters, raw brackets in userinfo or
+  outside authority, or malformed bracketed IPv6 hosts such as `http://[abc]/x`, so the
+  signer refuses those inputs with its closed producer error instead of signing bytes the
+  verifier would reject. Accepted identifiers keep their exact bytes. The verifier's new
+  `contentAssertion` namespace is verify-side here; this signer does not yet produce
+  content assertions.
+- **TypeScript 7** (7.0.2) replaces 6.0.3 as the build compiler. Adoption met the former
+  pin's criterion: emitted JavaScript and declarations are identical to 6.0.3 apart from
+  whitespace, and typecheck, the unit/gates/oracle battery, and the site build pass. The
+  pin is removed from the currency gate. `@types/node` moves to 26.6.3.
+- CI runs on Linux only; macOS and Windows jobs are removed. Developer portability is
+  unchanged. The playground badge now says so.
 
 ## [0.2.1] — 2026-09-24
 
