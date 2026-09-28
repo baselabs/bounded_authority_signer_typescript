@@ -46,8 +46,8 @@ Requires Node.js `>= 22` (the repository develops and runs CI on the pinned 22.2
   worked "Pairing with the signer" example — the three-role production flow with this
   package's five signers, executed against published versions.
 - [`baselabs/bounded_authority_protocol`](https://github.com/baselabs/bounded_authority_protocol)
-  — the protocol monorepo: the wire specs (`spec/bap-v1.md`,
-  `spec/bap-local-loopback-http-v1.md`) and the governing ADRs.
+  — the protocol monorepo: the wire specs this package signs (`spec/bap-v1.md`,
+  `spec/bap-local-loopback-http-v1.md`, `spec/bap-v3.md`) and the governing ADRs.
 - [`baselabs/bounded_authority_report_adapter`](https://github.com/baselabs/bounded_authority_report_adapter)
   — the Elixir reference implementation this package ports; signing behavior tracks it, and
   divergences carry a recorded decision.
@@ -96,7 +96,7 @@ the verifier package's own v3 surface — no self-round-trip claims.
 import { signGrant, signReport } from "@bounded-authority-protocol/signer";
 
 // Issuer side: an issuer-role handle signs the capability grant.
-const { grant } = (await signGrant(
+const grantResult = await signGrant(
   {
     issuer: "https://issuer.example.test",
     grantId: "urn:example:grant:1",
@@ -106,23 +106,31 @@ const { grant } = (await signGrant(
     operations: [{ name: "transfer", selectors: [{ kind: "all" }] }],
   },
   issuerHsmHandle, // { signingIdentity(): { role: "issuer", keyId, publicKey }, sign, ... }
-)).value!;
+);
+if (!grantResult.ok) throw new Error(`grant signing failed: ${grantResult.error}`);
 
 // Holder side: the agent's handle signs the proof binding THIS request.
-const envelope = await signReport(
+const proofResult = await signReport(
   {
-    grantCompact: grant, operation: "transfer", method: "POST",
+    grantCompact: grantResult.value.grant, operation: "transfer", method: "POST",
     targetUri: "https://resource.example.test/invoke",
     invocationId: "550e8400-e29b-41d4-a716-446655440000",
     castArguments: { t: "object", v: new Map([["amount", { t: "int", v: 5000 }]]) },
   },
   holderHandle,
-  { proofId: "urn:example:proof:1" },
+  { proofId: "urn:example:proof:1", issuedAt: 1_731_728_030 },
 );
+if (!proofResult.ok) throw new Error(`proof signing failed: ${proofResult.error}`);
+const envelope = proofResult.value; // { grant, proof }
 
-// The receiver verifies with the verifier package — never trusting this library.
-// checkEnvelope(envelope.grant, envelope.proof, expected) → cryptographic facts.
+// The receiver verifies with the verifier package, never trusting this library:
+// checkEnvelope(envelope.grant, envelope.proof, expected) returns cryptographic facts.
 ```
+
+Every signer returns a result to check before use: `{ ok: true, value }` or
+`{ ok: false, error }`. The verifier README's
+[Pairing with the signer](https://github.com/baselabs/bounded_authority_protocol_typescript#pairing-with-the-signer)
+section runs this flow through `checkEnvelope` with every expected input spelled out.
 
 ## The key-handle contract
 
@@ -175,6 +183,20 @@ is a developer-setup property, proven on a developer machine, not a CI matter. T
 publish lane is separate: it re-verifies (build, typecheck, tests)
 on Node 24 — the npm >= 11.5 that trusted publishing requires — before staging a release
 that a human approves.
+
+## Versioning and compatibility
+
+Package versions follow SemVer. Before 1.0 the minor position is the breaking boundary, so
+npm caret ranges such as `^0.2.1` never select `0.3.0`.
+
+0.3.x depends on `@bounded-authority-protocol/verifier` `^0.5.0` and signs through its
+producers, so it inherits that release's stricter identifier admission. Identifiers with
+repeated fragment delimiters, raw brackets in userinfo or outside authority, or malformed
+bracketed IPv6 hosts such as `http://[abc]/x` now return `producer_error` instead of
+producing bytes a verifier would reject. Valid identifiers, including bracketed IPv6
+literals such as `http://[::1]/`, sign as before. Compatibility with other implementations
+is governed by the wire contract-majors (this package signs majors 1 and 3), not by package
+version numbers. Release notes are in [CHANGELOG.md](CHANGELOG.md).
 
 ## License
 

@@ -64,7 +64,7 @@
     <p class="custody-note"><svg class="ic"><use href="#i-lock"/></svg> Private keys never enter the library — <strong>not even in the demo below.</strong>
     <span id="custody-mode" class="pill"></span></p>
     <ul class="badges">
-      <li>npm 0.3.0</li><li>CI: green on Linux</li><li>Apache-2.0</li>
+      <li>npm 0.3.1</li><li>CI: green on Linux</li><li>Apache-2.0</li>
     </ul>
   </div>
 </section>
@@ -245,7 +245,7 @@
 </section>
 
 <section class="wrap" id="signers">
-  <div class="sec-head"><h2>The five signers</h2></div>
+  <div class="sec-head"><h2>The signers</h2><p>Five for contract-major 1 (Ed25519) and four for contract-major 3 (ES256, low-S normalized).</p></div>
   <table class="signers">
     <thead><tr><th>Function</th><th>Object</th><th>Role</th></tr></thead>
     <tbody>
@@ -254,6 +254,10 @@
       <tr><td><code>signAnchor</code></td><td>boundary anchor</td><td><span class="role-badge">role-agnostic</span></td></tr>
       <tr><td><code>signKeyTransition</code></td><td>key transition</td><td><span class="role-badge">role-agnostic</span></td></tr>
       <tr><td><code>signGrant</code></td><td>capability grant</td><td><span class="role-badge issuer">issuer-only</span></td></tr>
+      <tr><td><code>signV3Report</code></td><td>v3 holder proof — the v3 grant passes through untouched</td><td><span class="role-badge holder">holder</span></td></tr>
+      <tr><td><code>signV3Anchor</code></td><td>v3 boundary anchor</td><td><span class="role-badge">role-agnostic</span></td></tr>
+      <tr><td><code>signV3KeyTransition</code></td><td>v3 key transition</td><td><span class="role-badge">role-agnostic</span></td></tr>
+      <tr><td><code>signV3Grant</code></td><td>v3 capability grant</td><td><span class="role-badge issuer">issuer-only</span></td></tr>
     </tbody>
   </table>
 </section>

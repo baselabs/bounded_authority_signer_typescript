@@ -158,7 +158,7 @@ async function doGrant(): Promise<void> {
   tamperedProof = null;
   const slot = $("slot-grant");
   slot.textContent = "";
-  const card = artifactCard("grant", "ba+grant", `jkt ${holder.thumb.slice(0, 8)}…`, () => { mark(card); showWire("grant", grantCompact!); });
+  const card = artifactCard("grant", "ba+cap", `jkt ${holder.thumb.slice(0, 8)}…`, () => { mark(card); showWire("grant", grantCompact!); });
   slot.appendChild(card);
   $("flow-grant").classList.add("arrived");
   flash($("lane-issuer"));

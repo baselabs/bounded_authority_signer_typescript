@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.3.1] — 2026-09-28
+
+Documentation patch; no code or dependency change.
+
+- README Quickstart: the example now checks each signer result before use (the 0.3.0 text
+  read `.value` without checking `ok`, which does not compile under `strict`) and pins the
+  proof's `issuedAt` inside the grant window. The example typechecks against the published
+  0.3.0 and verifier 0.5.0 packages, and its output verifies through `checkEnvelope`.
+- README: a Versioning and compatibility section (the pre-1.0 breaking boundary; 0.3.x
+  inherits verifier 0.5.0's identifier admission and returns `producer_error` for the newly
+  refused identifiers), and `spec/bap-v3.md` among the specifications this package signs.
+- Playground: the signer table lists the four v3 signers; the grant card shows the wire
+  `typ` `ba+cap` (it showed `ba+grant`).
+
 ## [0.3.0] — 2026-09-28
 
 - **Verifier lockstep 0.4.1 → 0.5.0**: the runtime dependency moves to
