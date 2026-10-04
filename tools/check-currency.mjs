@@ -1,8 +1,7 @@
 #!/usr/bin/env node
 // Dependency-currency gate (latest-first) — the pnpm analogue of the Elixir family's
-// dependency-currency gate (BAP ADR 0032), written in the repo's managed language
-// because the tri-platform build bar (BAP ADR 0031) rejects POSIX shell inside a
-// declared gate. Classification is on data from real resolvers, never on a tool's
+// dependency-currency gate (BAP ADR 0032), written in the repo's managed language.
+// Classification is on data from real resolvers, never on a tool's
 // exit status alone: `pnpm outdated --format json` for the drift table (it exits
 // nonzero both on drift and on lookup failure, and exits 0 with `{}` when everything
 // is current — that empty exit-0 table is a VERIFIED all-current state), plus
@@ -28,8 +27,7 @@
 //   a version `pnpm update` will not pick. That failure is loud (a named red), never
 //   silent, and clears only via an explicit version bump.
 // - The gate runs in CI on one lane (currency is a property of the manifest +
-//   lockfile, OS-independent); the win32 shell path is exercised by local
-//   `pnpm check:currency` runs on a Windows checkout, not by the CI matrix.
+//   lockfile, OS-independent).
 //
 // Classification, per outdated package:
 //   isDeprecated                   -> exit 1, named
@@ -65,14 +63,11 @@ const declared = Object.keys(ranges);
 // gate cannot verify — it fails closed rather than silently passing.
 const REGISTRY_RANGE = /^[0-9^~><=*\s-]/;
 
-// pnpm/npm are .CMD shims on Windows, which spawn cannot execute directly — route
-// through the shell there only (the ADR 0031 `cmd /c` wrapper analogue). All args
-// are package names and flags with no shell metacharacters, so the shell surface
-// is closed. Each resolver call is bounded: a stalled registry kills the child and
-// the gate fails closed.
+// pnpm/npm are spawned directly, never through a shell. Each resolver call is
+// bounded: a stalled registry kills the child and the gate fails closed.
 function run(command, args) {
   return new Promise((resolve) => {
-    const child = spawn(command, args, { cwd: root, shell: process.platform === "win32" });
+    const child = spawn(command, args, { cwd: root });
     let stdout = "";
     let stderr = "";
     let settled = false;
