@@ -65,7 +65,7 @@ jobs:
       - name: Browser bundle guard (the verifier's portable backend only; no unresolved globals, eval or Function constructor)
         run: pnpm guard:browser
 
-      - name: Browser bundle size within budget (tools/bundle-size-budget.json)
+      - name: Browser bundle size within its limits (tools/bundle-size-limits.json)
         run: pnpm size
 
       - name: Unit + gates + oracle (verifier-package cross-verification)

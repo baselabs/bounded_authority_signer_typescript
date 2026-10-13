@@ -3,7 +3,7 @@
 // key (the wrong-key guard) → assemble the compact. Pure: normalization is
 // BigInt arithmetic and the verify is the verifier package's synchronous
 // es256VerifyStrict, so this module needs no Node API and runs unchanged in
-// browsers, Deno, Bun and workers. No key custody ever enters here.
+// browsers, Deno, Bun and workers. The private key never enters here.
 //
 // Low-S is load-bearing (spec/bap-v3.md §3.2; REQ3-SIGNING-low-s): a backend
 // emits high-`s` about half the time, and for any valid `(r, s)` the

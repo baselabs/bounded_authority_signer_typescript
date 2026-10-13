@@ -2,7 +2,7 @@
 // The browser bundle-size gate (pnpm size, after pnpm build). Measures the published entry
 // (dist/src/index.js) with its verifier dependency as a browser bundler tree-shakes them, minified, in
 // bytes and gzip bytes (level 9), for four import shapes, and fails when any measurement exceeds its
-// budget in tools/bundle-size-budget.json. The budgets were set at the first measurement plus 10%;
+// limit in tools/bundle-size-limits.json. The limits were set at the first measurement plus 10%;
 // raising one is a deliberate, reviewed edit of that file. test/bundle-size.ts red-proofs the gate.
 import { build } from "esbuild";
 import { readFileSync } from "node:fs";
@@ -11,7 +11,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
-export const BUDGET_FILE = join(ROOT, "tools/bundle-size-budget.json");
+export const LIMITS_FILE = join(ROOT, "tools/bundle-size-limits.json");
 
 export const SHAPES = {
   "root (every export)": 'export * from "./dist/src/index.js";',
@@ -34,15 +34,15 @@ export async function measure() {
   return out;
 }
 
-// Returns the list of measurements over budget (empty when within budget). A shape with no budget is
-// a failure too: the gate never passes an unbudgeted measurement.
-export function overBudget(measured, budget) {
+// Returns the list of measurements over their limit (empty when all are within). A shape with no limit
+// is a failure too: the gate never passes an unlimited measurement.
+export function overLimit(measured, limits) {
   const problems = [];
   for (const [shape, m] of Object.entries(measured)) {
-    const b = budget[shape];
-    if (!b) { problems.push(`${shape}: no budget`); continue; }
-    if (m.min > b.min) problems.push(`${shape}: ${m.min} minified bytes > budget ${b.min}`);
-    if (m.gzip > b.gzip) problems.push(`${shape}: ${m.gzip} gzip bytes > budget ${b.gzip}`);
+    const b = limits[shape];
+    if (!b) { problems.push(`${shape}: no limit`); continue; }
+    if (m.min > b.min) problems.push(`${shape}: ${m.min} minified bytes > limit ${b.min}`);
+    if (m.gzip > b.gzip) problems.push(`${shape}: ${m.gzip} gzip bytes > limit ${b.gzip}`);
   }
   return problems;
 }
@@ -53,16 +53,16 @@ async function main() {
     console.log(JSON.stringify(measured, null, 2));
     return;
   }
-  const budget = JSON.parse(readFileSync(BUDGET_FILE, "utf8")).budgets;
+  const limits = JSON.parse(readFileSync(LIMITS_FILE, "utf8")).limits;
   for (const [shape, m] of Object.entries(measured)) {
-    console.log(`bundle-size: ${shape}: ${m.min} B minified, ${m.gzip} B gzip (budget ${budget[shape]?.min ?? "none"} / ${budget[shape]?.gzip ?? "none"})`);
+    console.log(`bundle-size: ${shape}: ${m.min} B minified, ${m.gzip} B gzip (limit ${limits[shape]?.min ?? "none"} / ${limits[shape]?.gzip ?? "none"})`);
   }
-  const problems = overBudget(measured, budget);
+  const problems = overLimit(measured, limits);
   if (problems.length > 0) {
     for (const p of problems) console.error(`bundle-size: OVER ${p}`);
     process.exit(1);
   }
-  console.log("bundle-size: PASS (every shape within budget)");
+  console.log("bundle-size: PASS (every shape within its limit)");
 }
 
 if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) await main();
