@@ -1,19 +1,24 @@
 // The ES256 signing tail — the v3 mirror of sign.ts's shared tail: sign via
-// the handle → NORMALIZE to low-S → VERIFY against the resolved public key
-// (the wrong-key guard) → assemble the compact. Pure normalization plus
-// node:crypto at the boundary; no key custody ever enters here.
+// the handle → NORMALIZE to low-S → VERIFY STRICTLY against the resolved public
+// key (the wrong-key guard) → assemble the compact. Pure: normalization is
+// BigInt arithmetic and the verify is the verifier package's synchronous
+// es256VerifyStrict, so this module needs no Node API and runs unchanged in
+// browsers, Deno, Bun and workers. No key custody ever enters here.
 //
-// Low-S is load-bearing (spec/bap-v3.md §3.2; REQ3-SIGNING-low-s): Node's
-// OpenSSL emits high-`s` about half the time, and for any valid `(r, s)` the
+// Low-S is load-bearing (spec/bap-v3.md §3.2; REQ3-SIGNING-low-s): a backend
+// emits high-`s` about half the time, and for any valid `(r, s)` the
 // counterpart `(r, n − s)` also verifies — so an emitted high-`s` signature
 // would be malleable. The normalizer is ONE conditional subtraction
 // (`s ← n − s` when high) with no modular inverse, deliberately implementable
 // per the owner's 2026-09-20 decision. The emitted `s` satisfies
 // `0 < s ≤ (n−1)/2` always (`n` is odd, so the ceiling is `(n−1)/2`).
-import { createPublicKey, verify as ecVerify, type KeyObject } from "node:crypto";
-import { assembleCompact, ecJwkFromRawPublicKey, RAW_SIGNATURE_BYTES, type V3SigningInput } from "./v3.js";
+//
+// The post-sign verify is strict: es256VerifyStrict refuses `s > (n−1)/2`, so a
+// missed or broken normalization fails closed as signing_failed instead of
+// emitting a malleable signature.
+import { es256VerifyStrict, type Bounds } from "@bounded-authority-protocol/verifier";
+import { assembleCompact, RAW_SIGNATURE_BYTES, type V3SigningInput } from "./v3.js";
 import { err, ok, type SignerResult } from "./handle.js";
-import type { Bounds } from "@bounded-authority-protocol/verifier";
 
 // The P-256 group order n (SEC 2) and the low-S ceiling (n−1)/2 (n is odd).
 export const P256_ORDER = 0xffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551n;
@@ -38,36 +43,34 @@ function bigIntToFixedWidth(v: bigint, width: number): Uint8Array {
  * Low-S normalization (REQ3-SIGNING-low-s): given a 64-byte raw `r || s`
  * signature, returns the encoding with `s` in `0 < s ≤ (n−1)/2` — replacing a
  * high `s` with `n − s` (equally valid for the same key and message), leaving
- * a low `s` untouched. Pure: no crypto, no allocation beyond the output copy.
+ * a low `s` untouched. It first asserts `0 < r < n` and `0 < s < n` and throws
+ * otherwise (the signing tail maps the throw to signing_failed). Pure: no
+ * crypto, no allocation beyond the output copy.
  */
 export function normalizeLowS(signature: Uint8Array): Uint8Array {
   if (signature.length !== RAW_SIGNATURE_BYTES)
     throw new Error("normalizeLowS: signature must be 64 bytes");
+  const r = bigEndianToBigInt(signature.subarray(0, 32));
   const s = bigEndianToBigInt(signature.subarray(32));
+  if (r <= 0n || r >= P256_ORDER) throw new Error("normalizeLowS: r outside (0, n)");
+  if (s <= 0n || s >= P256_ORDER) throw new Error("normalizeLowS: s outside (0, n)");
   if (s <= P256_HALF_ORDER) return signature;
   const out = new Uint8Array(signature);
   out.set(bigIntToFixedWidth(P256_ORDER - s, 32), 32);
   return out;
 }
 
-// Import a 65-byte uncompressed-SEC1 P-256 public key for verification. The
-// JWK spelling is exactly {crv, kty, x, y} with 32-byte coordinates (the
-// retained Node probe); the composer has already validated the point.
-function p256PublicKey(raw: Uint8Array): KeyObject {
-  const jwk = ecJwkFromRawPublicKey(raw);
-  return createPublicKey({ key: { kty: jwk.kty, crv: jwk.crv, x: jwk.x, y: jwk.y }, format: "jwk" });
-}
-
 /**
- * Verify a 64-byte raw `r || s` ES256 signature over the message under the
- * 65-byte raw public key, via node:crypto's `ieee-p1363` (raw) encoding. A
- * backend rejection OR exception returns false, never throws
+ * The strict post-sign check: verify a 64-byte raw `r || s` ES256 signature
+ * over the message under the 65-byte raw public key with the verifier
+ * package's es256VerifyStrict (key on the curve, `0 < r < n`,
+ * `0 < s ≤ (n−1)/2`, then the backend verify). A high-`s` signature, a
+ * rejection, or an exception returns false, never throws
  * (REQ3-SIGNING-backend-reject).
  */
 export function es256Verifies(message: Uint8Array, signature: Uint8Array, publicKey: Uint8Array): boolean {
   try {
-    if (signature.length !== RAW_SIGNATURE_BYTES) return false;
-    return ecVerify("SHA256", Buffer.from(message), { key: p256PublicKey(publicKey), dsaEncoding: "ieee-p1363" }, Buffer.from(signature));
+    return es256VerifyStrict(message, signature, publicKey);
   } catch {
     return false;
   }
@@ -102,8 +105,8 @@ function signingInputMessage(input: V3SigningInput): Uint8Array {
 }
 
 /**
- * The v3 shared signing tail: sign → normalize to low-S → verify (wrong-key
- * guard) → assemble. The wrong-key guard is the same RA1 discipline as the v1
+ * The v3 shared signing tail: sign → normalize to low-S → strict verify
+ * (wrong-key guard and low-S check) → assemble. The wrong-key guard is the same RA1 discipline as the v1
  * tail: a handle whose `sign()` used a different key fails loudly as
  * `signing_failed`, never a silent false-success deferred to the verifier.
  */
@@ -116,7 +119,12 @@ export async function signV3AndAssemble(
   const message = signingInputMessage(signingInput);
   const signed = await signViaEs256Handle(sign, message);
   if (signed === undefined) return err("signing_failed");
-  const signature = normalizeLowS(signed);
+  let signature: Uint8Array;
+  try {
+    signature = normalizeLowS(signed);
+  } catch {
+    return err("signing_failed"); // r or s outside (0, n)
+  }
   if (!es256Verifies(message, signature, publicKey)) return err("signing_failed");
   const compact = assembleCompact(signingInput, signature, bounds);
   return compact.ok ? ok(compact.value) : err("producer_error");

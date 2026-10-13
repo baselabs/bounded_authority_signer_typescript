@@ -278,12 +278,15 @@ test("v3 low-S: the normalizer is one conditional subtraction (forced high-S map
   assert.deepEqual(back, low, "normalizing the counterpart returns the original low-S encoding");
   assert.equal(es256Verifies(message, back, key.publicKey), true);
 
-  // The identity at the ceiling: s == (n-1)/2 stays untouched.
+  // The identity at the ceiling: s == (n-1)/2 stays untouched. (r = 1: since 0.5.0 the normalizer
+  // refuses r or s outside (0, n), so the fixtures carry the smallest valid r.)
   const atCeiling = new Uint8Array(64);
+  atCeiling[31] = 1;
   atCeiling.set(bigIntTo32(HALF), 32);
   assert.deepEqual(normalizeLowS(atCeiling), atCeiling, "s == (n-1)/2 is already low-S");
   // Just above the ceiling maps to exactly (n-1)/2.
   const above = new Uint8Array(64);
+  above[31] = 1;
   above.set(bigIntTo32(HALF + 1n), 32);
   assert.equal(bytesToBigInt(normalizeLowS(above).subarray(32)), HALF);
 });
@@ -357,7 +360,10 @@ test("v3 low-S: malleability is live on the backend — and excluded from the em
   counterpart.set(bigIntTo32(P256_N - bytesToBigInt(low.subarray(32))), 32);
   // The backend ACCEPTS the counterpart (ECDSA malleability, OBSERVED) — the
   // reason the profile needs low-S at all.
-  assert.equal(es256Verifies(message, counterpart, key.publicKey), true);
+  assert.equal(ecVerify("SHA256", message, { key: ecPublic(key), dsaEncoding: "ieee-p1363" }, counterpart), true);
+  // The library's post-sign check is strict (es256VerifyStrict) and refuses it,
+  // so an unnormalized signature can never be emitted.
+  assert.equal(es256Verifies(message, counterpart, key.publicKey), false);
   // And the normalizer maps the counterpart back to the one admissible encoding.
   assert.deepEqual(normalizeLowS(counterpart), low);
 });
