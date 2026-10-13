@@ -1,5 +1,73 @@
 # Changelog
 
+## [0.5.0] — Unreleased
+
+Browser-safe builds and the contract-major-2 signers. The package now loads and runs in browsers,
+Deno, Bun and workers with no `node:crypto`, no `Buffer` and no other Node API. The key-handle API
+and every 0.4.0 export are unchanged; everything below is additive except the stricter ES256
+post-sign check and the closed error for a missing default `proofId`.
+
+### Added
+
+- **The contract-major-2 signers**: `signV2Report`, `signV2Grant`, `signV2Anchor` and
+  `signV2KeyTransition`, with the types `V2ReportInput`, `V2GrantInput`, `V2AnchorInput`,
+  `V2TransitionInput`, `V2OperationInput`, `V2SelectorInput`, `V2SignOpts` and `V2SignerEvent`.
+  Contract-major 2 had no signing surface in this package; these functions take the existing
+  Ed25519 `KeyHandle` and compose through the verifier's public v2 signing inputs and
+  `v2.assembleCompact`, so they emit exactly the verifier's v2 format (`v: 2`, `BAP2-*`
+  separators, the `all`/`equals`/`one_of`/`lte`/`gte` selectors). The C1 role gate, the wrong-key
+  guard, the atomic identity snapshot and the weak-key refusal apply as on v1.
+- An `"exports"` map (`"."`, `"./package.json"`, and a `"./*"` passthrough) and
+  `"sideEffects": false`.
+- Scripts: `typecheck:browser`, `lint`, `guard:browser`, `guard:site`, `size`, `test:portable`
+  (the unit suite under the verifier's portable backend), `test:runtimes` (Node with both
+  verifier backends, Deno, Bun), `test:tarball` and `test:browser` (Playwright).
+
+### Changed
+
+- **Strict ES256 post-sign check.** The v3 tail is sign, `normalizeLowS`, the verifier's
+  `es256VerifyStrict`, assemble. The strict check refuses a high-`s` signature, so a missed or
+  broken normalization fails closed as `signing_failed` instead of emitting a malleable
+  signature. `normalizeLowS` refuses `r` or `s` outside `(0, n)`, and a handle returning such a
+  value gets `signing_failed`. `node:crypto` and `Buffer` are gone from `src/`.
+- **Default `proofId` outside a secure context.** `crypto.randomUUID()` exists only in a secure
+  context; on a plain-HTTP page the report signers called without `proofId` threw a
+  `TypeError`. They now return the closed `producer_error`. An explicit `proofId` is unaffected.
+- **Verifier lockstep 0.6.0 → 0.7.0**: the runtime dependency moves to
+  `@bounded-authority-protocol/verifier` `^0.7.0` (before 1.0 the minor is the breaking
+  boundary), the release that selects a portable crypto backend for browsers, Deno and Bun and
+  exports `es256VerifyStrict` and `BACKEND_ID`. On Node.js the verifier keeps `node:crypto`.
+
+### Deep imports
+
+Deep imports such as `@bounded-authority-protocol/signer/dist/src/v3.js` keep resolving through the
+`"./*"` passthrough, but they remain unsupported API and may be closed in a future 0.x minor; import
+from the package root. In this release the internal `es256Verifies` (reachable only by deep import)
+is the strict check, so it returns `false` for a high-`s` signature.
+
+### Maintenance
+
+- Guards, each with a red-proof against the real configuration: a browser typecheck
+  (`tsconfig.browser.json`: DOM + ES2022, no ambient types, `skipLibCheck: false`); lint rules
+  banning every Node built-in module and Node global (also through `globalThis`, `window` and
+  `self`), network globals, dynamic `import()`, `eval`, implied eval, the `Function` constructor,
+  `@noble`, `crypto.subtle` and key-generation entry points in `src/`; a scan of the browser bundle
+  for unresolved globals; a packed-tarball consumer typecheck under each resolution, library and
+  condition set; and a bundle-size limit at the first measurement plus 10%.
+- Lanes: one sign-then-verify battery runs on Node 22.23.1 and 24.19.0 with each verifier backend,
+  Deno 2.5.6, Bun 1.3.14, and Playwright Chromium, Firefox and WebKit (CI, Linux only) under a
+  strict CSP, plus a Chromium lane on a non-secure origin. Every lane asserts the verifier
+  `BACKEND_ID` first.
+- CI adds the guards, the size gate, the portable suite, the Node, Deno, Bun, tarball and browser
+  lanes, and `npm audit signatures`; the release gate runs the same lanes.
+- The playground builds without the `node:crypto` shim and the `Buffer` polyfill (`web/shim/` is
+  removed), and the Pages workflow scans its bundle before deploying. The `buffer`,
+  `@noble/ed25519` and `@noble/hashes` dev dependencies are dropped; `@noble/curves`, `eslint`,
+  `typescript-eslint`, `globals` and `playwright` join.
+- TypeScript is pinned to 6.0.3 (from 7.0.2), matching the verifier: typescript-eslint 8.71.2
+  peers `typescript <6.1.0`, and the guard and tarball tests use the compiler API that 7.x no
+  longer ships. Emitted JavaScript and declarations are identical apart from whitespace.
+
 ## [0.4.0] — 2026-10-13
 
 Security advisory: [GHSA-wxxg-7cx6-m8qj](https://github.com/baselabs/bounded_authority_signer_typescript/security/advisories/GHSA-wxxg-7cx6-m8qj).

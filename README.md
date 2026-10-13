@@ -13,11 +13,12 @@ The holder/issuer companion **signer** for the Bounded Authority Protocol in Typ
 the port of the Elixir
 [`bounded_authority_report_adapter`](https://hex.pm/packages/bounded_authority_report_adapter)
 ([GitHub](https://github.com/baselabs/bounded_authority_report_adapter)). This package signs
-**contract-major 1** (the byte-frozen v1 profile and the local-loopback profile) and
-**contract-major 3** — the `BAP3-ES256-SHA256` suite of
+**contract-major 1** (the byte-frozen v1 profile and the local-loopback profile),
+**contract-major 2** (the v2 profile: `v: 2` payloads, `BAP2-*` separators and the `lte`/`gte`
+range selectors, Ed25519) and **contract-major 3** — the `BAP3-ES256-SHA256` suite of
 [ADR 0035](https://github.com/baselabs/bounded_authority_protocol/blob/main/docs/adr/0035-es256-contract-major-activation.md)
-(ECDSA P-256 with SHA-256, low-S normalized) — while the v2 contract-major is verify-side in
-the protocol family and not a signing surface here.
+(ECDSA P-256 with SHA-256, low-S normalized). It runs on Node.js, in browsers, in Deno and in
+Bun with no Node API (see [Browsers, Deno, Bun and workers](#browsers-deno-bun-and-workers)).
 
 The protocol's verifier package produces each object's deterministic signing input and
 **refuses to sign**. This library takes a caller-owned key handle and a report and produces
@@ -34,9 +35,9 @@ verifies. It is not a decision maker, not a transport, and not the authority run
 npm install @bounded-authority-protocol/signer
 ```
 
-Requires Node.js `>= 22` (the repository develops on the pinned 22.23.1 — see
-[`.tool-versions`](.tool-versions) — and runs CI on 22.23.1 and 24.19.0). One runtime
-dependency: the verifier package.
+Runs on Node.js `>= 22` (the repository develops on the pinned 22.23.1 — see
+[`.tool-versions`](.tool-versions) — and runs CI on 22.23.1 and 24.19.0), current browsers,
+Deno and Bun. One runtime dependency: the verifier package.
 
 ## Protocol family
 
@@ -48,7 +49,8 @@ dependency: the verifier package.
   package's five signers, executed against published versions.
 - [`baselabs/bounded_authority_protocol`](https://github.com/baselabs/bounded_authority_protocol)
   — the protocol monorepo: the wire specs this package signs (`spec/bap-v1.md`,
-  `spec/bap-local-loopback-http-v1.md`, `spec/bap-v3.md`) and the governing ADRs.
+  `spec/bap-local-loopback-http-v1.md`, `spec/bap-v2.md`, `spec/bap-v3.md`) and the governing
+  ADRs.
 - [`baselabs/bounded_authority_report_adapter`](https://github.com/baselabs/bounded_authority_report_adapter)
   — the Elixir reference implementation this package ports; signing behavior tracks it, and
   divergences carry a recorded decision.
@@ -67,6 +69,37 @@ Every result is `{ ok: true, value }` or `{ ok: false, error }` with a closed er
 (`invalid_report`, `invalid_anchor`, `invalid_grant`, `invalid_transition`,
 `invalid_key_handle`, `signing_failed`, `producer_error`) — no key material, nonce values, or
 report content ever appears in an error.
+
+## The four v2 signers
+
+| Function | Object | Role |
+|---|---|---|
+| `signV2Report` | holder proof (the v2 grant passes through untouched) | holder |
+| `signV2Anchor` | boundary anchor | role-agnostic |
+| `signV2KeyTransition` | key transition | role-agnostic |
+| `signV2Grant` | grant | issuer-only, structurally gated |
+
+Before 0.5.0 contract-major 2 had no signing surface in this package. The v2 functions take
+the same Ed25519 `KeyHandle` as the v1 functions and compose through the verifier package's
+public v2 signing inputs (`v2.grantSigningInput`, `v2.proofSigningInput`,
+`v2.boundaryAnchorSigningInput`, `v2.keyTransitionSigningInput`) and `v2.assembleCompact`, so
+the bytes are the verifier's v2 format and nothing more: `v: 2` payloads, the `BAP2-*` domain
+separators, and the five-kind selector algebra (`all`, `equals`, `one_of`, `lte`, `gte`; a
+range bound is integer- or float-tagged). The same gates apply: the C1 role gate, the
+wrong-key guard, the atomic identity snapshot, and the weak-key refusal. The local-loopback
+profile is contract-major-1-bound and has no v2 form. Each major verifies only its own bytes:
+`checkEnvelope` refuses a v2 envelope and `v2.checkEnvelope` refuses a v1 one.
+
+```ts
+const grant = await signV2Grant({
+  issuer: "https://issuer.example.test", grantId: "urn:example:grant:2",
+  audiences: ["https://resource.example.test"],
+  issuedAt: 1_731_728_000, notBefore: 1_731_728_000, expiresAt: 1_731_736_000,
+  holderThumbprint: holderThumbprintB64,
+  operations: [{ name: "transfer", selectors: [{ kind: "lte", path: ["amount"], value: { t: "int", v: 10_000 } }] }],
+}, issuerHsmHandle);
+// then signV2Report(...) with the holder's handle, and v2.checkEnvelope(...) on the receiving side
+```
 
 ## The four v3 signers (ES256)
 
@@ -156,20 +189,64 @@ Two load-bearing rules port unchanged from the Elixir adapter (both v1 and v3):
   atomic `signingIdentity()` snapshot and fails closed before `sign()` is ever called unless
   the role is `issuer`. A holder handle can never mint its own capability.
 - **The wrong-key guard** — the shared signing tail verifies every signature against the
-  resolved public key *before* assembly. A handle whose `sign()` used a different key (a
-  rotation race, a misconfigured custodian) fails loudly as `signing_failed`, never a silent
-  false-success deferred to the verifier.
+  resolved public key *before* assembly, with the verifier package's strict functions
+  (`verifyStrict` for Ed25519, `es256VerifyStrict` for ES256, which also refuses a high-`s`
+  signature, so a missed low-S normalization fails closed). A handle whose `sign()` used a
+  different key (a rotation race, a misconfigured signing service) fails loudly as
+  `signing_failed`, never a silent false-success deferred to the verifier. A handle that
+  returns `r` or `s` outside `(0, n)` is `signing_failed` too.
 
 The local-loopback profile is selected by function name — never inferred: the nonce is
 required, and the target must be exactly `http://127.0.0.1[:port]/…` or `http://[::1][:port]/…`
 (`localhost` and every non-canonical spelling fail closed).
 
+## Browsers, Deno, Bun and workers
+
+The package is ESM-only, has no side effects on import (`"sideEffects": false`), and uses no
+Node API: no `node:*` module, no `Buffer`, no `process`. Every cryptographic operation it
+performs itself (the post-sign verify, SHA-256) comes from the verifier package, which picks
+its own backend through its `"imports"` conditions, so a browser bundle, Deno and Bun get the
+verifier's pure-JavaScript portable backend and Node.js keeps `node:crypto`:
+
+| Runtime | Verifier `BACKEND_ID` |
+|---|---|
+| Node.js (default conditions) | `"node"` |
+| Node.js with `--conditions=bap-portable` | `"portable"` |
+| Deno, Bun | `"portable"` |
+| Browsers and bundlers targeting them, workers | `"portable"` |
+
+```ts
+import { BACKEND_ID } from "@bounded-authority-protocol/verifier";
+// "node" or "portable": which verifier backend this build resolved. Signing behaves the same in both.
+```
+
+The signer uses no WebCrypto and never touches a private key: signing is always your handle's
+`sign()`, wherever and however that handle is implemented.
+
+**In-page verification is display-only, never a trust decision.** If a page signs and then
+verifies an envelope (as the playground does), that result is for showing to a person. It
+must not authorize anything, feed a trust decision, or be sent anywhere as evidence of
+authority: the page's own scripts, browser extensions and injected code share its origin and
+can change both the inputs and the answer. The trusted decision stays with the host runtime
+that holds the trusted keys.
+
+The package works under a strict Content Security Policy (`default-src 'none'; script-src
+'self'; connect-src 'self'`, no `'unsafe-eval'`): it uses no `eval`, no `Function` constructor
+and no dynamic `import()`. The default `proofId` comes from `crypto.randomUUID()`, which
+browsers provide only in a secure context (HTTPS or `localhost`). On a plain-HTTP page, pass
+`proofId` explicitly; without it the report signers return the closed `producer_error`.
+
+Bundle size (esbuild, minified, browser target, tree-shaken from the package entry, verifier
+included): every export 184 KB (49 KB gzip); `{ signReport }` 113 KB (31 KB gzip);
+`{ signV2Report }` 111 KB (30 KB gzip); `{ signV3Report }` 69 KB (25 KB gzip). CI fails a
+change that grows any of these by more than 10%.
+
 ## Evidence
 
 Every compact this library produces is verified in CI through the independent verifier
 package (`checkEnvelope`, `verifyGrant`, `verifyHistoricalAnchor`, `verifyKeyTransition`, the
-loopback profile's `checkEnvelope`, and the `v3` namespace's equivalents for the ES256 suite) —
-no self-round-trip claims. The v1 profile composes through the verifier package's own
+loopback profile's `checkEnvelope`, and the `v2` and `v3` namespaces' equivalents) — no
+self-round-trip claims. The v1 and v2 profiles compose through the verifier package's own
 producers; the v3 producing profile is authored here (delegating composition to the verifier's
 v3 producers remains a recorded, owner-gated switch), and its compacts cross-verify through
 the verifier package's `v3` surface — the flip the former gap pin anticipated — while every
@@ -182,24 +259,41 @@ the check fails its test. CI runs the full gate on `ubuntu-24.04` only: CI is
 Linux only. The clone → build → test contract holding on macOS and Linux
 is a developer-setup property, proven on a developer machine, not a CI matter. Windows
 developers use WSL2 (clone inside the WSL filesystem, not under `/mnt/c`), which is the
-Linux path; no native-Windows developer path is maintained. The
-publish lane is separate: it re-verifies (build, typecheck, tests)
-on Node 24 — the npm >= 11.5 that trusted publishing requires — before staging a release
-that a human approves.
+Linux path; no native-Windows developer path is maintained.
+
+The sign-then-verify battery (v1, loopback, v2 and v3 envelopes, grants, anchors and key
+transitions; a wrong-key handle on every major; 64 ES256 reports from a handle that emits
+high-`s` about half the time, each normalized and verified) runs on Node 22.23.1 and 24.19.0
+with each verifier backend, on Deno 2.5.6 and Bun 1.3.14, and in Chromium, Firefox and WebKit
+(Linux CI, Playwright, under the strict CSP above); every lane first asserts the verifier
+`BACKEND_ID` it expects. A Chromium lane on a non-secure origin checks the closed
+`producer_error` for a missing default `proofId`. Guards keep Node APIs out of `src/`: a
+browser typecheck with no ambient types, lint rules (Node modules and globals, dynamic code,
+`@noble` and WebCrypto), a scan of the browser bundle for unresolved globals, and a
+packed-tarball consumer typecheck with `skipLibCheck: false`. Linux WebKit is evidence for
+this pure-JavaScript code only, not for Safari. The publish lane is separate: it re-verifies
+(build, typecheck, lint, guards, tests, the runtime, tarball and browser lanes, and
+`npm audit signatures`) on Node 24 — the npm >= 11.5 that trusted publishing requires —
+before staging a release that a human approves.
 
 ## Versioning and compatibility
 
 Package versions follow SemVer. Before 1.0 the minor position is the breaking boundary, so
 npm caret ranges such as `^0.2.1` never select `0.3.0`.
 
-0.4.x depends on `@bounded-authority-protocol/verifier` `^0.6.0` and refuses small-order and
-non-canonical Ed25519 key handles. 0.3.x depends on `@bounded-authority-protocol/verifier`
+0.5.x depends on `@bounded-authority-protocol/verifier` `^0.7.0`, runs in browsers, Deno and
+Bun, adds the contract-major-2 signers, and checks every ES256 signature with the verifier's
+strict `es256VerifyStrict` after low-S normalization. Its `"exports"` map keeps deep imports
+such as `@bounded-authority-protocol/signer/dist/src/v3.js` resolving through a `"./*"`
+passthrough, but deep imports are unsupported API and may be closed in a future 0.x minor;
+import from the package root. 0.4.x depends on `@bounded-authority-protocol/verifier`
+`^0.6.0` and refuses small-order and non-canonical Ed25519 key handles. 0.3.x depends on `@bounded-authority-protocol/verifier`
 `^0.5.0` and signs through its producers, so it inherits that release's stricter identifier
 admission. Identifiers with repeated fragment delimiters, raw brackets in userinfo or outside
 authority, or malformed bracketed IPv6 hosts such as `http://[abc]/x` now return
 `producer_error` instead of producing bytes a verifier would reject. Valid identifiers, including bracketed IPv6
 literals such as `http://[::1]/`, sign as before. Compatibility with other implementations
-is governed by the wire contract-majors (this package signs majors 1 and 3), not by package
+is governed by the wire contract-majors (this package signs majors 1, 2 and 3), not by package
 version numbers. Release notes are in [CHANGELOG.md](CHANGELOG.md).
 
 ## License
