@@ -36,7 +36,9 @@ interface Served { server: Server; port: number; requests: string[] }
 
 // Every page and script the lanes use, bundled once per server.
 const PAGES: Record<string, { title: string; entry: string }> = {
+  index: { title: "BAP signer: browser sign-then-verify lane", entry: "browser/main.ts" },
   insecure: { title: "BAP signer: non-secure-context lane", entry: "browser/insecure.ts" },
+  "eval-probe": { title: "BAP signer: CSP probe", entry: "browser/eval-probe.ts" },
 };
 
 async function serve(): Promise<Served> {
@@ -73,8 +75,70 @@ async function launch(name: string, args: string[] = []): Promise<Browser> {
   return ENGINES[name]!.launch({ ...(executablePath ? { executablePath } : {}), args });
 }
 
+interface L2Result {
+  backend: string; secure: boolean; userAgent: string; violations: string[]; error: string | null; ms: number;
+  report: { checks: Record<string, boolean>; trials: number; highS: number } | null;
+}
+
 for (const name of SELECTED) {
   assert.ok(ENGINES[name], `known engine ${name}`);
+
+  test(`${name}: BACKEND_ID portable in a secure context under the strict CSP; v1, v2 and v3 sign then verify (L2) with low-S holding (L3)`, async (t) => {
+    const served = await serve();
+    const browser = await launch(name);
+    try {
+      const page = await browser.newPage();
+      const response = await page.goto(`http://127.0.0.1:${served.port}/`);
+      assert.equal(response?.headers()["content-security-policy"], CSP, "the page is served under the strict CSP");
+      await page.waitForFunction(pageDone, undefined, { timeout: 120_000 });
+      const result = (await page.evaluate(pageResult)) as L2Result;
+      assert.equal(result.error, null, String(result.error));
+      assert.equal(result.backend, "portable");
+      assert.equal(result.secure, true);
+      assert.deepEqual(result.violations, [], "no CSP violation while signing and verifying");
+      assert.ok(result.report);
+      const failed = Object.entries(result.report.checks).filter(([, v]) => !v).map(([k]) => k);
+      assert.deepEqual(failed, []);
+      assert.ok(Object.keys(result.report.checks).length >= 20);
+      assert.ok(result.report.highS > 0, "the L3 sample contains high-S raw signatures");
+      t.diagnostic(`${name} ${browser.version()} (${result.userAgent}): ${Object.keys(result.report.checks).length} checks, ${result.report.trials} v3 trials, ${result.report.highS} high-S normalized, ${result.ms} ms`);
+    } finally {
+      await browser.close();
+      served.server.close();
+    }
+  });
+
+  test(`${name}: red-proof: a page expecting the wrong backend runs no check`, async () => {
+    const served = await serve();
+    const browser = await launch(name);
+    try {
+      const page = await browser.newPage();
+      await page.goto(`http://127.0.0.1:${served.port}/?expect=node`);
+      await page.waitForFunction(pageDone, undefined, { timeout: 60_000 });
+      const result = (await page.evaluate(pageResult)) as L2Result;
+      assert.match(result.error ?? "", /BACKEND_ID is "portable", this lane expects "node"; no check was run/);
+      assert.equal(result.report, null);
+    } finally {
+      await browser.close();
+      served.server.close();
+    }
+  });
+
+  test(`${name}: red-proof: eval is blocked by the served CSP and the securitypolicyviolation listener records it`, async () => {
+    const served = await serve();
+    const browser = await launch(name);
+    try {
+      const page = await browser.newPage();
+      await page.goto(`http://127.0.0.1:${served.port}/eval-probe.html`);
+      await page.waitForFunction(pageDone, undefined, { timeout: 60_000 });
+      const probe = (await page.evaluate(pageResult)) as { evalBlocked: boolean; violations: string[] };
+      assert.equal(probe.evalBlocked, true);
+      assert.ok(probe.violations.some((v) => v.startsWith("script-src")), JSON.stringify(probe.violations));
+    } finally {
+      await browser.close();
+      served.server.close();
+    }
+  });
 
   if (name === "chromium") {
     test("chromium: in a non-secure context, a report signed without a proofId is a closed producer_error, never a thrown TypeError", async (t) => {

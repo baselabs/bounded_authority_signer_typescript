@@ -1,0 +1,39 @@
+{
+  "note": "Budgets = the first measurement (October 13, 2026: esbuild 0.28.2, platform browser, minified ESM, gzip level 9, over dist/src/index.js of 0.5.0 with @bounded-authority-protocol/verifier 0.7.0 and its @noble/ed25519 3.2.0, @noble/curves 2.4.0, @noble/hashes 2.4.0) plus 10%, rounded up.",
+  "first_measurement": {
+    "root (every export)": {
+      "min": 184334,
+      "gzip": 49478
+    },
+    "{ signReport } (v1)": {
+      "min": 113221,
+      "gzip": 30638
+    },
+    "{ signV2Report }": {
+      "min": 110596,
+      "gzip": 30344
+    },
+    "{ signV3Report }": {
+      "min": 68891,
+      "gzip": 24873
+    }
+  },
+  "budgets": {
+    "root (every export)": {
+      "min": 202768,
+      "gzip": 54426
+    },
+    "{ signReport } (v1)": {
+      "min": 124544,
+      "gzip": 33702
+    },
+    "{ signV2Report }": {
+      "min": 121656,
+      "gzip": 33379
+    },
+    "{ signV3Report }": {
+      "min": 75781,
+      "gzip": 27361
+    }
+  }
+}

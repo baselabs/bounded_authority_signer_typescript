@@ -1,0 +1,39 @@
+// The browser L2/L3 lane. Runs in a real engine under the strict CSP the test server sends, with the
+// verifier resolved the way a browser bundler resolves it (the portable backend). The page asserts
+// BACKEND_ID and isSecureContext BEFORE any check runs, records every securitypolicyviolation, runs the
+// sign-then-verify battery, and publishes one result object for the Playwright test to read. In-page
+// verification here is a measurement, never a trust decision.
+import { BACKEND_ID } from "@bounded-authority-protocol/verifier";
+import { runL2, type L2Report } from "../test/lanes/l2.js";
+
+interface LaneResult {
+  backend: string; secure: boolean; userAgent: string; violations: string[]; error: string | null;
+  report: L2Report | null; ms: number;
+}
+
+const violations: string[] = [];
+document.addEventListener("securitypolicyviolation", (e) => violations.push(`${e.violatedDirective} ${e.blockedURI}`));
+
+function publish(result: LaneResult): void {
+  (window as unknown as { __BAP_RESULT__: LaneResult }).__BAP_RESULT__ = result;
+  document.getElementById("out")!.textContent = JSON.stringify(result, null, 2);
+  document.body.dataset.state = "done";
+}
+
+async function main(): Promise<void> {
+  const expected = new URLSearchParams(location.search).get("expect") ?? "portable";
+  const base: LaneResult = { backend: BACKEND_ID, secure: isSecureContext, userAgent: navigator.userAgent, violations, error: null, report: null, ms: 0 };
+  if (BACKEND_ID !== expected) {
+    publish({ ...base, error: `BACKEND_ID is "${BACKEND_ID}", this lane expects "${expected}"; no check was run` });
+    return;
+  }
+  if (!isSecureContext) {
+    publish({ ...base, error: "not a secure context; no check was run" });
+    return;
+  }
+  const start = performance.now();
+  const report = await runL2({ secure: true });
+  publish({ ...base, report, ms: Math.round(performance.now() - start) });
+}
+
+main().catch((e: unknown) => publish({ backend: BACKEND_ID, secure: isSecureContext, userAgent: navigator.userAgent, violations, error: String(e), report: null, ms: 0 }));
