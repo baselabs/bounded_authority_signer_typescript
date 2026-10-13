@@ -34,8 +34,9 @@ verifies. It is not a decision maker, not a transport, and not the authority run
 npm install @bounded-authority-protocol/signer
 ```
 
-Requires Node.js `>= 22` (the repository develops and runs CI on the pinned 22.23.1 — see
-[`.tool-versions`](.tool-versions)). One runtime dependency: the verifier package.
+Requires Node.js `>= 22` (the repository develops on the pinned 22.23.1 — see
+[`.tool-versions`](.tool-versions) — and runs CI on 22.23.1 and 24.19.0). One runtime
+dependency: the verifier package.
 
 ## Protocol family
 
@@ -191,11 +192,12 @@ that a human approves.
 Package versions follow SemVer. Before 1.0 the minor position is the breaking boundary, so
 npm caret ranges such as `^0.2.1` never select `0.3.0`.
 
-0.3.x depends on `@bounded-authority-protocol/verifier` `^0.5.0` and signs through its
-producers, so it inherits that release's stricter identifier admission. Identifiers with
-repeated fragment delimiters, raw brackets in userinfo or outside authority, or malformed
-bracketed IPv6 hosts such as `http://[abc]/x` now return `producer_error` instead of
-producing bytes a verifier would reject. Valid identifiers, including bracketed IPv6
+0.4.x depends on `@bounded-authority-protocol/verifier` `^0.6.0` and refuses small-order and
+non-canonical Ed25519 key handles. 0.3.x depends on `@bounded-authority-protocol/verifier`
+`^0.5.0` and signs through its producers, so it inherits that release's stricter identifier
+admission. Identifiers with repeated fragment delimiters, raw brackets in userinfo or outside
+authority, or malformed bracketed IPv6 hosts such as `http://[abc]/x` now return
+`producer_error` instead of producing bytes a verifier would reject. Valid identifiers, including bracketed IPv6
 literals such as `http://[::1]/`, sign as before. Compatibility with other implementations
 is governed by the wire contract-majors (this package signs majors 1 and 3), not by package
 version numbers. Release notes are in [CHANGELOG.md](CHANGELOG.md).

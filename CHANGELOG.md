@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.4.0] — 2026-10-12
+
+- **Refuse small-order and non-canonical Ed25519 key handles; strict self-verify.** A key
+  handle whose public key is not an acceptable Ed25519 key (a small-order point, a
+  non-canonical encoding, or a point off the curve) now returns `invalid_key_handle` from
+  every Ed25519 signer before `sign()` is called. The post-sign self-check uses the
+  verifier's strict Ed25519 verification instead of the runtime's. ES256 signers are
+  unchanged.
+- **Verifier lockstep 0.5.0 → 0.6.0**: the runtime dependency moves to
+  `@bounded-authority-protocol/verifier` `^0.6.0` (before 1.0 the minor is the breaking
+  boundary).
+- CI runs the verify job on Node 22.23.1 and 24.19.0.
+
 ## [0.3.1] — 2026-09-28
 
 Documentation patch; no code or dependency change.

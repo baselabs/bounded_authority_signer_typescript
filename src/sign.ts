@@ -6,19 +6,15 @@
 // The wrong-key guard is the RA1 cross-vendor finding: a signature that does
 // not verify against the resolved public key is signing_failed, never a silent
 // false-success deferred to the verifier downstream.
-import { createPublicKey, verify as edVerify, type KeyObject } from "node:crypto";
 import {
   assembleCompact,
   assembleLocalLoopbackHttpCompact,
+  verifyStrict,
   type Bounds,
   type Result,
   type SigningInput,
 } from "@bounded-authority-protocol/verifier";
 import { err, ok, type SignerResult } from "./handle.js";
-
-// RFC 8037 Ed25519 public JWK from the raw 32-byte key (x = base64url of the key).
-const ed25519 = (raw: Uint8Array): KeyObject =>
-  createPublicKey({ key: { kty: "OKP", crv: "Ed25519", x: Buffer.from(raw).toString("base64url") }, format: "jwk" });
 
 export async function signViaHandle(
   sign: (message: Uint8Array) => Uint8Array | Promise<Uint8Array>,
@@ -32,9 +28,12 @@ export async function signViaHandle(
   }
 }
 
+// The self-verify is the verifier package's strict Ed25519 check (rule S1: canonical A and R, no
+// small-order A or R, S < L, then the cofactorless equation), never the runtime's lenient
+// node:crypto verify — a backend that accepts R = identity, S = 0 under a weak key must not pass here.
 export function signatureVerifies(message: Uint8Array, signature: Uint8Array, publicKey: Uint8Array): boolean {
   try {
-    return edVerify(null, Buffer.from(message), ed25519(publicKey), Buffer.from(signature));
+    return verifyStrict(message, signature, publicKey);
   } catch {
     return false;
   }

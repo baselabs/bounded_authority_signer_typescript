@@ -20,6 +20,8 @@
 //                                              handle can never sign a grant —
 //                                              the C1 gate.
 
+import { acceptablePublicKey } from "@bounded-authority-protocol/verifier";
+
 export type KeyRole = "issuer" | "holder";
 
 export interface AtomicKeyIdentity {
@@ -64,7 +66,10 @@ async function call<T>(fn: () => T | Promise<T>): Promise<T | undefined> {
   }
 }
 
-const isEd25519Key = (v: unknown): v is Uint8Array => isUint8(v) && v.length === 32;
+// A handle's Ed25519 public key must be 32 bytes AND acceptable to the verifier: canonical, not one of
+// the eight small-order points (identity included), and on the curve. A weak key is refused here, at
+// resolution, before sign() is ever called — a handle that reports one is an invalid_key_handle.
+const isEd25519Key = (v: unknown): v is Uint8Array => isUint8(v) && v.length === 32 && acceptablePublicKey(v);
 
 export async function resolvePublicKey(handle: KeyHandle): Promise<Uint8Array | undefined> {
   const key = await call(() => handle.publicKey());
