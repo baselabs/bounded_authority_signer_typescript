@@ -15,6 +15,7 @@ import {
 } from "./v3.js";
 import { signV3AndAssemble } from "./es256.js";
 import { err, ok, type AtomicSigningIdentity, type SignerResult } from "./handle.js";
+import { defaultProofId } from "./proof-id.js";
 
 // The ES256 key-handle contract — the same caller-owned-custody shape as the
 // v1 KeyHandle, with the suite's fixed widths: sign() returns the 64-byte raw
@@ -38,7 +39,7 @@ export interface V3SignerEvent {
 export interface V3SignOpts {
   readonly bounds?: Bounds;
   readonly issuedAt?: number;    // default: wall clock seconds
-  readonly proofId?: string;     // default: crypto.randomUUID()
+  readonly proofId?: string;     // default: crypto.randomUUID() (producer_error where it is absent)
   readonly anchoredAt?: number;  // anchor timestamp (default: wall clock seconds)
   readonly onEvent?: (event: V3SignerEvent) => void;
 }
@@ -141,8 +142,11 @@ export async function signV3Report(report: V3ReportInput, handle: Es256KeyHandle
   const holderPublicKey = await resolveEs256PublicKey(handle);
   if (holderPublicKey === undefined) { emit("error"); return err("invalid_key_handle"); }
 
+  const proofId = defaultProofId(opts.proofId);
+  if (proofId === undefined) { emit("error"); return err("producer_error"); }
+
   const proof = {
-    holderPublicKey, proofId: opts.proofId ?? crypto.randomUUID(), method: report.method,
+    holderPublicKey, proofId, method: report.method,
     targetUri: report.targetUri, issuedAt: opts.issuedAt ?? nowSeconds(),
     invocationId: report.invocationId, operation: report.operation,
     grantCompact: report.grantCompact, castArguments: report.castArguments,

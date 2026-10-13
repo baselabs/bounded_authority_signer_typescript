@@ -1,0 +1,7 @@
+{
+  // Typecheck of the browser lane pages (part of pnpm typecheck:browser): DOM code bundled by esbuild,
+  // with the test-local key handles they import.
+  "extends": "../tsconfig.browser.json",
+  "compilerOptions": { "rootDir": "..", "outDir": "../dist" },
+  "include": ["./*.ts", "../test/lanes/*.ts", "../src/**/*.ts"]
+}

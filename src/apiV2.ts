@@ -21,6 +21,7 @@ import {
   type KeyHandle,
   type SignerResult,
 } from "./handle.js";
+import { defaultProofId } from "./proof-id.js";
 
 export interface V2SignerEvent {
   readonly kind: "v2_report" | "v2_anchor" | "v2_grant" | "v2_key_transition";
@@ -30,7 +31,7 @@ export interface V2SignerEvent {
 export interface V2SignOpts {
   readonly bounds?: Bounds;
   readonly issuedAt?: number;    // default: wall clock seconds
-  readonly proofId?: string;     // default: crypto.randomUUID()
+  readonly proofId?: string;     // default: crypto.randomUUID() (producer_error where it is absent)
   readonly anchoredAt?: number;  // anchor timestamp (default: wall clock seconds)
   readonly onEvent?: (event: V2SignerEvent) => void;
 }
@@ -119,8 +120,11 @@ export async function signV2Report(report: V2ReportInput, handle: KeyHandle, opt
   const holderPublicKey = await resolvePublicKey(handle);
   if (holderPublicKey === undefined) { emit("error"); return err("invalid_key_handle"); }
 
+  const proofId = defaultProofId(opts.proofId);
+  if (proofId === undefined) { emit("error"); return err("producer_error"); }
+
   const produced = v2.proofSigningInput({
-    holderPublicKey, proofId: opts.proofId ?? crypto.randomUUID(), method: report.method, targetUri: report.targetUri,
+    holderPublicKey, proofId, method: report.method, targetUri: report.targetUri,
     issuedAt: opts.issuedAt ?? nowSeconds(), invocationId: report.invocationId, operation: report.operation,
     grantCompact: report.grantCompact, castArguments: report.castArguments,
     ...(report.nonce === undefined ? {} : { nonce: report.nonce }),

@@ -17,6 +17,7 @@ import {
   type Tagged,
 } from "@bounded-authority-protocol/verifier";
 import { assemblers, signAndAssemble } from "./sign.js";
+import { defaultProofId } from "./proof-id.js";
 import {
   err,
   ok,
@@ -35,7 +36,7 @@ export interface SignerEvent {
 export interface SignOpts {
   readonly bounds?: Bounds;
   readonly issuedAt?: number;    // default: wall clock seconds
-  readonly proofId?: string;     // default: crypto.randomUUID()
+  readonly proofId?: string;     // default: crypto.randomUUID() (producer_error where it is absent)
   readonly anchoredAt?: number;  // anchor timestamp (default: wall clock seconds)
   readonly onEvent?: (event: SignerEvent) => void;
 }
@@ -118,7 +119,10 @@ async function signProofProfile(
   const holderPublicKey = await resolvePublicKey(handle);
   if (holderPublicKey === undefined) { emit("error"); return err("invalid_key_handle"); }
 
-  const proof = proofFrom(report, holderPublicKey, opts.proofId ?? crypto.randomUUID(), opts.issuedAt ?? nowSeconds());
+  const proofId = defaultProofId(opts.proofId);
+  if (proofId === undefined) { emit("error"); return err("producer_error"); }
+
+  const proof = proofFrom(report, holderPublicKey, proofId, opts.issuedAt ?? nowSeconds());
   const produced = kind === "report"
     ? proofSigningInput(proof, opts.bounds)
     : localLoopbackHttpProofSigningInput(proof, opts.bounds);

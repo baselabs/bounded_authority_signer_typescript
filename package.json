@@ -36,12 +36,13 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
-    "typecheck:browser": "tsc -p tsconfig.browser.json",
+    "typecheck:browser": "tsc -p tsconfig.browser.json && tsc -p browser/tsconfig.json",
     "lint": "eslint .",
     "guard:browser": "node tools/browser-guard.mjs",
     "test": "node --test --import tsx/esm test/*.test.ts",
     "test:gates": "node --test --import tsx/esm test/gates.test.ts",
     "test:tarball": "pnpm build && node --test --import tsx/esm test/tarball.ts",
+    "test:browser": "node --test --import tsx/esm test/browser.ts",
     "check:currency": "node tools/check-currency.mjs",
     "typecheck:web": "tsc -p tsconfig.web.json",
     "build:site": "node web/build.mjs && esbuild web/main.ts --bundle --minify --format=iife --target=es2022 --outfile=site-dist/app.js --alias:node:crypto=./web/shim/node-crypto.ts --inject:./web/shim/buffer-global.ts"
@@ -50,6 +51,7 @@
     "@bounded-authority-protocol/verifier": "^0.7.0"
   },
   "devDependencies": {
+    "@noble/curves": "^2.4.0",
     "@noble/ed25519": "^3.2.0",
     "@noble/hashes": "^2.4.0",
     "@types/node": "^26.6.5",
@@ -57,6 +59,7 @@
     "esbuild": "^0.28.2",
     "eslint": "^10.12.0",
     "globals": "^17.13.0",
+    "playwright": "^1.64.0",
     "semver": "^7.8.5",
     "tsx": "^4.23.15",
     "typescript": "^6.0.3",
