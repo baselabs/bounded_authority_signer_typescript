@@ -30,6 +30,17 @@ post-sign check and the closed error for a missing default `proofId`.
   broken normalization fails closed as `signing_failed` instead of emitting a malleable
   signature. `normalizeLowS` refuses `r` or `s` outside `(0, n)`, and a handle returning such a
   value gets `signing_failed`. `node:crypto` and `Buffer` are gone from `src/`.
+- **Handle and listener faults are contained, and handle buffers are copied.** `sign()` gets its
+  own copy of the message, and the library checks and assembles from private copies of the
+  message, the resolved public key and the returned signature. Before, a handle that rewrote
+  the key array it had reported (any major), or the message buffer it was given (v3), could get
+  `ok` for bytes the verifier rejects; it now gets `signing_failed`. A worker-style handle that
+  transfers the message buffer now signs on v3 as on v1 and v2. `keyIdentity()` or
+  `signingIdentity()` returning `null`, a throwing getter and a Proxy-wrapped key are
+  `invalid_key_handle` instead of a thrown `TypeError`; an `onEvent` listener that throws is
+  ignored and no longer changes the result.
+- **Malformed operation entries** (`operations: [null]`, a `null` selector list or selector)
+  are `producer_error` on v1, v2 and v3 alike.
 - **Default `proofId` outside a secure context.** `crypto.randomUUID()` exists only in a secure
   context; on a plain-HTTP page the report signers called without `proofId` threw a
   `TypeError`. They now return the closed `producer_error`. An explicit `proofId` is unaffected.
@@ -50,16 +61,19 @@ is the strict check, so it returns `false` for a high-`s` signature.
 - Guards, each with a red-proof against the real configuration: a browser typecheck
   (`tsconfig.browser.json`: DOM + ES2022, no ambient types, `skipLibCheck: false`); lint rules
   banning every Node built-in module and Node global (also through `globalThis`, `window` and
-  `self`), network globals, dynamic `import()`, `eval`, implied eval, the `Function` constructor,
+  `self`, and a `Buffer`, `process` or `require` property on any object, so a cast cannot hide
+  it), network globals, dynamic `import()`, `eval`, implied eval, the `Function` constructor,
   `@noble`, `crypto.subtle` and key-generation entry points in `src/`; a scan of the browser bundle
-  for unresolved globals; a packed-tarball consumer typecheck under each resolution, library and
+  for unresolved globals and for `Buffer`, `process` or `require` read from a global object; a packed-tarball consumer typecheck under each resolution, library and
   condition set; and a bundle-size limit at the first measurement plus 10%.
 - Lanes: one sign-then-verify battery runs on Node 22.23.1 and 24.19.0 with each verifier backend,
   Deno 2.5.6, Bun 1.3.14, and Playwright Chromium, Firefox and WebKit (CI, Linux only) under a
   strict CSP, plus a Chromium lane on a non-secure origin. Every lane asserts the verifier
   `BACKEND_ID` first.
 - CI adds the guards, the size gate, the portable suite, the Node, Deno, Bun, tarball and browser
-  lanes, and `npm audit signatures`; the release gate runs the same lanes.
+  lanes, and `npm audit signatures`. The release workflow is split: a verify job with read-only
+  permissions runs every lane, and a publish job that alone holds the OIDC token (and needs the
+  verify job) only installs without lifecycle scripts, builds, checks the tag and stages.
 - The playground builds without the `node:crypto` shim and the `Buffer` polyfill (`web/shim/` is
   removed), and the Pages workflow scans its bundle before deploying. The `buffer`,
   `@noble/ed25519` and `@noble/hashes` dev dependencies are dropped; `@noble/curves`, `eslint`,

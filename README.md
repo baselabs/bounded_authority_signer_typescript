@@ -15,9 +15,10 @@ the port of the Elixir
 ([GitHub](https://github.com/baselabs/bounded_authority_report_adapter)). This package signs
 **contract-major 1** (the byte-frozen v1 profile and the local-loopback profile),
 **contract-major 2** (the v2 profile: `v: 2` payloads, `BAP2-*` separators and the `lte`/`gte`
-range selectors, Ed25519) and **contract-major 3** — the `BAP3-ES256-SHA256` suite of
-[ADR 0035](https://github.com/baselabs/bounded_authority_protocol/blob/main/docs/adr/0035-es256-contract-major-activation.md)
-(ECDSA P-256 with SHA-256, low-S normalized). It runs on Node.js, in browsers, in Deno and in
+range selectors, Ed25519) and **contract-major 3** (the `BAP3-ES256-SHA256` suite: ECDSA P-256
+with SHA-256, low-S normalized, defined by
+[ADR 0035](https://github.com/baselabs/bounded_authority_protocol/blob/main/docs/adr/0035-es256-contract-major-activation.md)).
+It runs on Node.js, in browsers, in Deno and in
 Bun with no Node API (see [Browsers, Deno, Bun and workers](#browsers-deno-bun-and-workers)).
 
 The protocol's verifier package produces each object's deterministic signing input and
@@ -194,7 +195,12 @@ Two load-bearing rules port unchanged from the Elixir adapter (both v1 and v3):
   signature, so a missed low-S normalization fails closed). A handle whose `sign()` used a
   different key (a rotation race, a misconfigured signing service) fails loudly as
   `signing_failed`, never a silent false-success deferred to the verifier. A handle that
-  returns `r` or `s` outside `(0, n)` is `signing_failed` too.
+  returns `r` or `s` outside `(0, n)` is `signing_failed` too. The handle gets its own copy of
+  the message (it may rewrite or transfer it), and the library keeps private copies of the
+  message, the resolved key and the returned signature, so nothing the handle still holds can
+  change what is checked or assembled. A handle method or getter that throws, a `null`
+  snapshot or a Proxy-wrapped key is `invalid_key_handle`; a throwing `onEvent` listener is
+  ignored.
 
 The local-loopback profile is selected by function name — never inferred: the nonce is
 required, and the target must be exactly `http://127.0.0.1[:port]/…` or `http://[::1][:port]/…`
