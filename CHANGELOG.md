@@ -64,9 +64,10 @@ is the strict check, so it returns `false` for a high-`s` signature.
   removed), and the Pages workflow scans its bundle before deploying. The `buffer`,
   `@noble/ed25519` and `@noble/hashes` dev dependencies are dropped; `@noble/curves`, `eslint`,
   `typescript-eslint`, `globals` and `playwright` join.
-- TypeScript is pinned to 6.0.3 (from 7.0.2), matching the verifier: typescript-eslint 8.71.2
-  peers `typescript <6.1.0`, and the guard and tarball tests use the compiler API that 7.x no
-  longer ships. Emitted JavaScript and declarations are identical apart from whitespace.
+- TypeScript is pinned exactly to `"6.0.3"` (from 7.0.2; no range), matching the verifier:
+  typescript-eslint 8.71.2 peers `typescript <6.1.0`, and the guard and tarball tests use the
+  compiler API that 7.x no longer ships. Emitted JavaScript and declarations are identical apart
+  from whitespace. The currency gate records the reason.
 
 ## [0.4.0] — 2026-10-13
 
