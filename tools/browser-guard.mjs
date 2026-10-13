@@ -6,8 +6,9 @@
 //      its node backend or node:crypto.
 //   2. a scope-aware unresolved-globals scan of the bundled output: ESLint no-undef with the ES2022 and
 //      browser globals only, so a free Buffer, process, require or __dirname reference anywhere in the
-//      bundle (ours or a dependency's) is a finding; eval, implied eval and the Function constructor
-//      are findings too (the strict CSP in the browser lane forbids them).
+//      bundle (ours or a dependency's) is a finding, as is globalThis/window/self/global.Buffer, .process
+//      or .require (a type cast in the source is erased by then); eval, implied eval and the Function
+//      constructor are findings too (the strict CSP in the browser lane forbids them).
 // test/guards.test.ts red-proofs both layers through the exported functions. With --scan <file> it runs
 // the second layer alone over an already-built bundle (the Pages playground, site-dist/app.js).
 import { build } from "esbuild";
@@ -42,10 +43,22 @@ export async function bundleForBrowser({ entry, stdin, minify = false }) {
   }
 }
 
+// Casts are erased in a bundle, so (globalThis as unknown as {...}).Buffer arrives as globalThis.Buffer:
+// a Node global reached as a property of a global object is a finding too.
+const NODE_GLOBAL_PROPERTIES = ["globalThis", "window", "self", "global"].flatMap((object) =>
+  ["Buffer", "process", "require"].map((property) => ({ object, property })),
+);
+
 const SCAN_CONFIG = [
   {
     languageOptions: { ecmaVersion: 2022, sourceType: "module", globals: { ...globals.es2022, ...globals.browser } },
-    rules: { "no-undef": "error", "no-eval": "error", "no-implied-eval": "error", "no-new-func": "error" },
+    rules: {
+      "no-undef": "error",
+      "no-eval": "error",
+      "no-implied-eval": "error",
+      "no-new-func": "error",
+      "no-restricted-properties": ["error", ...NODE_GLOBAL_PROPERTIES],
+    },
   },
 ];
 
@@ -78,7 +91,7 @@ async function scanFile(file) {
     for (const f of findings) console.error(`  ${f}`);
     process.exit(1);
   }
-  console.log(`browser-guard: PASS (${file}: no unresolved globals, eval or Function constructor)`);
+  console.log(`browser-guard: PASS (${file}: no unresolved globals, Node-global properties, eval or Function constructor)`);
 }
 
 async function main() {
@@ -97,7 +110,7 @@ async function main() {
     for (const f of problems) console.error(`  ${f}`);
     process.exit(1);
   }
-  console.log(`browser-guard: PASS (${inputs.length} modules, ${result.bytes} bytes unminified; the verifier's portable backend only; no unresolved globals, eval or Function constructor)`);
+  console.log(`browser-guard: PASS (${inputs.length} modules, ${result.bytes} bytes unminified; the verifier's portable backend only; no unresolved globals, Node-global properties, eval or Function constructor)`);
 }
 
 if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) await main();

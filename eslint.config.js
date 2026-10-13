@@ -80,6 +80,16 @@ export default tseslint.config(
           selector: "CallExpression[callee.name='require']",
           message: "require() is forbidden in src/ (ESM only, browser safety)",
         },
+        // A type cast hides the object from no-restricted-properties ((globalThis as unknown as {...}).Buffer),
+        // so the property name is banned on ANY object, dotted or as a string key.
+        {
+          selector: "MemberExpression[computed=false][property.name=/^(Buffer|process|require)$/]",
+          message: "a Buffer, process or require property is forbidden in src/ on any object (browser safety; casts do not hide it)",
+        },
+        {
+          selector: "MemberExpression[computed=true][property.value=/^(Buffer|process|require)$/]",
+          message: "a Buffer, process or require property is forbidden in src/ on any object (browser safety; casts do not hide it)",
+        },
       ],
     },
   },

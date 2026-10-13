@@ -9,6 +9,7 @@ import assert from "node:assert/strict";
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { transform } from "esbuild";
 import { ESLint } from "eslint";
 import ts from "typescript";
 
@@ -47,6 +48,11 @@ const LINT_PROBES: ReadonlyArray<readonly [string, string, string]> = [
   ["globalThis.process", "export const p = globalThis.process;", "no-restricted-properties"],
   ["globalThis.require", "export const p = globalThis.require;", "no-restricted-properties"],
   ["globalThis['Buffer']", 'export const p = globalThis["Buffer"];', "no-restricted-properties"],
+  // A cast hides the object from no-restricted-properties; the property name alone is banned.
+  ["cast globalThis.Buffer", 'export const p = (globalThis as unknown as { Buffer: { from(s: string): Uint8Array } }).Buffer.from("x");', "no-restricted-syntax"],
+  ["cast globalThis.process", 'export const p = (globalThis as unknown as { process: { version: string } }).process.version;', "no-restricted-syntax"],
+  ["cast globalThis.require", 'export const p = (globalThis as unknown as { require(s: string): unknown }).require("x");', "no-restricted-syntax"],
+  ["any object ['Buffer']", 'const o: Record<string, unknown> = globalThis;\nexport const p = o["Buffer"];', "no-restricted-syntax"],
   ["window.process", "export const p = window.process;", "no-restricted-properties"],
   ["self.Buffer", "export const p = self.Buffer;", "no-restricted-properties"],
   // Network: the signer is not a transport.
@@ -154,6 +160,18 @@ test("bundle guard red-proof: an entry that imports node:crypto fails the browse
 test("bundle guard red-proof: a bundle with a free Buffer (and a free process) reference is caught by no-undef", async () => {
   const found = await (await guard()).scanUnresolvedGlobals('var a = Buffer.from("x"); var b = process.env; var ok = new TextEncoder();');
   assert.deepEqual(found.sort(), ["Buffer", "process"]);
+});
+
+test("bundle guard red-proof: the cast plant (globalThis as unknown as {...}).Buffer.from(...) is caught once the cast is erased", async () => {
+  const plant = 'export const p = (globalThis as unknown as { Buffer: { from(s: string): Uint8Array } }).Buffer.from("x");\n' +
+    'export const q = (self as unknown as { process: { env: unknown } }).process.env;\n' +
+    'export const r = (window as unknown as { require(s: string): unknown }).require("x");';
+  const { code } = await transform(plant, { loader: "ts", format: "esm", target: "es2022" });
+  assert.ok(code.includes("globalThis.Buffer.from"), code);
+  const found = await (await guard()).scanUnresolvedGlobals(code);
+  for (const access of ["globalThis.Buffer", "self.process", "window.require"]) {
+    assert.ok(found.some((f) => f.includes(access)), `${access} must be a finding:\n${found.join("\n")}`);
+  }
 });
 
 test("bundle guard red-proof: eval and new Function in a bundle are caught", async () => {
