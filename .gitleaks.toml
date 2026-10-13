@@ -1,0 +1,18 @@
+# Gitleaks default rules with rule-scoped, exact-match exceptions for test labels that the
+# generic-api-key rule mistakes for secrets. Every exception names the rule, an anchored path
+# and the exact match.
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Conformance-lane check labels in test/lanes/l2.ts (not credentials)"
+condition = "AND"
+targetRules = ["generic-api-key"]
+regexTarget = "match"
+paths = [
+  '''^test/lanes/l2\.ts$''',
+]
+regexes = [
+  '''^signV2KeyTransition -> v2\.verifyKeyTransition"$''',
+  '''^signV3KeyTransition -> v3\.verifyKeyTransition"$''',
+]
