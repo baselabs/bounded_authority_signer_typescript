@@ -122,7 +122,7 @@ export async function runL2(options: { secure: boolean }): Promise<L2Report> {
       chainHash: new Uint8Array(32), keyFingerprint: publicKeyThumbprintRaw(chain.publicKey),
     }).ok;
     const t = await signV2KeyTransition({ transitionId: "urn:example:transition:2", chainId: "urn:example:chain", effectiveAt: 1500, nextKeyId: "chain-key-2", nextPublicKey: next.publicKey }, edHandle(chain, { keyId: "chain-key" }));
-    checks["v2 signV2KeyTransition -> v2.verifyKeyTransition"] = t.ok && v2.verifyKeyTransition(t.value.keyTransition, histKey("chain-key", chain.publicKey), histKey("chain-key-2", next.publicKey, 1500), {
+    checks["v2 signV2KeyTransition -> v2.verifyKeyTransition"] = t.ok && v2.verifyKeyTransition(t.value.keyTransition, histKey("chain-key", chain.publicKey), histKey("chain-key-2", next.publicKey, 1500), { // gitleaks:allow (test label, not a secret)
       transitionId: "urn:example:transition:2", chainId: "urn:example:chain", effectiveAt: 1500,
       currentKeyFingerprint: publicKeyThumbprintRaw(chain.publicKey), nextKeyFingerprint: publicKeyThumbprintRaw(next.publicKey),
       currentKeyId: "chain-key", nextKeyId: "chain-key-2",
@@ -142,7 +142,7 @@ export async function runL2(options: { secure: boolean }): Promise<L2Report> {
       chainHash: new Uint8Array(32), keyFingerprint: fp(chain.thumbprint),
     }).ok;
     const t = await signV3KeyTransition({ transitionId: "urn:example:transition:3", chainId: "urn:example:chain", effectiveAt: 1500, nextKeyId: "chain-key-2", nextPublicKey: next.publicKey }, ecHandle(chain, { keyId: "chain-key" }));
-    checks["v3 signV3KeyTransition -> v3.verifyKeyTransition"] = t.ok && v3.verifyKeyTransition(t.value.keyTransition, histKey("chain-key", chain.publicKey), histKey("chain-key-2", next.publicKey, 1500), {
+    checks["v3 signV3KeyTransition -> v3.verifyKeyTransition"] = t.ok && v3.verifyKeyTransition(t.value.keyTransition, histKey("chain-key", chain.publicKey), histKey("chain-key-2", next.publicKey, 1500), { // gitleaks:allow (test label, not a secret)
       transitionId: "urn:example:transition:3", chainId: "urn:example:chain", effectiveAt: 1500,
       currentKeyFingerprint: fp(chain.thumbprint), nextKeyFingerprint: fp(next.thumbprint), currentKeyId: "chain-key", nextKeyId: "chain-key-2",
     }).ok;
