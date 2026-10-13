@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@bounded-authority-protocol/verifier':
-        specifier: ^0.5.0
-        version: 0.5.0
+        specifier: ^0.6.0
+        version: 0.6.0
     devDependencies:
       '@noble/ed25519':
         specifier: ^3.2.0
@@ -19,8 +19,8 @@ importers:
         specifier: ^2.4.0
         version: 2.4.0
       '@types/node':
-        specifier: ^26.6.4
-        version: 26.6.4
+        specifier: ^26.6.5
+        version: 26.6.5
       buffer:
         specifier: ^6.0.3
         version: 6.0.3
@@ -39,8 +39,8 @@ importers:
 
 packages:
 
-  '@bounded-authority-protocol/verifier@0.5.0':
-    resolution: {integrity: sha512-R4jK88XMkl3Fql31mvWqHhkrpbqs43vg1JapNRY7sFkG7vXWZYlkhodtR9pN6ZsdJl0mfIPeeQHnXR+P5213ww==}
+  '@bounded-authority-protocol/verifier@0.6.0':
+    resolution: {integrity: sha512-mnD0HyjDJOFfM/ZNYcinIv1exyVpGmPfcJ056k5Vi2nl7ZlTF7YiYeCDW3r8/469EQHt+4/gMslf1Z6vKhGC5w==}
     engines: {node: '>=22'}
 
   '@esbuild/aix-ppc64@0.28.2':
@@ -206,8 +206,8 @@ packages:
     resolution: {integrity: sha512-X5XaVWZIBCT7HHZGm5I7ZQXDwLG+bGXuSrMQAW+7Zvl87h1kmc1ZB1VSRJcpUfoUrGQp4Fkoxm5kZ+Ms+aW+eA==}
     engines: {node: '>= 20.19.0'}
 
-  '@types/node@26.6.4':
-    resolution: {integrity: sha512-ldVPDCzj7fsaGZrLB0NuHuTvJcsNasysBAqMolr/cgxrLd1xbqxIr3XJiPnHHJUCxj5sNF1vnRj9aWnrVh5Jcg==}
+  '@types/node@26.6.5':
+    resolution: {integrity: sha512-uMzsv9stDdofIZBx4UGh4Z9ZgXnGC9seRDscilBcTHAeOFk67MZg/k9bWVfO+bk4qZmG+l52hRnLwUiH2LnJTg==}
 
   '@typescript/typescript-aix-ppc64@7.0.2':
     resolution: {integrity: sha512-MTKKkWB7p/0E9xi1d1tHtZ5PiLkGEMIq88pK2CubZjOsLtYTLqhgIgi6zepFa+9GHZ6h05NMCkQxGKiPXMxXtQ==}
@@ -368,7 +368,7 @@ packages:
 
 snapshots:
 
-  '@bounded-authority-protocol/verifier@0.5.0': {}
+  '@bounded-authority-protocol/verifier@0.6.0': {}
 
   '@esbuild/aix-ppc64@0.28.2':
     optional: true
@@ -452,7 +452,7 @@ snapshots:
 
   '@noble/hashes@2.4.0': {}
 
-  '@types/node@26.6.4':
+  '@types/node@26.6.5':
     dependencies:
       undici-types: 8.9.0
 
