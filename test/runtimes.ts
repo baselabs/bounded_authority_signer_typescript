@@ -38,7 +38,7 @@ for (const lane of SELECTED) {
     assert.ok(report.runtime.startsWith(lane.startsWith("node") ? "node" : lane), report.runtime);
     const failed = Object.entries(report.checks).filter(([, v]) => !v).map(([k]) => k);
     assert.deepEqual(failed, []);
-    assert.ok(Object.keys(report.checks).length >= 20, `${Object.keys(report.checks).length} checks`);
+    assert.ok(Object.keys(report.checks).length >= 23, `${Object.keys(report.checks).length} checks`);
     assert.ok(report.highS > 0, "the L3 sample contains high-S raw signatures");
     assert.equal(report.ok, true);
     t.diagnostic(`${report.runtime} (backend ${report.backend}): ${Object.keys(report.checks).length} checks, ${report.trials} v3 trials, ${report.highS} high-S normalized, ${report.ms} ms`);

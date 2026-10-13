@@ -99,7 +99,7 @@ for (const name of SELECTED) {
       assert.ok(result.report);
       const failed = Object.entries(result.report.checks).filter(([, v]) => !v).map(([k]) => k);
       assert.deepEqual(failed, []);
-      assert.ok(Object.keys(result.report.checks).length >= 20);
+      assert.ok(Object.keys(result.report.checks).length >= 23);
       assert.ok(result.report.highS > 0, "the L3 sample contains high-S raw signatures");
       t.diagnostic(`${name} ${browser.version()} (${result.userAgent}): ${Object.keys(result.report.checks).length} checks, ${result.report.trials} v3 trials, ${result.report.highS} high-S normalized, ${result.ms} ms`);
     } finally {

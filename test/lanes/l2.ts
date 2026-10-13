@@ -177,6 +177,14 @@ export async function runL2(options: { secure: boolean }): Promise<L2Report> {
     const g = await signV3Grant(grantInput(holder.thumbprint, ALL), ecHandle(issuer, { keyId: "issuer-key", role: "issuer" }));
     const wrong = g.ok ? await signV3Report(report(g.value.grant), ecHandle(holder, { keyId: "holder-key", signWith: ecKey() }), opts) : g;
     checks["v3 wrong-key handle -> signing_failed"] = !wrong.ok && wrong.error === "signing_failed";
+    // A worker-style handle transfers (detaches) the message it is given; the library signs from its own copy.
+    const transferring = { ...ecHandle(holder, { keyId: "holder-key" }), sign: (m: Uint8Array) => holder.sign(structuredClone(m, { transfer: [m.buffer as ArrayBuffer] })) };
+    const moved = g.ok ? await signV3Report(report(g.value.grant), transferring, opts) : g;
+    checks["v3 transferring (worker-style) handle -> v3.checkEnvelope"] = moved.ok && v3.checkEnvelope(moved.value.grant, moved.value.proof, expected(issuer.publicKey)).ok;
+    // A handle that rewrites the message it is given and signs the rewritten bytes never gets ok.
+    const rewriting = { ...ecHandle(holder, { keyId: "holder-key" }), sign: (m: Uint8Array) => { m[0] = (m[0] ?? 0) ^ 1; return holder.sign(m); } };
+    const rewritten = g.ok ? await signV3Report(report(g.value.grant), rewriting, opts) : g;
+    checks["v3 message-rewriting handle -> signing_failed"] = !rewritten.ok && rewritten.error === "signing_failed";
   }
 
   // ---- L3: normalizeLowS algebra ----
