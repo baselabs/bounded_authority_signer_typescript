@@ -1,6 +1,8 @@
 # Changelog
 
-## [0.4.0] — 2026-10-12
+## [0.4.0] — 2026-10-13
+
+Security advisory: [GHSA-wxxg-7cx6-m8qj](https://github.com/baselabs/bounded_authority_signer_typescript/security/advisories/GHSA-wxxg-7cx6-m8qj).
 
 - **Refuse small-order and non-canonical Ed25519 key handles; strict self-verify.** A key
   handle whose public key is not an acceptable Ed25519 key (a small-order point, a
