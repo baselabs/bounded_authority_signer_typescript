@@ -109,7 +109,9 @@ test.before(() => {
     dependencies: { [NAME]: `file:${tarball}`, [VERIFIER]: `file:${verifierTarball}`, "@noble/curves": "2.4.0" },
     pnpm: { overrides: { [VERIFIER]: `file:${verifierTarball}` } },
   }));
-  run("pnpm", ["install", "--offline", "--ignore-scripts", "--config.confirmModulesPurge=false"], consumer);
+  // --prefer-offline, not --offline: a fresh CI runner has no pnpm metadata cache for the
+  // packed tarball's own dependencies, so it must be allowed to fetch them.
+  run("pnpm", ["install", "--prefer-offline", "--ignore-scripts", "--config.confirmModulesPurge=false"], consumer);
   writeFileSync(join(consumer, "consumer.ts"), CONSUMER_TS);
   writeFileSync(join(consumer, "main.mjs"), CONSUMER_JS);
 });
