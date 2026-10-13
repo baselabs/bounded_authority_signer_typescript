@@ -16,6 +16,16 @@ export type {
   Envelope, AnchorCompact, GrantCompact, TransitionCompact,
 } from "./api.js";
 export {
+  signV2Report,
+  signV2Anchor,
+  signV2Grant,
+  signV2KeyTransition,
+} from "./apiV2.js";
+export type {
+  V2ReportInput, V2AnchorInput, V2GrantInput, V2TransitionInput, V2SignOpts, V2SignerEvent,
+  V2OperationInput, V2SelectorInput,
+} from "./apiV2.js";
+export {
   signV3Report,
   signV3Anchor,
   signV3Grant,

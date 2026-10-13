@@ -9,6 +9,7 @@
 import {
   assembleCompact,
   assembleLocalLoopbackHttpCompact,
+  v2,
   verifyStrict,
   type Bounds,
   type Result,
@@ -29,8 +30,8 @@ export async function signViaHandle(
 }
 
 // The self-verify is the verifier package's strict Ed25519 check (rule S1: canonical A and R, no
-// small-order A or R, S < L, then the cofactorless equation), never the runtime's lenient
-// node:crypto verify — a backend that accepts R = identity, S = 0 under a weak key must not pass here.
+// small-order A or R, S < L, then the cofactorless equation), never a lenient backend verify — a
+// backend that accepts R = identity, S = 0 under a weak key must not pass here.
 export function signatureVerifies(message: Uint8Array, signature: Uint8Array, publicKey: Uint8Array): boolean {
   try {
     return verifyStrict(message, signature, publicKey);
@@ -43,8 +44,10 @@ export type Assembler = (input: SigningInput, signature: Uint8Array, bounds?: Bo
 
 const standard: Assembler = (input, signature, bounds) => assembleCompact(input, signature, bounds);
 const loopback: Assembler = (input, signature, bounds) => assembleLocalLoopbackHttpCompact(input, signature, bounds);
+// Contract-major 2: the verifier's v2.assembleCompact (v:2 payloads, BAP2-* separators, same Ed25519 suite).
+const major2: Assembler = (input, signature, bounds) => v2.assembleCompact(input, signature, bounds);
 
-export const assemblers = { standard, loopback } as const;
+export const assemblers = { standard, loopback, v2: major2 } as const;
 
 export async function signAndAssemble(
   sign: (message: Uint8Array) => Uint8Array | Promise<Uint8Array>,
