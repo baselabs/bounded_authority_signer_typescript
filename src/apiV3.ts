@@ -14,7 +14,17 @@ import {
   type V3OperationInput,
 } from "./v3.js";
 import { signV3AndAssemble } from "./es256.js";
-import { err, ok, type AtomicSigningIdentity, type SignerResult } from "./handle.js";
+import {
+  emitter,
+  err,
+  ok,
+  resolveIdentityWith,
+  resolveIssuerWith,
+  resolveKeyWith,
+  type AtomicSigningIdentity,
+  type KeyCheck,
+  type SignerResult,
+} from "./handle.js";
 import { defaultProofId } from "./proof-id.js";
 
 // The ES256 key-handle contract — the same caller-owned-custody shape as the
@@ -84,43 +94,16 @@ const nowSeconds = () => Math.floor(Date.now() / 1000);
 const isStr = (v: unknown): v is string => typeof v === "string" && v.length > 0;
 const isU8 = (v: unknown, n?: number): v is Uint8Array => v instanceof Uint8Array && (n === undefined || v.length === n);
 
-// --- handle resolvers (the v1 discipline, ES256 widths; a callback fault maps
-// to the closed error, never escapes) ---------------------------------------
+// --- handle resolvers: the v1 resolvers (one try, a private copy of the key, a fresh snapshot object)
+// with the suite's 65-byte uncompressed-SEC1 width -----------------------------------------------
 
-async function call<T>(fn: () => T | Promise<T>): Promise<T | undefined> {
-  try {
-    return await fn();
-  } catch {
-    return undefined;
-  }
-}
-
-const isP256Key = (v: unknown): v is Uint8Array => isU8(v, 65);
-
-async function resolveEs256PublicKey(handle: Es256KeyHandle): Promise<Uint8Array | undefined> {
-  const key = await call(() => handle.publicKey());
-  return isP256Key(key) ? key : undefined;
-}
-
+const p256Key: KeyCheck = (key) => key.length === 65;
 type Es256KeyIdentity = { keyId: string; publicKey: Uint8Array };
 
-async function resolveEs256KeyIdentity(handle: Es256KeyHandle): Promise<Es256KeyIdentity | undefined> {
-  const snap = await call(() => handle.keyIdentity?.());
-  if (snap === undefined) return undefined;
-  if (typeof snap.keyId !== "string" || snap.keyId.length === 0) return undefined;
-  if (!isP256Key(snap.publicKey)) return undefined;
-  return snap;
-}
-
+const resolveEs256PublicKey = (handle: Es256KeyHandle): Promise<Uint8Array | undefined> => resolveKeyWith(() => handle.publicKey(), p256Key);
+const resolveEs256KeyIdentity = (handle: Es256KeyHandle): Promise<Es256KeyIdentity | undefined> => resolveIdentityWith(() => handle.keyIdentity?.(), p256Key);
 /** The C1 gate, ES256 form: grants require an issuer-role identity resolved atomically. */
-async function resolveEs256IssuerIdentity(handle: Es256KeyHandle): Promise<Es256KeyIdentity | undefined> {
-  const snap = await call(() => handle.signingIdentity?.());
-  if (snap === undefined || snap === null) return undefined;
-  if (snap.role !== "issuer") return undefined;
-  if (typeof snap.keyId !== "string" || snap.keyId.length === 0) return undefined;
-  if (!isP256Key(snap.publicKey)) return undefined;
-  return { keyId: snap.keyId, publicKey: snap.publicKey };
-}
+const resolveEs256IssuerIdentity = (handle: Es256KeyHandle): Promise<Es256KeyIdentity | undefined> => resolveIssuerWith(() => handle.signingIdentity?.(), p256Key);
 
 // --- the four signers --------------------------------------------------------
 
@@ -134,7 +117,7 @@ function validateReport(report: V3ReportInput): SignerResult<V3ReportInput> {
 }
 
 export async function signV3Report(report: V3ReportInput, handle: Es256KeyHandle, opts: V3SignOpts = {}): Promise<SignerResult<Envelope>> {
-  const emit = (phase: V3SignerEvent["phase"]) => opts.onEvent?.({ kind: "v3_report", phase });
+  const emit = emitter(opts, "v3_report");
   emit("start");
   const validated = validateReport(report);
   if (!validated.ok) { emit("error"); return validated; }
@@ -162,72 +145,75 @@ export async function signV3Report(report: V3ReportInput, handle: Es256KeyHandle
 }
 
 export async function signV3Anchor(input: V3AnchorInput, handle: Es256KeyHandle, opts: V3SignOpts = {}): Promise<SignerResult<AnchorCompact>> {
-  opts.onEvent?.({ kind: "v3_anchor", phase: "start" });
+  const emit = emitter(opts, "v3_anchor");
+  emit("start");
   if (!isStr(input?.anchorId) || !isStr(input?.chainId) || !Number.isInteger(input?.sequence) || !isU8(input?.chainHash, 32)) {
-    opts.onEvent?.({ kind: "v3_anchor", phase: "error" });
+    emit("error");
     return err("invalid_anchor");
   }
   const identity = await resolveEs256KeyIdentity(handle);
-  if (identity === undefined) { opts.onEvent?.({ kind: "v3_anchor", phase: "error" }); return err("invalid_key_handle"); }
+  if (identity === undefined) { emit("error"); return err("invalid_key_handle"); }
 
   const produced = boundaryAnchorSigningInput({
     anchorId: input.anchorId, anchoredAt: opts.anchoredAt ?? nowSeconds(), chainId: input.chainId,
     sequence: input.sequence, chainHash: input.chainHash, keyId: identity.keyId, publicKey: identity.publicKey,
   }, opts.bounds);
-  if (!produced.ok) { opts.onEvent?.({ kind: "v3_anchor", phase: "error" }); return err("producer_error"); }
+  if (!produced.ok) { emit("error"); return err("producer_error"); }
 
   const assembled = await signV3AndAssemble((m) => handle.sign(m), produced.value, identity.publicKey, opts.bounds);
-  if (!assembled.ok) { opts.onEvent?.({ kind: "v3_anchor", phase: "error" }); return assembled; }
-  opts.onEvent?.({ kind: "v3_anchor", phase: "stop" });
+  if (!assembled.ok) { emit("error"); return assembled; }
+  emit("stop");
   return ok({ anchor: assembled.value });
 }
 
 export async function signV3Grant(input: V3GrantInput, handle: Es256KeyHandle, opts: V3SignOpts = {}): Promise<SignerResult<GrantCompact>> {
-  opts.onEvent?.({ kind: "v3_grant", phase: "start" });
+  const emit = emitter(opts, "v3_grant");
+  emit("start");
   if (!isStr(input?.issuer) || !isStr(input?.grantId) || !Array.isArray(input?.audiences) ||
       ![input?.issuedAt, input?.notBefore, input?.expiresAt].every(Number.isInteger) ||
       !isStr(input?.holderThumbprint) || !Array.isArray(input?.operations)) {
-    opts.onEvent?.({ kind: "v3_grant", phase: "error" });
+    emit("error");
     return err("invalid_grant");
   }
   // The C1 gate (ES256 form): only an issuer-role identity (resolved
   // atomically) may sign a grant — a holder handle fails closed BEFORE
   // sign() is ever called.
   const identity = await resolveEs256IssuerIdentity(handle);
-  if (identity === undefined) { opts.onEvent?.({ kind: "v3_grant", phase: "error" }); return err("invalid_key_handle"); }
+  if (identity === undefined) { emit("error"); return err("invalid_key_handle"); }
 
   const produced = grantSigningInput({
     keyId: identity.keyId, issuer: input.issuer, grantId: input.grantId, audiences: [...input.audiences],
     issuedAt: input.issuedAt, notBefore: input.notBefore, expiresAt: input.expiresAt,
     holderThumbprint: input.holderThumbprint, operations: [...input.operations],
   }, opts.bounds);
-  if (!produced.ok) { opts.onEvent?.({ kind: "v3_grant", phase: "error" }); return err("producer_error"); }
+  if (!produced.ok) { emit("error"); return err("producer_error"); }
 
   const assembled = await signV3AndAssemble((m) => handle.sign(m), produced.value, identity.publicKey, opts.bounds);
-  if (!assembled.ok) { opts.onEvent?.({ kind: "v3_grant", phase: "error" }); return assembled; }
-  opts.onEvent?.({ kind: "v3_grant", phase: "stop" });
+  if (!assembled.ok) { emit("error"); return assembled; }
+  emit("stop");
   return ok({ grant: assembled.value });
 }
 
 export async function signV3KeyTransition(input: V3TransitionInput, handle: Es256KeyHandle, opts: V3SignOpts = {}): Promise<SignerResult<TransitionCompact>> {
-  opts.onEvent?.({ kind: "v3_key_transition", phase: "start" });
+  const emit = emitter(opts, "v3_key_transition");
+  emit("start");
   if (!isStr(input?.transitionId) || !isStr(input?.chainId) || !Number.isInteger(input?.effectiveAt) ||
       !isStr(input?.nextKeyId) || !isU8(input?.nextPublicKey, 65)) {
-    opts.onEvent?.({ kind: "v3_key_transition", phase: "error" });
+    emit("error");
     return err("invalid_transition");
   }
   const identity = await resolveEs256KeyIdentity(handle);
-  if (identity === undefined) { opts.onEvent?.({ kind: "v3_key_transition", phase: "error" }); return err("invalid_key_handle"); }
+  if (identity === undefined) { emit("error"); return err("invalid_key_handle"); }
 
   const produced = keyTransitionSigningInput({
     transitionId: input.transitionId, chainId: input.chainId, effectiveAt: input.effectiveAt,
     currentKeyId: identity.keyId, currentPublicKey: identity.publicKey,
     nextKeyId: input.nextKeyId, nextPublicKey: input.nextPublicKey,
   }, opts.bounds);
-  if (!produced.ok) { opts.onEvent?.({ kind: "v3_key_transition", phase: "error" }); return err("producer_error"); }
+  if (!produced.ok) { emit("error"); return err("producer_error"); }
 
   const assembled = await signV3AndAssemble((m) => handle.sign(m), produced.value, identity.publicKey, opts.bounds);
-  if (!assembled.ok) { opts.onEvent?.({ kind: "v3_key_transition", phase: "error" }); return assembled; }
-  opts.onEvent?.({ kind: "v3_key_transition", phase: "stop" });
+  if (!assembled.ok) { emit("error"); return assembled; }
+  emit("stop");
   return ok({ keyTransition: assembled.value });
 }

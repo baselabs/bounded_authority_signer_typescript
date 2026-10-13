@@ -13,6 +13,7 @@ import { v2, type Bounds, type Tagged } from "@bounded-authority-protocol/verifi
 import type { AnchorCompact, Envelope, GrantCompact, TransitionCompact } from "./api.js";
 import { assemblers, signAndAssemble } from "./sign.js";
 import {
+  emitter,
   err,
   ok,
   resolveIssuerIdentity,
@@ -112,7 +113,7 @@ function validateReport(report: V2ReportInput): SignerResult<V2ReportInput> {
 }
 
 export async function signV2Report(report: V2ReportInput, handle: KeyHandle, opts: V2SignOpts = {}): Promise<SignerResult<Envelope>> {
-  const emit = (phase: V2SignerEvent["phase"]) => opts.onEvent?.({ kind: "v2_report", phase });
+  const emit = emitter(opts, "v2_report");
   emit("start");
   const validated = validateReport(report);
   if (!validated.ok) { emit("error"); return validated; }
@@ -138,7 +139,7 @@ export async function signV2Report(report: V2ReportInput, handle: KeyHandle, opt
 }
 
 export async function signV2Anchor(input: V2AnchorInput, handle: KeyHandle, opts: V2SignOpts = {}): Promise<SignerResult<AnchorCompact>> {
-  const emit = (phase: V2SignerEvent["phase"]) => opts.onEvent?.({ kind: "v2_anchor", phase });
+  const emit = emitter(opts, "v2_anchor");
   emit("start");
   if (!isStr(input?.anchorId) || !isStr(input?.chainId) || !Number.isInteger(input?.sequence) || !isU8(input?.chainHash, 32)) {
     emit("error");
@@ -160,7 +161,7 @@ export async function signV2Anchor(input: V2AnchorInput, handle: KeyHandle, opts
 }
 
 export async function signV2Grant(input: V2GrantInput, handle: KeyHandle, opts: V2SignOpts = {}): Promise<SignerResult<GrantCompact>> {
-  const emit = (phase: V2SignerEvent["phase"]) => opts.onEvent?.({ kind: "v2_grant", phase });
+  const emit = emitter(opts, "v2_grant");
   emit("start");
   if (!isStr(input?.issuer) || !isStr(input?.grantId) || !Array.isArray(input?.audiences) ||
       ![input?.issuedAt, input?.notBefore, input?.expiresAt].every(Number.isInteger) ||
@@ -177,8 +178,9 @@ export async function signV2Grant(input: V2GrantInput, handle: KeyHandle, opts: 
   try {
     operations = toProducerOperations(input.operations);
   } catch {
-    emit("error");
-    return err("invalid_grant"); // a malformed operation or selector shape
+    // A malformed operation or selector entry goes to the verifier's producer as given, which refuses
+    // it: producer_error, the same closed error v1 and v3 return for the same input.
+    operations = [...input.operations] as unknown as v2.OperationInput[];
   }
   const produced = v2.grantSigningInput({
     keyId: identity.keyId, issuer: input.issuer, grantId: input.grantId, audiences: [...input.audiences],
@@ -194,7 +196,7 @@ export async function signV2Grant(input: V2GrantInput, handle: KeyHandle, opts: 
 }
 
 export async function signV2KeyTransition(input: V2TransitionInput, handle: KeyHandle, opts: V2SignOpts = {}): Promise<SignerResult<TransitionCompact>> {
-  const emit = (phase: V2SignerEvent["phase"]) => opts.onEvent?.({ kind: "v2_key_transition", phase });
+  const emit = emitter(opts, "v2_key_transition");
   emit("start");
   if (!isStr(input?.transitionId) || !isStr(input?.chainId) || !Number.isInteger(input?.effectiveAt) ||
       !isStr(input?.nextKeyId) || !isU8(input?.nextPublicKey, 32)) {

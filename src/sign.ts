@@ -17,13 +17,19 @@ import {
 } from "@bounded-authority-protocol/verifier";
 import { err, ok, type SignerResult } from "./handle.js";
 
+// The handle gets its OWN copy of the message (it may rewrite or transfer it, as a worker does), and the
+// library keeps a private copy of the returned signature, so neither the post-sign check nor assembly
+// reads a buffer the handle still holds.
 export async function signViaHandle(
   sign: (message: Uint8Array) => Uint8Array | Promise<Uint8Array>,
   message: Uint8Array,
+  width = 64,
 ): Promise<Uint8Array | undefined> {
   try {
-    const signature = await sign(message);
-    return signature instanceof Uint8Array && signature.length === 64 ? signature : undefined;
+    const signature: unknown = await sign(message.slice());
+    if (!(signature instanceof Uint8Array)) return undefined;
+    const copy = new Uint8Array(signature);
+    return copy.length === width ? copy : undefined;
   } catch {
     return undefined;
   }
@@ -56,9 +62,10 @@ export async function signAndAssemble(
   bounds: Bounds | undefined,
   assembler: Assembler,
 ): Promise<SignerResult<Uint8Array>> {
-  const signature = await signViaHandle(sign, signingInputMessage(signingInput));
+  const message = signingInputMessage(signingInput); // private: the handle only ever sees a copy
+  const signature = await signViaHandle(sign, message);
   if (signature === undefined) return err("signing_failed");
-  if (!signatureVerifies(signingInputMessage(signingInput), signature, publicKey)) return err("signing_failed");
+  if (!signatureVerifies(message, signature, publicKey)) return err("signing_failed");
   const compact = assembler(signingInput, signature, bounds);
   return compact.ok ? ok(compact.value) : err("producer_error");
 }

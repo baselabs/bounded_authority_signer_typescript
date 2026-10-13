@@ -19,6 +19,7 @@
 import { es256VerifyStrict, type Bounds } from "@bounded-authority-protocol/verifier";
 import { assembleCompact, RAW_SIGNATURE_BYTES, type V3SigningInput } from "./v3.js";
 import { err, ok, type SignerResult } from "./handle.js";
+import { signViaHandle } from "./sign.js";
 
 // The P-256 group order n (SEC 2) and the low-S ceiling (n−1)/2 (n is odd).
 export const P256_ORDER = 0xffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551n;
@@ -76,19 +77,6 @@ export function es256Verifies(message: Uint8Array, signature: Uint8Array, public
   }
 }
 
-/** Sign via the handle callback; a fault, reject, or wrong width yields undefined. */
-export async function signViaEs256Handle(
-  sign: (message: Uint8Array) => Uint8Array | Promise<Uint8Array>,
-  message: Uint8Array,
-): Promise<Uint8Array | undefined> {
-  try {
-    const signature = await sign(message);
-    return signature instanceof Uint8Array && signature.length === RAW_SIGNATURE_BYTES ? signature : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
 // The ASCII "protected.payload" pre-signature message (RFC 7515, the exact
 // JWS signing input).
 function signingInputMessage(input: V3SigningInput): Uint8Array {
@@ -116,8 +104,8 @@ export async function signV3AndAssemble(
   publicKey: Uint8Array,
   bounds: Bounds | undefined,
 ): Promise<SignerResult<Uint8Array>> {
-  const message = signingInputMessage(signingInput);
-  const signed = await signViaEs256Handle(sign, message);
+  const message = signingInputMessage(signingInput); // private: the handle only ever sees a copy
+  const signed = await signViaHandle(sign, message, RAW_SIGNATURE_BYTES); // a private copy of the signature
   if (signed === undefined) return err("signing_failed");
   let signature: Uint8Array;
   try {

@@ -19,6 +19,7 @@ import {
 import { assemblers, signAndAssemble } from "./sign.js";
 import { defaultProofId } from "./proof-id.js";
 import {
+  emitter,
   err,
   ok,
   resolveIssuerIdentity,
@@ -111,7 +112,7 @@ async function signProofProfile(
   handle: KeyHandle,
   opts: SignOpts,
 ): Promise<SignerResult<Envelope>> {
-  const emit = (phase: SignerEvent["phase"]) => opts.onEvent?.({ kind, phase });
+  const emit = emitter(opts, kind);
   emit("start");
   const validated = validateReport(report, kind === "local_loopback_report");
   if (!validated.ok) { emit("error"); return validated; }
@@ -146,40 +147,42 @@ export function signLocalLoopbackReport(report: ReportInput, handle: KeyHandle, 
 }
 
 export async function signAnchor(input: AnchorInput, handle: KeyHandle, opts: SignOpts = {}): Promise<SignerResult<AnchorCompact>> {
-  opts.onEvent?.({ kind: "anchor", phase: "start" });
+  const emit = emitter(opts, "anchor");
+  emit("start");
   if (!isStr(input?.anchorId) || !isStr(input?.chainId) || !Number.isInteger(input?.sequence) || !isU8(input?.chainHash, 32)) {
-    opts.onEvent?.({ kind: "anchor", phase: "error" });
+    emit("error");
     return err("invalid_anchor");
   }
   const identity = await resolveKeyIdentity(handle);
-  if (identity === undefined) { opts.onEvent?.({ kind: "anchor", phase: "error" }); return err("invalid_key_handle"); }
+  if (identity === undefined) { emit("error"); return err("invalid_key_handle"); }
 
   const anchor: BoundaryAnchorProducer = {
     anchorId: input.anchorId, anchoredAt: opts.anchoredAt ?? nowSeconds(), chainId: input.chainId,
     sequence: input.sequence, chainHash: input.chainHash, keyId: identity.keyId, publicKey: identity.publicKey,
   };
   const produced = boundaryAnchorSigningInput(anchor, opts.bounds);
-  if (!produced.ok) { opts.onEvent?.({ kind: "anchor", phase: "error" }); return err("producer_error"); }
+  if (!produced.ok) { emit("error"); return err("producer_error"); }
 
   const assembled = await signAndAssemble((m) => handle.sign(m), produced.value, identity.publicKey, opts.bounds, assemblers.standard);
-  if (!assembled.ok) { opts.onEvent?.({ kind: "anchor", phase: "error" }); return assembled; }
-  opts.onEvent?.({ kind: "anchor", phase: "stop" });
+  if (!assembled.ok) { emit("error"); return assembled; }
+  emit("stop");
   return ok({ anchor: assembled.value });
 }
 
 export async function signGrant(input: GrantInput, handle: KeyHandle, opts: SignOpts = {}): Promise<SignerResult<GrantCompact>> {
-  opts.onEvent?.({ kind: "grant", phase: "start" });
+  const emit = emitter(opts, "grant");
+  emit("start");
   if (!isStr(input?.issuer) || !isStr(input?.grantId) || !Array.isArray(input?.audiences) ||
       ![input?.issuedAt, input?.notBefore, input?.expiresAt].every(Number.isInteger) ||
       !isStr(input?.holderThumbprint) || !Array.isArray(input?.operations)) {
-    opts.onEvent?.({ kind: "grant", phase: "error" });
+    emit("error");
     return err("invalid_grant");
   }
   // The C1 gate: only an issuer-role identity (resolved atomically) may sign a
   // grant — a holder handle (or one without signingIdentity) fails closed
   // BEFORE sign() is called.
   const identity = await resolveIssuerIdentity(handle);
-  if (identity === undefined) { opts.onEvent?.({ kind: "grant", phase: "error" }); return err("invalid_key_handle"); }
+  if (identity === undefined) { emit("error"); return err("invalid_key_handle"); }
 
   const grant: GrantProducer = {
     keyId: identity.keyId, issuer: input.issuer, grantId: input.grantId, audiences: [...input.audiences],
@@ -187,23 +190,24 @@ export async function signGrant(input: GrantInput, handle: KeyHandle, opts: Sign
     holderThumbprint: input.holderThumbprint, operations: [...input.operations],
   };
   const produced = grantSigningInput(grant, opts.bounds);
-  if (!produced.ok) { opts.onEvent?.({ kind: "grant", phase: "error" }); return err("producer_error"); }
+  if (!produced.ok) { emit("error"); return err("producer_error"); }
 
   const assembled = await signAndAssemble((m) => handle.sign(m), produced.value, identity.publicKey, opts.bounds, assemblers.standard);
-  if (!assembled.ok) { opts.onEvent?.({ kind: "grant", phase: "error" }); return assembled; }
-  opts.onEvent?.({ kind: "grant", phase: "stop" });
+  if (!assembled.ok) { emit("error"); return assembled; }
+  emit("stop");
   return ok({ grant: assembled.value });
 }
 
 export async function signKeyTransition(input: TransitionInput, handle: KeyHandle, opts: SignOpts = {}): Promise<SignerResult<TransitionCompact>> {
-  opts.onEvent?.({ kind: "key_transition", phase: "start" });
+  const emit = emitter(opts, "key_transition");
+  emit("start");
   if (!isStr(input?.transitionId) || !isStr(input?.chainId) || !Number.isInteger(input?.effectiveAt) ||
       !isStr(input?.nextKeyId) || !isU8(input?.nextPublicKey, 32)) {
-    opts.onEvent?.({ kind: "key_transition", phase: "error" });
+    emit("error");
     return err("invalid_transition");
   }
   const identity = await resolveKeyIdentity(handle);
-  if (identity === undefined) { opts.onEvent?.({ kind: "key_transition", phase: "error" }); return err("invalid_key_handle"); }
+  if (identity === undefined) { emit("error"); return err("invalid_key_handle"); }
 
   const transition: KeyTransitionProducer = {
     transitionId: input.transitionId, chainId: input.chainId, effectiveAt: input.effectiveAt,
@@ -211,10 +215,10 @@ export async function signKeyTransition(input: TransitionInput, handle: KeyHandl
     nextKeyId: input.nextKeyId, nextPublicKey: input.nextPublicKey,
   };
   const produced = keyTransitionSigningInput(transition, opts.bounds);
-  if (!produced.ok) { opts.onEvent?.({ kind: "key_transition", phase: "error" }); return err("producer_error"); }
+  if (!produced.ok) { emit("error"); return err("producer_error"); }
 
   const assembled = await signAndAssemble((m) => handle.sign(m), produced.value, identity.publicKey, opts.bounds, assemblers.standard);
-  if (!assembled.ok) { opts.onEvent?.({ kind: "key_transition", phase: "error" }); return assembled; }
-  opts.onEvent?.({ kind: "key_transition", phase: "stop" });
+  if (!assembled.ok) { emit("error"); return assembled; }
+  emit("stop");
   return ok({ keyTransition: assembled.value });
 }

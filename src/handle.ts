@@ -55,41 +55,88 @@ export type SignerResult<T> = { readonly ok: true; readonly value: T } | { reado
 export const ok = <T>(value: T): SignerResult<T> => ({ ok: true, value });
 export const err = <T = never>(error: SignerErrorCode): SignerResult<T> => ({ ok: false, error });
 
-const isUint8 = (v: unknown): v is Uint8Array => v instanceof Uint8Array;
+// --- resolution: every read of a handle happens inside one try, and what comes back is a COPY ---
+//
+// A handle is caller code. Any of its methods or getters may throw, return null, return a Proxy, or keep
+// a reference to the array it returned and rewrite it later. So each resolver reads the snapshot's
+// fields once, inside a try, validates them there, and returns its own fresh object with a private
+// copy of the key: a later rewrite of the handle's array cannot change the key the library composes
+// with and checks against. Any fault is undefined, which the signers map to invalid_key_handle.
 
-/** A handle callback fault (throw, reject, bad shape) maps to the closed error, never escapes. */
-async function call<T>(fn: () => T | Promise<T>): Promise<T | undefined> {
+/** A key check over the library's own copy (width, and for Ed25519 the verifier's acceptability). */
+export type KeyCheck = (key: Uint8Array) => boolean;
+
+// A handle's Ed25519 public key must be 32 bytes AND acceptable to the verifier: canonical, not one of
+// the eight small-order points (identity included), and on the curve. A weak key is refused here, at
+// resolution, before sign() is ever called — a handle that reports one is an invalid_key_handle.
+export const ed25519Key: KeyCheck = (key) => key.length === 32 && acceptablePublicKey(key);
+
+/** Copy a handle-supplied key; throws for a Proxy or other non-typed-array (callers are inside a try). */
+function copyKey(value: unknown, check: KeyCheck): Uint8Array | undefined {
+  if (!(value instanceof Uint8Array)) return undefined;
+  const copy = new Uint8Array(value);
+  return check(copy) ? copy : undefined;
+}
+
+const isKeyId = (v: unknown): v is string => typeof v === "string" && v.length > 0;
+
+export async function resolveKeyWith(read: () => unknown, check: KeyCheck): Promise<Uint8Array | undefined> {
   try {
-    return await fn();
+    return copyKey(await read(), check);
   } catch {
     return undefined;
   }
 }
 
-// A handle's Ed25519 public key must be 32 bytes AND acceptable to the verifier: canonical, not one of
-// the eight small-order points (identity included), and on the curve. A weak key is refused here, at
-// resolution, before sign() is ever called — a handle that reports one is an invalid_key_handle.
-const isEd25519Key = (v: unknown): v is Uint8Array => isUint8(v) && v.length === 32 && acceptablePublicKey(v);
-
-export async function resolvePublicKey(handle: KeyHandle): Promise<Uint8Array | undefined> {
-  const key = await call(() => handle.publicKey());
-  return isEd25519Key(key) ? key : undefined;
-}
-
-export async function resolveKeyIdentity(handle: KeyHandle): Promise<AtomicKeyIdentity | undefined> {
-  const snap = await call(() => handle.keyIdentity?.());
-  if (snap === undefined) return undefined;
-  if (typeof snap.keyId !== "string" || snap.keyId.length === 0) return undefined;
-  if (!isEd25519Key(snap.publicKey)) return undefined;
-  return snap;
+export async function resolveIdentityWith(read: () => unknown, check: KeyCheck): Promise<AtomicKeyIdentity | undefined> {
+  try {
+    const snap: unknown = await read();
+    if (snap === null || typeof snap !== "object") return undefined;
+    const { keyId, publicKey } = snap as { keyId?: unknown; publicKey?: unknown };
+    if (!isKeyId(keyId)) return undefined;
+    const key = copyKey(publicKey, check);
+    return key === undefined ? undefined : { keyId, publicKey: key };
+  } catch {
+    return undefined;
+  }
 }
 
 /** The C1 gate: grants require an issuer-role identity resolved atomically. */
-export async function resolveIssuerIdentity(handle: KeyHandle): Promise<AtomicKeyIdentity | undefined> {
-  const snap = await call(() => handle.signingIdentity?.());
-  if (snap === undefined || snap === null) return undefined;
-  if (snap.role !== "issuer") return undefined;
-  if (typeof snap.keyId !== "string" || snap.keyId.length === 0) return undefined;
-  if (!isEd25519Key(snap.publicKey)) return undefined;
-  return { keyId: snap.keyId, publicKey: snap.publicKey };
+export async function resolveIssuerWith(read: () => unknown, check: KeyCheck): Promise<AtomicKeyIdentity | undefined> {
+  try {
+    const snap: unknown = await read();
+    if (snap === null || typeof snap !== "object") return undefined;
+    const { role, keyId, publicKey } = snap as { role?: unknown; keyId?: unknown; publicKey?: unknown };
+    if (role !== "issuer" || !isKeyId(keyId)) return undefined;
+    const key = copyKey(publicKey, check);
+    return key === undefined ? undefined : { keyId, publicKey: key };
+  } catch {
+    return undefined;
+  }
+}
+
+export function resolvePublicKey(handle: KeyHandle): Promise<Uint8Array | undefined> {
+  return resolveKeyWith(() => handle.publicKey(), ed25519Key);
+}
+
+export function resolveKeyIdentity(handle: KeyHandle): Promise<AtomicKeyIdentity | undefined> {
+  return resolveIdentityWith(() => handle.keyIdentity?.(), ed25519Key);
+}
+
+export function resolveIssuerIdentity(handle: KeyHandle): Promise<AtomicKeyIdentity | undefined> {
+  return resolveIssuerWith(() => handle.signingIdentity?.(), ed25519Key);
+}
+
+// --- events: a listener is caller code too; its exceptions are swallowed, never change a result ---
+
+export type Phase = "start" | "stop" | "error";
+
+export function emitter<K extends string>(opts: unknown, kind: K): (phase: Phase) => void {
+  return (phase) => {
+    try {
+      (opts as { onEvent?: (event: { kind: K; phase: Phase }) => void } | undefined)?.onEvent?.({ kind, phase });
+    } catch {
+      // A throwing listener is ignored: the signing result is the same with or without it.
+    }
+  };
 }
