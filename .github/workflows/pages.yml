@@ -53,6 +53,11 @@ jobs:
       - name: Build the bundle
         run: pnpm build:site
 
+      # The bundle is built with no node:crypto shim and no Buffer polyfill (the verifier resolves its
+      # portable backend for the browser); a free Node global anywhere in it fails the deploy.
+      - name: Browser guard over the bundle (no unresolved globals, eval or Function constructor)
+        run: pnpm guard:site
+
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@0252fc4ba7626f0298f0cf00902a25c6afc77fa8 # v3.0.0
         with:

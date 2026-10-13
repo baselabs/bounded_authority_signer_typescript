@@ -2,10 +2,12 @@
 // through the REAL packages: this repository's signer source (byte-identical
 // to what this repository's current tag publishes) and the published
 // @bounded-authority-protocol/verifier,
-// bundled by esbuild with a node:crypto shim over @noble. No mocks, no server.
-import { keygen, sign as nobleSign } from "@noble/ed25519";
+// bundled by esbuild for the browser. Neither package uses a Node API, and the
+// verifier resolves its portable backend in the bundle, so no shim or polyfill
+// is involved. No mocks, no server.
+import { ed25519 } from "@noble/curves/ed25519.js";
 import { signGrant, signReport, type KeyHandle } from "../src/index.js";
-import { checkEnvelope, thumbprint } from "@bounded-authority-protocol/verifier";
+import { base64urlEncode, checkEnvelope, thumbprint, utf8Str } from "@bounded-authority-protocol/verifier";
 
 // ---------- keys: browser custody, never inside the library ----------
 
@@ -27,16 +29,24 @@ async function makeKey(): Promise<CustodyKey> {
   } catch {
     // Ed25519 WebCrypto unavailable in this browser — an in-page noble key keeps
     // the same boundary: the private bytes live only in this closure.
-    const kp = keygen();
+    const kp = ed25519.keygen();
     return {
       pub: new Uint8Array(kp.publicKey),
-      sign: async (m) => nobleSign(m, kp.secretKey),
+      sign: async (m) => ed25519.sign(m, kp.secretKey),
       mode: "in-page (noble)",
     };
   }
 }
 
-const b64 = (b: Uint8Array): string => Buffer.from(b).toString("base64url");
+const b64 = (b: Uint8Array): string => utf8Str(base64urlEncode(b));
+const utf8 = new TextDecoder();
+// Lenient display decode of a (possibly tampered) base64url segment: characters
+// outside the alphabet are dropped and a dangling character carries no byte.
+function fromBase64url(segment: string): Uint8Array {
+  const clean = segment.replace(/[^A-Za-z0-9_-]/g, "").replace(/-/g, "+").replace(/_/g, "/");
+  const whole = clean.length % 4 === 1 ? clean.slice(0, -1) : clean;
+  return Uint8Array.from(atob(whole + "=".repeat((4 - (whole.length % 4)) % 4)), (c) => c.charCodeAt(0));
+}
 const jwkThumb = (pub: Uint8Array): string => thumbprint({ kty: "OKP", crv: "Ed25519", x: b64(pub) });
 
 // The demo's fixed scenario (mirrors the package's own oracle test, so every
@@ -105,7 +115,7 @@ function showWire(label: string, compact: Uint8Array, hl?: { seg: number; from: 
   currentBytes = { label, compact };
   highlight = hl ?? null;
   document.querySelectorAll(".artifact-card.selected").forEach((c) => c.classList.remove("selected"));
-  const text = Buffer.from(compact).toString("utf8");
+  const text = utf8.decode(compact);
   const segs = text.split(".");
   segTabs.innerHTML = "";
   const names = ["protected (header)", "payload", "signature"];
@@ -121,13 +131,13 @@ function showWire(label: string, compact: Uint8Array, hl?: { seg: number; from: 
 
 function renderSeg(segs: string[], idx: number, name: string): void {
   Array.from(segTabs.children).forEach((c, i) => c.classList.toggle("on", i === idx));
-  const raw = Buffer.from(segs[idx], "base64url");
+  const raw = fromBase64url(segs[idx] ?? "");
   let body: string;
   if (idx === 2) {
     body = Array.from(raw, (b) => b.toString(16).padStart(2, "0")).join("");
   } else {
-    const utf8 = raw.toString("utf8");
-    try { body = JSON.stringify(JSON.parse(utf8), null, 2); } catch { body = utf8; }
+    const decoded = utf8.decode(raw);
+    try { body = JSON.stringify(JSON.parse(decoded), null, 2); } catch { body = decoded; }
   }
   wireBody.innerHTML = `<span class="k">// ${currentBytes?.label ?? ""} — ${name} (${raw.length} bytes)\n</span>`;
   if (highlight && highlight.seg === idx) {
@@ -194,7 +204,7 @@ function mark(card: HTMLElement): void {
 }
 
 // Fact-sheet rendering: Maps become objects, byte arrays become hex — anything
-// byte-like (Uint8Array or the Buffer polyfill) collapses to a readable digest.
+// byte-like (Uint8Array) collapses to a readable digest.
 function factsReplacer(_k: string, v: unknown): unknown {
   if (v instanceof Map) return Object.fromEntries(v);
   if (v instanceof Uint8Array) return `hex:${Array.from(v, (b) => b.toString(16).padStart(2, "0")).join("").slice(0, 32)}…`;
@@ -303,7 +313,7 @@ function sanitize(v: unknown): unknown {
   // Byte arrays render as their base64url wire form — JSON.stringify on a
   // Uint8Array explodes into {"0":123,"1":34,…} index objects otherwise.
   if (v instanceof Uint8Array) {
-    return Buffer.from(v).toString("base64url");
+    return b64(v);
   }
   if (typeof v === "string" && /[\u0000-\u0008\u000e-\u001f\u007f-\u00ff\ufffd]/.test(v)) {
     return "0x" + Array.from(v, (c) => c.charCodeAt(0).toString(16).padStart(2, "0")).join("");
