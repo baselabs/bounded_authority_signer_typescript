@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.5.0] — Unreleased
+## [0.5.0] — 2026-10-13
 
 Browser-safe builds and the contract-major-2 signers. The package now loads and runs in browsers,
 Deno, Bun and workers with no `node:crypto`, no `Buffer` and no other Node API. The key-handle API
