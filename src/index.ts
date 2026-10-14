@@ -39,3 +39,7 @@ export type {
   KeyHandle, KeyRole, AtomicKeyIdentity, AtomicSigningIdentity,
   SignerErrorCode, SignerResult,
 } from "./handle.js";
+// WebCrypto key handles (0.6.0): the existing handle types, built from a caller-owned WebCrypto key pair
+// whose private key is non-extractable.
+export { ed25519KeyHandle, es256KeyHandle } from "./webcrypto.js";
+export type { WebCryptoKeyLike, WebCryptoKeyPairLike, WebCryptoHandleOptions } from "./webcrypto.js";

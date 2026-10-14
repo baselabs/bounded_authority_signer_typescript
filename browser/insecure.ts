@@ -1,10 +1,10 @@
-// The non-secure-context lane (Chromium, http://bap.test mapped to 127.0.0.1, so the page is NOT a
-// secure context and crypto.randomUUID is absent). Each report signer is called without a proofId,
+// The non-secure-context lane (every engine: http://bap.test routed to the lane server, so the page is
+// NOT a secure context and crypto.randomUUID, crypto.subtle and CryptoKey are absent). Each report signer is called without a proofId,
 // so the library's default proof id cannot be computed: the result must be a closed producer_error,
 // never a thrown TypeError. With an explicit proofId the same page still signs, and the envelope
 // verifies through the verifier's portable backend. Results are a measurement, never a trust decision.
 import { BACKEND_ID, checkEnvelope } from "@bounded-authority-protocol/verifier";
-import { signGrant, signLocalLoopbackReport, signReport, signV2Report, signV3Report } from "../src/index.js";
+import { ed25519KeyHandle, es256KeyHandle, signGrant, signLocalLoopbackReport, signReport, signV2Report, signV3Report } from "../src/index.js";
 import { ecHandle, ecKey, edHandle, edKey } from "../test/lanes/keys.js";
 
 const violations: string[] = [];
@@ -45,7 +45,34 @@ async function main(): Promise<Record<string, unknown>> {
     targetUri: `${AUD}/invoke`, invocationId: INV, operation: "transfer", castArguments: args,
     evaluationTime: 1500, clockSkew: 60, proofMaxAge: 300, nonce: { kind: "not_required" },
   }).ok;
-  return { backend: BACKEND_ID, secure: isSecureContext, randomUUID: typeof (crypto as { randomUUID?: unknown }).randomUUID, defaults, explicitVerifies: verified };
+  return { backend: BACKEND_ID, secure: isSecureContext, randomUUID: typeof (crypto as { randomUUID?: unknown }).randomUUID, defaults, explicitVerifies: verified, t11: await t11() };
+}
+
+// T11 (revision R8): with no crypto.subtle and no CryptoKey, both factories resolve invalid_key_handle at
+// their first step, before reading anything the caller passed: a pair and options that record every
+// Proxy trap stay untouched.
+async function t11(): Promise<Record<string, unknown>> {
+  const touched: string[] = [];
+  const recorder = (label: string): never => new Proxy({}, {
+    get: (_t, key) => { touched.push(`${label} get ${String(key)}`); return undefined; },
+    has: (_t, key) => { touched.push(`${label} has ${String(key)}`); return false; },
+    ownKeys: () => { touched.push(`${label} ownKeys`); return []; },
+    getOwnPropertyDescriptor: (_t, key) => { touched.push(`${label} getOwnPropertyDescriptor ${String(key)}`); return undefined; },
+    getPrototypeOf: () => { touched.push(`${label} getPrototypeOf`); return null; },
+    set: (_t, key) => { touched.push(`${label} set ${String(key)}`); return false; },
+    defineProperty: (_t, key) => { touched.push(`${label} defineProperty ${String(key)}`); return false; },
+    deleteProperty: (_t, key) => { touched.push(`${label} deleteProperty ${String(key)}`); return false; },
+    isExtensible: () => { touched.push(`${label} isExtensible`); return true; },
+    preventExtensions: () => { touched.push(`${label} preventExtensions`); return false; },
+    setPrototypeOf: () => { touched.push(`${label} setPrototypeOf`); return false; },
+  }) as never;
+  return {
+    subtle: typeof (globalThis.crypto as { subtle?: unknown } | undefined)?.subtle,
+    cryptoKey: typeof (globalThis as { CryptoKey?: unknown }).CryptoKey,
+    ed25519KeyHandle: await outcome(() => ed25519KeyHandle(recorder("pair"), recorder("opts"))),
+    es256KeyHandle: await outcome(() => es256KeyHandle(recorder("pair"), recorder("opts"))),
+    touched,
+  };
 }
 
 main()

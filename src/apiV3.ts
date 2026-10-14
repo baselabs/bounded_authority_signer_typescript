@@ -9,6 +9,7 @@ import type { AnchorCompact, Envelope, GrantCompact, TransitionCompact } from ".
 import {
   boundaryAnchorSigningInput,
   grantSigningInput,
+  isOnCurveP256,
   keyTransitionSigningInput,
   proofSigningInput,
   type V3OperationInput,
@@ -97,7 +98,10 @@ const isU8 = (v: unknown, n?: number): v is Uint8Array => v instanceof Uint8Arra
 // --- handle resolvers: the v1 resolvers (one try, a private copy of the key, a fresh snapshot object)
 // with the suite's 65-byte uncompressed-SEC1 width -----------------------------------------------
 
-const p256Key: KeyCheck = (key) => key.length === 65;
+// A handle's P-256 public key must be the 65-byte uncompressed SEC1 point (0x04 || x || y) with x, y < p
+// on the curve: refused here, at resolution, before sign() is ever called, matching Ed25519's resolution
+// check (handle.ts ed25519Key). es256VerifyStrict re-validates the key at every signature.
+const p256Key: KeyCheck = (key) => key.length === 65 && key[0] === 0x04 && isOnCurveP256(key.subarray(1, 33), key.subarray(33));
 type Es256KeyIdentity = { keyId: string; publicKey: Uint8Array };
 
 const resolveEs256PublicKey = (handle: Es256KeyHandle): Promise<Uint8Array | undefined> => resolveKeyWith(() => handle.publicKey(), p256Key);

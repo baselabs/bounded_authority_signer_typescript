@@ -3,5 +3,5 @@
   // with the test-local key handles they import.
   "extends": "../tsconfig.browser.json",
   "compilerOptions": { "rootDir": "..", "outDir": "../dist" },
-  "include": ["./*.ts", "../test/lanes/keys.ts", "../test/lanes/l2.ts", "../src/**/*.ts"]
+  "include": ["./*.ts", "../test/lanes/keys.ts", "../test/lanes/l2.ts", "../test/lanes/webcrypto.ts", "../test/lanes/webcrypto-keys.ts", "../src/**/*.ts"]
 }

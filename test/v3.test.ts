@@ -502,3 +502,37 @@ test("v3 gates: malformed inputs map to the closed error codes", async () => {
     targetUri: "HTTPS://x.example.test/invoke", invocationId: INVOCATION_ID, castArguments: amountArgs(),
   }, ecHandleFor(ecRawKey(), { keyId: "k" }), { issuedAt: 1500, proofId: "urn:example:proof:x" })) as { error: string }).error, "producer_error");
 });
+
+// W7 (signer 0.6.0): P-256 resolution parity with Ed25519. A caller handle that reports a 65-byte key
+// that is not an uncompressed point on P-256 is refused at resolution, before sign() is called, as
+// invalid_key_handle (0.5.0 resolved it and failed later in composition as producer_error).
+test("v3 gates (W7): an off-curve, x >= p or wrong-prefix 65-byte key is invalid_key_handle on every v3 signer, and sign() is never called", async () => {
+  const real = ecRawKey();
+  const offCurve = new Uint8Array(real.publicKey);
+  offCurve[64] = (offCurve[64] ?? 0) ^ 1;
+  const xTooBig = new Uint8Array(real.publicKey);
+  xTooBig.fill(0xff, 1, 33);
+  const prefix = new Uint8Array(real.publicKey);
+  prefix[0] = 0x05;
+  for (const [label, key] of [["off-curve", offCurve], ["x >= p", xTooBig], ["prefix 0x05", prefix]] as const) {
+    const calls = { count: 0 };
+    const base = ecHandleFor(real, { keyId: "k", role: "issuer", signCalls: calls });
+    const handle = {
+      ...base,
+      publicKey: () => key,
+      keyIdentity: () => ({ keyId: "k", publicKey: key }),
+      signingIdentity: () => ({ role: "issuer" as const, keyId: "k", publicKey: key }),
+    };
+    const results = [
+      await signV3Report({
+        grantCompact: new TextEncoder().encode("aaa.bbb.ccc"), operation: "transfer", method: "POST",
+        targetUri: `${AUDIENCE}/invoke`, invocationId: INVOCATION_ID, castArguments: amountArgs(),
+      }, handle, { issuedAt: 1500, proofId: "urn:example:proof:w7" }),
+      await signV3Anchor({ anchorId: "urn:example:anchor:w7", chainId: "urn:example:chain", sequence: 0, chainHash: new Uint8Array(32) }, handle, { anchoredAt: 1200 }),
+      await signV3Grant(grantFixture(real.thumbprint), handle),
+      await signV3KeyTransition({ transitionId: "urn:example:transition:w7", chainId: "urn:example:chain", effectiveAt: 1500, nextKeyId: "k2", nextPublicKey: ecRawKey().publicKey }, handle),
+    ];
+    assert.deepEqual(results.map((r) => (r.ok ? "ok" : r.error)), ["invalid_key_handle", "invalid_key_handle", "invalid_key_handle", "invalid_key_handle"], label);
+    assert.equal(calls.count, 0, `${label}: sign() is never called`);
+  }
+});

@@ -196,3 +196,157 @@ test("bundle guard: the signer's source entry bundles for the browser through th
   assert.deepEqual(g.backendFindings(Object.keys(source.metafile.inputs)), []);
   assert.deepEqual(await g.scanUnresolvedGlobals(source.code), []);
 });
+
+// ---- T14: the WebCrypto key-handle file (src/webcrypto.ts, signer 0.6.0; design §12.6, revision R4) ----
+//
+// src/webcrypto.ts is the one file allowed to reach crypto.subtle, and only as two DIRECT calls:
+// subtle.sign(...) and subtle.exportKey("raw", ...) with the literal "raw". Its override is built from the
+// same shared rule arrays as the rest of src/, minus exactly the subtle and exportKey allowances, so every
+// base ban must still fire inside it. Each new ban has a probe in both files, and a red-proof that lints
+// the probe again under a config with the entries that caught it removed: the probe must then pass.
+
+const WEBCRYPTO_FILE = "src/webcrypto.ts";
+const ALLOWED_ONLY_IN_WEBCRYPTO = new Set(["crypto.subtle", "globalThis.crypto.subtle"]);
+
+for (const [label, code, rule] of LINT_PROBES) {
+  if (ALLOWED_ONLY_IN_WEBCRYPTO.has(label)) {
+    test(`T14 lint: ${label} is allowed in ${WEBCRYPTO_FILE} only`, async () => {
+      assert.deepEqual(await lintRules(code, WEBCRYPTO_FILE), []);
+      assert.ok((await lintRules(code, "src/guard-probe.ts")).includes(rule));
+    });
+    continue;
+  }
+  // .exportKey moves from the property ban to the direct-call-with-"raw" syntax rule in that one file.
+  const expected = label === ".exportKey" ? "no-restricted-syntax" : rule;
+  test(`T14 lint: the base ban still fires in ${WEBCRYPTO_FILE}: ${label} (${expected})`, async () => {
+    assert.ok((await lintRules(code, WEBCRYPTO_FILE)).includes(expected), `${label} must trip ${expected} in ${WEBCRYPTO_FILE}`);
+  });
+}
+
+const S = "globalThis.crypto.subtle";
+const WEBCRYPTO_PROBES: ReadonlyArray<readonly [string, string]> = [
+  ["generateKey", `export const p = ${S}.generateKey({ name: "Ed25519" }, false, ["sign"]);`],
+  ["importKey", `export const p = (k: Uint8Array) => ${S}.importKey("raw", k, { name: "Ed25519" }, false, ["verify"]);`],
+  ["deriveKey", `export const p = (a: object, k: never) => ${S}.deriveKey(a, k, a, false, []);`],
+  ["deriveBits", `export const p = (a: object, k: never) => ${S}.deriveBits(a, k, 256);`],
+  ["wrapKey", `export const p = (k: never, w: never) => ${S}.wrapKey("raw", k, w, "AES-KW");`],
+  ["unwrapKey", `export const p = (w: never) => ${S}.unwrapKey("raw", new Uint8Array(1), w, "AES-KW", "AES-GCM", false, []);`],
+  ["encrypt", `export const p = (k: never) => ${S}.encrypt({ name: "AES-GCM" }, k, new Uint8Array(1));`],
+  ["decrypt", `export const p = (k: never) => ${S}.decrypt({ name: "AES-GCM" }, k, new Uint8Array(1));`],
+  ["digest", `export const p = ${S}.digest("SHA-256", new Uint8Array(1));`],
+  ['exportKey("pkcs8")', `export const p = (k: never) => ${S}.exportKey("pkcs8", k);`],
+  ['exportKey("jwk")', `export const p = (k: never) => ${S}.exportKey("jwk", k);`],
+  ['exportKey("spki")', `export const p = (k: never) => ${S}.exportKey("spki", k);`],
+  ["exportKey(non-literal format)", `export const p = (f: "raw", k: never) => ${S}.exportKey(f, k);`],
+  ["exportKey(`raw`) (template, not the literal)", `export const p = (k: never) => ${S}.exportKey(\`raw\`, k);`],
+  ["exportKey not called directly", `export const p = ${S}.exportKey;`],
+  ["exportKey via .call", `export const p = (k: never) => ${S}.exportKey.call(${S}, "raw", k);`],
+  ['exportKey by string key', `export const p = (k: never) => ${S}["exportKey"]("raw", k);`],
+  ["exportKey destructured", `const { exportKey } = ${S};\nexport const p = exportKey;`],
+  ["sign not called directly", `export const p = ${S}.sign;`],
+  ["sign via .call", `export const p = (k: never, m: Uint8Array) => ${S}.sign.call(${S}, { name: "Ed25519" }, k, m);`],
+  ["sign via .apply", `export const p = (k: never, m: Uint8Array) => ${S}.sign.apply(${S}, [{ name: "Ed25519" }, k, m]);`],
+  ["sign via .bind", `export const p = ${S}.sign.bind(${S});`],
+  ["sign by string key", `export const p = (k: never, m: Uint8Array) => ${S}["sign"]({ name: "Ed25519" }, k, m);`],
+  ["sign destructured", `const { sign } = ${S};\nexport const p = sign;`],
+  ["sign through Reflect.get", `export const p = Reflect.get(${S}, "sign");`],
+  ["subtle destructured", `const { subtle } = globalThis.crypto;\nexport const p = subtle;`],
+];
+
+interface FlatBlock { files?: string[]; rules?: Record<string, unknown> }
+const realConfig = async (): Promise<FlatBlock[]> => (await import(pathToFileURL(join(REPO, "eslint.config.js")).href)).default as FlatBlock[];
+
+async function lintMessages(code: string, filePath: string, config?: FlatBlock[]): Promise<{ ruleId: string; message: string }[]> {
+  const engine = config === undefined ? eslint : new ESLint({ cwd: REPO, overrideConfigFile: true, overrideConfig: config as never });
+  const [result] = await engine.lintText(code, { filePath: join(REPO, filePath) });
+  return (result?.messages ?? []).map((m) => ({ ruleId: m.ruleId ?? `fatal: ${m.message}`, message: m.message }));
+}
+
+// The real config with every restricted-syntax/-properties entry whose message was reported removed.
+function withoutEntries(config: FlatBlock[], reported: string[]): FlatBlock[] {
+  return config.map((block) => {
+    if (!block.rules) return block;
+    const rules = { ...block.rules };
+    for (const name of ["no-restricted-syntax", "no-restricted-properties"]) {
+      const value = rules[name];
+      if (!Array.isArray(value)) continue;
+      const [severity, ...entries] = value as [unknown, ...{ message?: string }[]];
+      rules[name] = [severity, ...entries.filter((e) => !reported.some((m) => e.message !== undefined && m.includes(e.message)))];
+    }
+    return { ...block, rules };
+  });
+}
+
+for (const [label, code] of WEBCRYPTO_PROBES) {
+  for (const file of [WEBCRYPTO_FILE, "src/guard-probe.ts"]) {
+    test(`T14 lint probe: ${label} is refused in ${file}, and passes once the entries that caught it are removed (red-proof)`, async () => {
+      const found = await lintMessages(code, file);
+      const restricted = found.filter((m) => m.ruleId === "no-restricted-syntax" || m.ruleId === "no-restricted-properties");
+      assert.ok(restricted.length > 0, `${label} must be refused in ${file}: ${JSON.stringify(found)}`);
+      const relaxed = await lintMessages(code, file, withoutEntries(await realConfig(), restricted.map((m) => m.message)));
+      assert.deepEqual(relaxed.filter((m) => m.ruleId === "no-restricted-syntax" || m.ruleId === "no-restricted-properties"), [], `${label}: with its rule entries removed the probe passes`);
+    });
+  }
+}
+
+test("T14 lint: the two direct calls and the CryptoKey.prototype getter reads are allowed in src/webcrypto.ts", async () => {
+  const code = [
+    "const s = globalThis.crypto.subtle;",
+    'export const raw = (k: never) => s.exportKey("raw", k);',
+    'export const sig = (k: never, m: Uint8Array) => s.sign({ name: "Ed25519" }, k, m);',
+    'export const get = Object.getOwnPropertyDescriptor(CryptoKey.prototype, "extractable")?.get;',
+  ].join("\n");
+  assert.deepEqual(await lintRules(code, WEBCRYPTO_FILE), []);
+  assert.ok((await lintRules(code, "src/guard-probe.ts")).includes("no-restricted-syntax"), "outside src/webcrypto.ts the same code is refused");
+});
+
+test("T14 lint: the src/webcrypto.ts override is built from the shared arrays (every base entry is present there)", async () => {
+  const config = await realConfig();
+  const base = config.find((b) => b.files?.includes("src/**/*.ts"))!.rules!;
+  const override = config.find((b) => b.files?.includes(WEBCRYPTO_FILE))!.rules!;
+  const messages = (rule: string, rules: Record<string, unknown>) => ((rules[rule] as { message?: string }[] | undefined) ?? []).slice(1).map((e) => e.message);
+  const allowed = (m: string | undefined) => /crypto\.subtle\) is forbidden|\.exportKey is a key-generation/.test(m ?? "");
+  for (const rule of ["no-restricted-syntax", "no-restricted-properties"]) {
+    const missing = messages(rule, base).filter((m) => !allowed(m) && !messages(rule, override).includes(m));
+    assert.deepEqual(missing, [], `${rule}: base entries missing from the override`);
+  }
+  assert.equal(messages("no-restricted-syntax", base).filter(allowed).length, 1, "exactly one base syntax entry (the subtle ban) is relaxed");
+  assert.equal(messages("no-restricted-properties", base).filter(allowed).length, 1, "exactly one base property entry (.exportKey) is relaxed");
+});
+
+// ---- T14: the dist/ scan (tools/browser-guard.mjs keyMaterialFindings, run by pnpm guard:browser) ----
+
+interface KeyScan { keyMaterialFindings(files: { path: string; code: string }[]): Promise<string[]> }
+const keyScan = async (): Promise<KeyScan> => (await import(pathToFileURL(join(REPO, "tools/browser-guard.mjs")).href)) as KeyScan;
+
+test("T14 dist scan red-proof: pkcs8, spki, a banned key-material name, jwk in webcrypto.js and exportKey outside it are findings", async () => {
+  const { keyMaterialFindings } = await keyScan();
+  const plant = (path: string, code: string) => keyMaterialFindings([{ path, code }]);
+  assert.ok((await plant("dist/src/webcrypto.js", 'export const p = (s, k) => s.exportKey("pkcs8", k);')).some((f) => f.includes("pkcs8")));
+  assert.ok((await plant("dist/src/webcrypto.js", "export const p = (s, k) => s.exportKey(`spki`, k);")).some((f) => f.includes("spki")));
+  assert.ok((await plant("dist/src/webcrypto.js", 'export const p = (s, k) => s.exportKey("jwk", k);')).some((f) => f.includes("jwk")));
+  for (const name of ["generateKey", "importKey", "deriveKey", "deriveBits", "wrapKey", "unwrapKey", "encrypt", "decrypt", "digest", "keygen", "getPublicKey", "getSharedSecret", "randomSecretKey"]) {
+    assert.ok((await plant("dist/src/api.js", `export const p = (s) => s.${name}();`)).some((f) => f.includes(name)), name);
+    assert.ok((await plant("dist/src/api.js", `export const p = (s) => s["${name}"]();`)).some((f) => f.includes(name)), `${name} by string key`);
+  }
+  assert.ok((await plant("dist/src/api.js", 'export const p = (s, k) => s.exportKey("raw", k);')).some((f) => f.includes("exportKey")));
+  assert.deepEqual(await plant("dist/src/v3.js", 'export const h = { jwk: 1, "jwk": 2 }; // pkcs8 in a comment is not code'), [], "jwk outside webcrypto.js (the DPoP header member) and comments are not findings");
+  assert.deepEqual(await plant("dist/src/webcrypto.js", 'export const p = (s, k) => s.exportKey("raw", k);'), []);
+});
+
+test("T14 dist scan: the src/ files, transpiled as tsc emits them into dist/src, have no finding", async () => {
+  const { readdirSync, readFileSync: read } = await import("node:fs");
+  const files = [];
+  for (const name of readdirSync(join(REPO, "src")).filter((f) => f.endsWith(".ts"))) {
+    const { code } = await transform(read(join(REPO, "src", name), "utf8"), { loader: "ts", format: "esm", target: "es2022" });
+    files.push({ path: `dist/src/${name.replace(/\.ts$/, ".js")}`, code });
+  }
+  assert.ok(files.some((f) => f.path === "dist/src/webcrypto.js"), "src/webcrypto.ts is scanned");
+  assert.deepEqual(await (await keyScan()).keyMaterialFindings(files), []);
+});
+
+test("bundle guard (design §12.6): crypto and CryptoKey are browser globals for the scan (src/webcrypto.ts reads both)", async () => {
+  const g = await guard();
+  assert.deepEqual(await g.scanUnresolvedGlobals("var s = crypto.subtle; var p = CryptoKey.prototype; var r = Reflect.apply;"), []);
+  assert.deepEqual(await g.scanUnresolvedGlobals("var s = cryptoo.subtle;"), ["cryptoo"], "a misspelled global is still a finding (the scan is not vacuous)");
+});

@@ -5,9 +5,10 @@
 //
 // BAP_BROWSERS selects engines (default "chromium"); CI runs chromium, firefox and webkit on Linux.
 // BAP_CHROMIUM_EXECUTABLE points Playwright at a locally installed Chromium build when the bundled
-// revision is not installed. The non-secure-context lane needs Chromium's --host-resolver-rules (it maps
-// http://bap.test to 127.0.0.1, an origin that is not a secure context), so it runs on Chromium only.
-// Linux WebKit is evidence for this pure-JS code only, never for Safari.
+// revision is not installed. The non-secure-context lane runs on every engine: Playwright routes
+// http://bap.test (an origin that is not a secure context) to the lane server.
+// Linux WebKit is evidence for the pure-JS code only, never for Safari; for the WebCrypto key handles,
+// which call each engine's own WebCrypto, it is evidence for that WebKit build only.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createServer, type Server } from "node:http";
@@ -78,6 +79,7 @@ async function launch(name: string, args: string[] = []): Promise<Browser> {
 interface L2Result {
   backend: string; secure: boolean; userAgent: string; violations: string[]; error: string | null; ms: number;
   report: { checks: Record<string, boolean>; trials: number; highS: number } | null;
+  webcrypto: { checks: Record<string, boolean>; capability: Record<string, unknown>; observed: { proxySymbolFlip: string } } | null;
 }
 
 for (const name of SELECTED) {
@@ -102,6 +104,16 @@ for (const name of SELECTED) {
       assert.ok(Object.keys(result.report.checks).length >= 23);
       assert.ok(result.report.highS > 0, "the L3 sample contains high-S raw signatures");
       t.diagnostic(`${name} ${browser.version()} (${result.userAgent}): ${Object.keys(result.report.checks).length} checks, ${result.report.trials} v3 trials, ${result.report.highS} high-S normalized, ${result.ms} ms`);
+      // The WebCrypto key handles with the engine's own non-extractable keys (design §12.8).
+      assert.ok(result.webcrypto);
+      const wcFailed = Object.entries(result.webcrypto.checks).filter(([, v]) => !v).map(([k]) => k);
+      assert.deepEqual(wcFailed, []);
+      assert.ok(Object.keys(result.webcrypto.checks).length >= 93, `${Object.keys(result.webcrypto.checks).length} key-handle checks`);
+      assert.ok(Object.keys(result.webcrypto.checks).some((k) => k.startsWith("R10 ")), "the iframe-realm rows ran");
+      assert.equal(result.webcrypto.capability.ed25519Generate, true, "the engine generates Ed25519 keys (never skipped)");
+      assert.equal(result.webcrypto.capability.ecdsaP256Generate, true);
+      assert.equal(result.webcrypto.observed.proxySymbolFlip, "error:invalid_key_handle", "T4b: the engine's getter refuses a Proxy");
+      t.diagnostic(`${name} ${browser.version()}: ${Object.keys(result.webcrypto.checks).length} key-handle checks; T4b ${result.webcrypto.observed.proxySymbolFlip}; capability ${JSON.stringify(result.webcrypto.capability)}`);
     } finally {
       await browser.close();
       served.server.close();
@@ -140,33 +152,45 @@ for (const name of SELECTED) {
     }
   });
 
-  if (name === "chromium") {
-    test("chromium: in a non-secure context, a report signed without a proofId is a closed producer_error, never a thrown TypeError", async (t) => {
-      const served = await serve();
-      const browser = await launch(name, [`--host-resolver-rules=MAP bap.test 127.0.0.1`]);
-      try {
-        const page = await browser.newPage();
-        const response = await page.goto(`http://bap.test:${served.port}/insecure.html`);
-        assert.equal(response?.headers()["content-security-policy"], CSP, "the page is served under the strict CSP");
-        await page.waitForFunction(pageDone, undefined, { timeout: 120_000 });
-        const result = (await page.evaluate(pageResult)) as Record<string, unknown>;
-        assert.equal(result.error, null, String(result.error));
-        assert.equal(result.backend, "portable");
-        assert.equal(result.secure, false, "http://bap.test is not a secure context");
-        assert.equal(result.randomUUID, "undefined", "crypto.randomUUID is absent outside a secure context");
-        assert.deepEqual(result.defaults, {
-          signReport: "error:producer_error",
-          signLocalLoopbackReport: "error:producer_error",
-          signV2Report: "error:producer_error",
-          signV3Report: "error:producer_error",
-        });
-        assert.equal(result.explicitVerifies, true, "with an explicit proofId the page signs and the envelope verifies");
-        assert.deepEqual(result.violations, []);
-        t.diagnostic(`chromium ${browser.version()}: ${JSON.stringify(result.defaults)}`);
-      } finally {
-        await browser.close();
-        served.server.close();
-      }
-    });
-  }
+  test(`${name}: in a non-secure context, a report signed without a proofId is a closed producer_error, and both key-handle factories refuse (T11) without touching their arguments`, async (t) => {
+    const served = await serve();
+    const browser = await launch(name);
+    try {
+      const context = await browser.newContext();
+      // http://bap.test is not a secure context; Playwright routes it to the lane server.
+      await context.route("http://bap.test/**", async (route) => {
+        const url = new URL(route.request().url());
+        const response = await route.fetch({ url: `http://127.0.0.1:${served.port}${url.pathname}${url.search}` });
+        await route.fulfill({ response });
+      });
+      const page = await context.newPage();
+      const response = await page.goto("http://bap.test/insecure.html");
+      assert.equal(response?.headers()["content-security-policy"], CSP, "the page is served under the strict CSP");
+      await page.waitForFunction(pageDone, undefined, { timeout: 120_000 });
+      const result = (await page.evaluate(pageResult)) as Record<string, unknown>;
+      assert.equal(result.error, null, String(result.error));
+      assert.equal(result.backend, "portable");
+      assert.equal(result.secure, false, "http://bap.test is not a secure context");
+      assert.equal(result.randomUUID, "undefined", "crypto.randomUUID is absent outside a secure context");
+      assert.deepEqual(result.defaults, {
+        signReport: "error:producer_error",
+        signLocalLoopbackReport: "error:producer_error",
+        signV2Report: "error:producer_error",
+        signV3Report: "error:producer_error",
+      });
+      assert.equal(result.explicitVerifies, true, "with an explicit proofId the page signs and the envelope verifies");
+      assert.deepEqual(result.t11, {
+        subtle: "undefined",
+        cryptoKey: "undefined",
+        ed25519KeyHandle: "error:invalid_key_handle",
+        es256KeyHandle: "error:invalid_key_handle",
+        touched: [],
+      }, "T11: no crypto.subtle, no CryptoKey; both factories refuse and never touch the recording pair or options");
+      assert.deepEqual(result.violations, []);
+      t.diagnostic(`${name} ${browser.version()}: ${JSON.stringify(result.defaults)}; T11 ${JSON.stringify(result.t11)}`);
+    } finally {
+      await browser.close();
+      served.server.close();
+    }
+  });
 }

@@ -65,7 +65,7 @@ jobs:
       - name: Runtime lanes (Node with both verifier backends, Deno, Bun) and the packed tarball
         run: pnpm test:runtimes && pnpm test:tarball
 
-      - name: Browser lanes (Chromium, Firefox, WebKit under the strict CSP; Chromium non-secure context)
+      - name: Browser lanes (Chromium, Firefox, WebKit under the strict CSP, with the WebCrypto key-handle battery; non-secure context on each engine)
         env:
           BAP_BROWSERS: chromium,firefox,webkit
         run: pnpm exec playwright install --with-deps chromium firefox webkit && pnpm test:browser

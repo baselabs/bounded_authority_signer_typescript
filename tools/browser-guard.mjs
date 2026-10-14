@@ -9,7 +9,11 @@
 //      bundle (ours or a dependency's) is a finding, as is globalThis/window/self/global.Buffer, .process
 //      or .require (a type cast in the source is erased by then); eval, implied eval and the Function
 //      constructor are findings too (the strict CSP in the browser lane forbids them).
-// test/guards.test.ts red-proofs both layers through the exported functions. With --scan <file> it runs
+//   3. a key-material scan of the package's own emitted files (dist/src/*.js, comments ignored): no
+//      private-key export format ("pkcs8", "spki"; "jwk" in dist/src/webcrypto.js, the only file that
+//      exports a key) and no key-generation, key-derivation, import, wrapping, encryption or digest entry
+//      point by name, dotted or as a string key; exportKey appears in dist/src/webcrypto.js only.
+// test/guards.test.ts red-proofs every layer through the exported functions. With --scan <file> it runs
 // the second layer alone over an already-built bundle (the Pages playground, site-dist/app.js).
 import { build } from "esbuild";
 import { Linter } from "eslint";
@@ -74,6 +78,45 @@ export async function scanUnresolvedGlobals(code) {
   return [...out];
 }
 
+// Layer 3. The names src/ never reaches (eslint.config.js KEY_MATERIAL_NAMES, minus exportKey, which is
+// allowed in webcrypto.js only).
+const KEY_MATERIAL_NAMES = [
+  "keygen", "getPublicKey", "getSharedSecret", "randomSecretKey",
+  "generateKey", "deriveKey", "deriveBits", "importKey", "wrapKey", "unwrapKey", "encrypt", "decrypt", "digest",
+];
+const NAMES = KEY_MATERIAL_NAMES.join("|");
+const keyScanConfig = (webcrypto) => [
+  {
+    languageOptions: { ecmaVersion: 2022, sourceType: "module" },
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        { selector: `Identifier[name=/^(${NAMES})$/]`, message: "key-material entry point by name" },
+        { selector: `Literal[value=/^(${NAMES}|pkcs8|spki${webcrypto ? "|jwk" : ""})$/]`, message: "key-material string" },
+        { selector: `TemplateElement[value.cooked=/^(${NAMES}|pkcs8|spki|jwk|exportKey)$/]`, message: "key-material template string" },
+        ...(webcrypto ? [] : [
+          { selector: "Identifier[name='exportKey']", message: "exportKey outside webcrypto.js" },
+          { selector: "Literal[value='exportKey']", message: "exportKey string outside webcrypto.js" },
+        ]),
+      ],
+    },
+  },
+];
+
+// Returns "path:line: message (source text)" for every key-material token in the given emitted files.
+export async function keyMaterialFindings(files) {
+  const linter = new Linter({ configType: "flat" });
+  const out = [];
+  for (const { path, code } of files) {
+    const lines = code.split("\n");
+    for (const m of linter.verify(code, keyScanConfig(/(^|\/)webcrypto\.js$/.test(path)))) {
+      const text = m.fatal ? "" : (lines[m.line - 1] ?? "").slice(m.column - 1, m.endColumn === undefined ? undefined : m.endColumn - 1);
+      out.push(`${path}:${m.line}: ${m.fatal ? `parse: ${m.message}` : `${m.message} (${text})`}`);
+    }
+  }
+  return out;
+}
+
 // The metafile inputs that a browser bundle must never contain, and the one it must.
 export function backendFindings(inputs) {
   const findings = inputs
@@ -94,9 +137,26 @@ async function scanFile(file) {
   console.log(`browser-guard: PASS (${file}: no unresolved globals, Node-global properties, eval or Function constructor)`);
 }
 
+async function emittedFiles() {
+  const { readdirSync, readFileSync } = await import("node:fs");
+  const dir = join(ROOT, "dist/src");
+  return readdirSync(dir).filter((f) => f.endsWith(".js")).map((f) => ({ path: `dist/src/${f}`, code: readFileSync(join(dir, f), "utf8") }));
+}
+
 async function main() {
   const scan = process.argv.indexOf("--scan");
   if (scan !== -1) return scanFile(process.argv[scan + 1]);
+  const emitted = await emittedFiles();
+  if (!emitted.some((f) => f.path === "dist/src/webcrypto.js")) {
+    console.error("browser-guard: dist/src/webcrypto.js is missing (run pnpm build first)");
+    process.exit(1);
+  }
+  const keyFindings = await keyMaterialFindings(emitted);
+  if (keyFindings.length > 0) {
+    console.error(`browser-guard: ${keyFindings.length} key-material finding(s) in dist/src:`);
+    for (const f of keyFindings) console.error(`  ${f}`);
+    process.exit(1);
+  }
   const result = await bundleForBrowser({});
   if (!result.ok) {
     console.error("browser-guard: the browser build of dist/src/index.js failed:");
@@ -110,7 +170,7 @@ async function main() {
     for (const f of problems) console.error(`  ${f}`);
     process.exit(1);
   }
-  console.log(`browser-guard: PASS (${inputs.length} modules, ${result.bytes} bytes unminified; the verifier's portable backend only; no unresolved globals, Node-global properties, eval or Function constructor)`);
+  console.log(`browser-guard: PASS (${inputs.length} modules, ${result.bytes} bytes unminified; the verifier's portable backend only; no unresolved globals, Node-global properties, eval or Function constructor; ${emitted.length} dist/src files free of key-material names and private-key export formats)`);
 }
 
 if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) await main();

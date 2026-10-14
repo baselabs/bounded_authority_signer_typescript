@@ -81,7 +81,8 @@ jobs:
 
   runtimes:
     # Deno and Bun resolve the verifier's "#crypto" import under their own conditions (deno, bun) to its
-    # portable backend; each lane asserts BACKEND_ID first, then signs and verifies v1, v2 and v3.
+    # portable backend; each lane asserts BACKEND_ID first, then signs and verifies v1, v2 and v3, and
+    # runs the WebCrypto key-handle battery with the runtime's own non-extractable keys.
     name: sign-then-verify lane on ${{ matrix.runtime }}
     strategy:
       fail-fast: false
@@ -162,8 +163,9 @@ jobs:
 
   browser:
     # Real engines through Playwright under the strict CSP (an engine axis, not an OS axis: Linux only).
-    # Chromium also runs the non-secure-context lane. Linux WebKit is evidence for this pure-JS code
-    # only, never for Safari.
+    # Each engine also runs the WebCrypto key-handle battery with its own keys (including a same-origin
+    # iframe key) and the non-secure-context lane (http://bap.test routed by Playwright). Linux WebKit is
+    # evidence for the pure-JS code and for that WebKit build's WebCrypto only, never for Safari.
     name: browser lane on ${{ matrix.engine }}
     strategy:
       fail-fast: false
