@@ -92,6 +92,35 @@ stricter P-256 key resolution (one error code changes).
   cast). The packed tarball builds handles from each runtime's own keys and its ES2022-only
   typecheck has a red-proof for a declaration spelled with the DOM `CryptoKeyPair`.
 
+### Documentation
+
+- **README rewritten for a first run.** What the package is and is not, an install line naming the
+  latest release (0.5.0) with the 0.6.0-only feature marked, and a Quickstart that runs end to end:
+  in-process key handles, a grant, a proof, and verification through the verifier package. New
+  sections: the exported handle types verbatim, an API reference (every signer, input, option and
+  result), an error table with each code's meaning and fix, and guides for contract-majors 2 and 3,
+  anchors and key rotation, the loopback profile, testing an integration, and the development
+  scripts. The examples span code hosting, home automation, deployment, notes and calendars.
+- **Every README sample runs.** `test/readme.test.ts` (part of `pnpm test` and `pnpm test:portable`)
+  typechecks each TypeScript sample with the Node types or the DOM library, runs it against this
+  source, compares what it prints with the output shown, checks that the documented handle types
+  are the exported ones, and checks every README anchor that the README or a doc comment links to.
+- **TSDoc on every export**: each signer's parameters, result and error codes, and each input and
+  option field, with a link to the README example.
+- **Corrections.** `castArguments` strings are UTF-8 bytes (`{ t: "string", v: Uint8Array }`); a
+  grant's `expiresAt` must be after its `notBefore` (equal is `producer_error`); the verifier README's
+  pairing example uses `signGrant` and `signReport`, not all five v1 signers; the WebCrypto battery's
+  check count is no longer stated (the README said 104, Node runs 109); bundle sizes are re-measured
+  on this source.
+- `package.json` gains `keywords`.
+- **Playground.** The demo is a support agent reading one ticket's record (it was a money transfer;
+  the use-case cards keep one payments example). The hero and the first card say a grant names its
+  operations (a grant can name several), and the key-handle shape shows that every method may return
+  a Promise. The Pages workflow's badge check compares the page's npm badge with the latest version
+  on the npm registry instead of `package.json`, which names 0.6.0 before it is released; the check
+  had failed the Pages deploy on `main` since the version bump.
+- Source comments no longer use internal shorthand.
+
 ## [0.5.0] — 2026-10-13
 
 Browser-safe builds and the contract-major-2 signers. The package now loads and runs in browsers,
@@ -241,7 +270,7 @@ Documentation patch; no code or dependency change.
 
 - **Contract-major 3 (`BAP3-ES256-SHA256`) producing-side adoption** (protocol
   [ADR 0035](https://github.com/baselabs/bounded_authority_protocol/blob/main/docs/adr/0035-es256-contract-major-activation.md),
-  `spec/bap-v3.md`; the owner decision of 2026-09-20). Four new signers — `signV3Grant`,
+  `spec/bap-v3.md`). Four new signers — `signV3Grant`,
   `signV3Report`, `signV3Anchor`, `signV3KeyTransition` — mirror the v1 functions under the
   ES256 suite: `alg: "ES256"` protected headers, payload `v: 3`, the `BAP3-REQUEST\0` digest
   prefix, the EC proof JWK `{crv, kty, x, y}` with the RFC 7638 EC thumbprint as `cnf.jkt`,
@@ -257,8 +286,7 @@ Documentation patch; no code or dependency change.
   node:crypto both in the raw `ieee-p1363` form and re-encoded as DER.
 - The v3 producing profile lives in this repository (`src/v3.ts`): the verifier package's
   0.3.0 release now ships its v3 verify surface, but the v1 pattern of delegating
-  composition to the verifier's producers is not yet adopted — that switch remains an
-  owner-gated decision recorded here. Version-neutral algebra (JCS, JSON, base64url,
+  composition to the verifier's producers is not yet adopted. Version-neutral algebra (JCS, JSON, base64url,
   SHA-256, typed projection, URI normalization, Bounds) single-sources from the verifier
   package's exported primitives; only the v3-specific bytes are authored here. The
   dependency moves to `@bounded-authority-protocol/verifier` `^0.3.0` (the lockstep
@@ -282,15 +310,15 @@ Documentation patch; no code or dependency change.
 
 ## [0.1.2] — 2026-09-18
 
-No library-code change — alignment with the protocol family's 2026-09-17 state (BAP 0.4.1,
-Elixir BARA 0.6.2 + the pin move). The five-function surface is 1:1 with the Elixir
-reference (compared against its `main` @ `d235a4a`: same signing table, profiles, bounds
-flow, closed error set, and five-span telemetry) with zero signing-behavior delta since
-0.6.0 — BARA 0.6.1/0.6.2 and its Unreleased entries are repository tooling and pins only.
+No library-code change — alignment with the protocol family as of September 17, 2026 (protocol
+0.4.1, Elixir `bounded_authority_report_adapter` 0.6.2). The five-function surface is 1:1 with the
+Elixir reference (compared against its `main` @ `d235a4a`: same signing table, profiles, bounds
+flow, closed error set, and five-span telemetry) with zero signing-behavior delta since its
+0.6.0; its 0.6.1 and 0.6.2 changed repository tooling and pins only.
 
 - Dependency currency: the lockfile resolves `@bounded-authority-protocol/verifier` **0.2.2**
   (the verifier's family-alignment release — itself no library-code change; first 0.2.0 →
-  0.2.1 provenance-bound, then 0.2.2 after its own alignment session). The requirement
+  0.2.1 provenance-bound, then 0.2.2 after its own alignment release). The requirement
   deliberately holds the caret `^0.2.0` — an exact pin in a published package's dependencies
   would force every consumer's resolution and block dedupe, and reproducibility is already
   provided by the tracked lockfile plus CI's `--frozen-lockfile` installs.
@@ -303,11 +331,11 @@ flow, closed error set, and five-span telemetry) with zero signing-behavior delt
   job; four legs re-proven on this repository (green real lock / red pin-removed / red
   unreachable registry / green all-current scratch). Dev dependencies at latest:
   `@types/node` 26.6.1, `semver` 7.8.5 (the gate's resolver).
-- Tri-platform CI (family bar, 2026-09-16): `ci.yml` gains `windows-latest` and `macos-latest`
+- Tri-platform CI (September 16, 2026): `ci.yml` gains `windows-latest` and `macos-latest`
   lanes beside `ubuntu-24.04` — every step is pnpm/Node, no POSIX shell. `.gitattributes`
   (`* text=auto eol=lf`) keeps a Windows autocrlf checkout byte-stable.
 - Node toolchain identity: the repository pins its development toolchain — `.tool-versions`
-  (`nodejs 22.23.1`, matching the Elixir family's pin after the PATH-shadowing incident) and
+  (`nodejs 22.23.1`, matching the Elixir family's pin) and
   the CI `node-version` move lockstep. `engines.node` stays the consumer floor `>= 22`; the
   release lane stays on Node 24 for the npm >= 11.5 that trusted publishing requires.
 - README: the protocol-family cross-links land (verifier package by npm and repository, the
@@ -318,7 +346,7 @@ flow, closed error set, and five-span telemetry) with zero signing-behavior delt
 ## [0.1.1] — 2026-09-14
 
 - The first provenance-bound release: identical library content to 0.1.0 (which was
-  terminal-seeded and carries no registry attestation), published through this repository's
+  published from a local terminal and carries no registry attestation), published through this repository's
   release workflow under npm trusted publishing — the workflow stages with a signed
   provenance statement and a human approves under 2FA. 0.1.0 is deprecated in favor of this
   version.
