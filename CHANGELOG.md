@@ -1,5 +1,79 @@
 # Changelog
 
+## [0.6.0] — unreleased
+
+WebCrypto key handles. Two factories build the existing handle types from a WebCrypto key pair
+whose private key is non-extractable, so a browser page (or Deno, Bun or Node) can sign with a key
+it cannot export. The library still never generates, imports, wraps, stores or exports a private
+key: the caller creates the pair and owns its lifetime. Everything below is additive except the
+stricter P-256 key resolution (one error code changes).
+
+### Added
+
+- **`ed25519KeyHandle(pair, opts?)`** builds a `KeyHandle` (contract-majors 1 and 2, the sibling
+  profiles) and **`es256KeyHandle(pair, opts?)`** an `Es256KeyHandle` (contract-major 3), with
+  the structural types `WebCryptoKeyLike`, `WebCryptoKeyPairLike` and `WebCryptoHandleOptions`
+  (`keyId` enables `keyIdentity()`/`signingIdentity()`; `role` is `"holder"` by default or
+  `"issuer"`). No public declaration names a DOM or Node global type: a DOM `CryptoKeyPair` and
+  Node's `webcrypto.CryptoKeyPair` pass without a cast.
+- **What a factory checks**, in order, resolving the value-free `invalid_key_handle` on any
+  failure and never throwing or rejecting: a secure context with `crypto.subtle` (nothing the
+  caller passed is read before this); the options; both keys are real `CryptoKey`s, read through
+  the `CryptoKey.prototype` getters captured when the module loads; private and public types; a
+  non-extractable private key (always; no option allows an extractable one); `Ed25519`, or
+  `ECDSA` on `P-256`, for both keys; the raw public export (32 bytes, acceptable and torsion-free;
+  or the 65-byte uncompressed point on the curve); and one probe signature over a fixed message
+  containing a zero byte (so it is never a JWS signing input), verified strictly against the
+  exported key. The probe refuses a mismatched pair and a relabeled algorithm (an X25519 pair
+  renamed Ed25519, a P-384 pair renamed P-256) at the factory.
+- **The handle signs only JWS signing inputs.** `sign()` accepts only bytes of the shape
+  `base64url "." base64url` and rejects anything else (inside the signers that is
+  `signing_failed`). The ES256 handle returns WebCrypto's raw `r || s` unchanged, high-`s`
+  included; the shared v3 tail normalizes it exactly as for a caller-written handle. The handle
+  is frozen, its own keys are exactly its methods, and the private `CryptoKey` lives only in its
+  closure.
+- README section "WebCrypto key handles" with the threat model: non-extractable stops export,
+  not use; one key per purpose; non-extractable is a browser property only (on Node and Bun,
+  `KeyObject.from(key).export()` returns the private key to any code in the process; Deno
+  refuses); keys kept in IndexedDB live in the browser profile on disk; the extractable refusal
+  is a guard against accidents, not against the key's own holder.
+
+### Changed
+
+- **P-256 key resolution matches Ed25519's.** A caller handle that reports a 65-byte key that is
+  not an uncompressed point on P-256 (`0x04 || x || y`, `x, y < p`, on the curve) is now
+  `invalid_key_handle` at resolution, before `sign()` is called, on all four v3 signers. In 0.5.0
+  it was resolved and failed later as `producer_error` (or, for `signV3Grant`, after `sign()` was
+  called, as `signing_failed`).
+- **Lint scope.** `src/webcrypto.ts` is the one file in `src/` that may reach `crypto.subtle`, and
+  only for two direct calls: `subtle.sign(...)` and `subtle.exportKey("raw", ...)` with the literal
+  `"raw"`. Its override is built from the same shared rule arrays as the rest of `src/`, so every
+  other ban still applies there. Everywhere in `src/`, `sign` and `exportKey` may only be called
+  directly (never read as a value, reached by a string key, destructured, or routed through
+  `.call`, `.apply` or `.bind`), and `deriveBits`, `wrapKey`, `unwrapKey`, `encrypt`, `decrypt`
+  and `digest` join the banned key-material names. `pnpm guard:browser` also scans `dist/src`
+  for those names and for the private-key export formats `pkcs8`, `spki` and (in
+  `webcrypto.js`) `jwk`.
+
+### Tests
+
+- One key-handle battery with real engine keys (no mocks) runs in every lane: Node 22.23.1 and
+  24.19.0 (the unit suite and the runtime lanes, both verifier backends), Deno 2.5.6, Bun 1.3.14,
+  and Playwright Chromium, Firefox and WebKit under the strict CSP, including a same-origin iframe
+  key in the browsers. Each lane records an engine capability row (key generation, signature
+  widths, the high-`s` rate over 64 distinct inputs, whether ECDSA and Ed25519 are
+  deterministic, whether weak or off-curve public keys import, whether the algorithm object can
+  be relabeled, whether a structured-cloned key is usable). The non-secure-context lane now runs
+  on all three engines and checks that both factories refuse without touching a recording Proxy
+  passed as the pair and options. Per-lane expectations are explicit: a Proxy that flips
+  symbol-keyed slots defeats the getter read only on Deno (a recorded exception), and
+  `KeyObject.from()` exports a non-extractable key on Node and Bun but not on Deno.
+- Type tests: DOM and Node pairs assign without a cast; under `@types/node` 26.6.5,
+  `webcrypto.subtle.generateKey({ name: "Ed25519" }, ...)` is typed `Promise<CryptoKey>`, so its
+  result needs `as unknown as webcrypto.CryptoKeyPair` (TS2345 without it; the README shows the
+  cast). The packed tarball builds handles from each runtime's own keys and its ES2022-only
+  typecheck has a red-proof for a declaration spelled with the DOM `CryptoKeyPair`.
+
 ## [0.5.0] — 2026-10-13
 
 Browser-safe builds and the contract-major-2 signers. The package now loads and runs in browsers,

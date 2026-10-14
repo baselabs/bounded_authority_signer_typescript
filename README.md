@@ -24,8 +24,9 @@ Bun with no Node API (see [Browsers, Deno, Bun and workers](#browsers-deno-bun-a
 The protocol's verifier package produces each object's deterministic signing input and
 **refuses to sign**. This library takes a caller-owned key handle and a report and produces
 the signed compact form. **The private key never enters the library**: callers supply a
-handle whose methods reach their own custody — an HSM, a KMS, or an in-process key in tests.
-Every handle method may be async; remote custodians are first-class.
+handle whose methods reach their own custody — an HSM, a KMS, a non-extractable WebCrypto key
+(see [WebCrypto key handles](#webcrypto-key-handles)), or an in-process key in tests. Every
+handle method may be async; remote custodians are first-class.
 
 It signs; [`@bounded-authority-protocol/verifier`](https://www.npmjs.com/package/@bounded-authority-protocol/verifier)
 verifies. It is not a decision maker, not a transport, and not the authority runtime.
@@ -206,6 +207,95 @@ The local-loopback profile is selected by function name — never inferred: the 
 required, and the target must be exactly `http://127.0.0.1[:port]/…` or `http://[::1][:port]/…`
 (`localhost` and every non-canonical spelling fail closed).
 
+## WebCrypto key handles
+
+Since 0.6.0, two factories build the handles above from a WebCrypto key pair whose private key
+is **non-extractable**, so a page (or Deno, Bun or Node) signs with a key it cannot export:
+
+```ts
+import { ed25519KeyHandle, es256KeyHandle, signReport, signV3Report } from "@bounded-authority-protocol/signer";
+
+// You create the pair and own its lifetime; the library never generates, imports or exports a private key.
+const pair = await crypto.subtle.generateKey({ name: "Ed25519" }, false, ["sign", "verify"]);
+const made = await ed25519KeyHandle(pair, { keyId: "agent-key-1" }); // role: "holder" (default) or "issuer"
+if (!made.ok) throw new Error(made.error); // "invalid_key_handle"; the factory never throws or rejects
+const envelope = await signReport(report, made.value, { proofId });
+
+// Contract-major 3 (ES256):
+const ecPair = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, false, ["sign", "verify"]);
+const ec = await es256KeyHandle(ecPair);
+```
+
+The parameter type is structural: a DOM `CryptoKeyPair` and Node's `webcrypto.CryptoKeyPair` pass
+without a cast. One exception, from the Node types: `@types/node` (26.6.5) types
+`webcrypto.subtle.generateKey({ name: "Ed25519" }, ...)` as `Promise<CryptoKey>`, so cast its
+result:
+
+```ts
+import { webcrypto } from "node:crypto";
+const pair = (await webcrypto.subtle.generateKey({ name: "Ed25519" }, false, ["sign", "verify"])) as unknown as webcrypto.CryptoKeyPair;
+```
+
+**What the factory checks**, in this order. Any failure is `invalid_key_handle`, with no detail:
+
+1. a secure context with `crypto.subtle` (on a plain-HTTP page there is none, and nothing you
+   passed is read);
+2. the options (`keyId` a non-empty string, `role` `"holder"` or `"issuer"`);
+3. both keys are real `CryptoKey`s: every fact is read through the `CryptoKey.prototype` getters,
+   captured when the module loads, never through `key.extractable`, so a shadowed property or a
+   plain object is refused;
+4. a private and a public key;
+5. the private key is non-extractable (always; there is no option to allow an extractable key);
+6. `Ed25519` for both keys, or `ECDSA` on `P-256` for both;
+7. the public key's raw export: 32 bytes, canonical, not small-order and torsion-free; or the
+   65-byte uncompressed point on the curve;
+8. one probe signature with the private key over a fixed message containing a zero byte (so it
+   is never a JWS signing input), verified strictly against that export. A mismatched pair, or a
+   relabeled algorithm (an X25519 pair renamed Ed25519), fails here.
+
+**The handle signs only JWS signing inputs.** Its `sign()` accepts only bytes shaped
+`base64url "." base64url` and rejects anything else; within the signers that is `signing_failed`.
+The ES256 handle returns WebCrypto's raw `r || s` unchanged (high-`s` about half the time), and the
+shared v3 tail normalizes it to low-`s` and verifies it strictly, exactly as for your own handles.
+The handle is frozen, its only properties are its methods, and the `CryptoKey` lives only in its
+closure; `JSON.stringify(handle)` is `{}`.
+
+**Threat model.** Read this before you keep a signing key in a page.
+
+- **Non-extractable stops export, not use.** Any script running in the origin that reaches the
+  handle or the `CryptoKey` (or reads the key back from IndexedDB) can sign silently, with no
+  prompt: an XSS payload, a compromised dependency, an extension with page access. A signature
+  from these handles proves that code in that origin used the key, not that a person approved
+  the bytes. Approval (a user gesture, a confirmation screen, rate limits) is yours to add.
+  Containment belongs to the protocol and the host runtime: narrow grants, short `exp`, exact
+  operations and audiences, and the runtime's replay and revocation.
+- **One key per purpose.** The handle signs any JWS signing input, so a pair used here must not
+  sign anything else (another protocol, another JWS consumer).
+- **Non-extractable is a browser property only.** On Node and Bun, any code in the process can
+  export a non-extractable private key with `KeyObject.from(key).export()` (Node 24 prints a
+  deprecation warning and still exports). Deno refuses. On a server, prefer a handle that reaches
+  a KMS or HSM.
+- **The extractable refusal is a guard against accidents, not against the key's holder.** It
+  stops an exportable key from being paired with a handle meant for a non-exportable one. Whoever
+  owns the key can defeat it on some engines (on Deno, a `Proxy` over an extractable key passes
+  the getter read and signs), so it is never a security boundary against that caller.
+- **Persistence is yours.** The library stores nothing. A `CryptoKey` you save to IndexedDB stays
+  non-extractable, and lives in the browser profile on disk; clearing site data, eviction and
+  private browsing lose it. Rotating the pair means building a new handle (the public key is a
+  snapshot).
+- **Not hardware-backed.** WebCrypto keys are browser-managed software keys with no attestation.
+- **Other realms.** A key generated in a same-origin iframe or posted from a worker is accepted
+  (the getters brand-check; there is no `instanceof` test). Deno cannot hand a `CryptoKey` across
+  realms: its structured clone of a `CryptoKey` is not a usable key, so generate keys where you
+  sign.
+- **Harden the page that holds a key:** the strict CSP above, Trusted Types, Subresource
+  Integrity, a minimal dependency set, and a dedicated origin for key use. In-page verification
+  stays display-only.
+
+Ed25519 in WebCrypto needs Chrome 137, Firefox 129 or Safari 17 or later; ECDSA P-256 is
+everywhere. CI exercises the factories in Chromium, Firefox and WebKit on Linux, Node, Deno and
+Bun. Linux WebKit is evidence for that WebKit build only, not for Safari's WebCrypto.
+
 ## Browsers, Deno, Bun and workers
 
 The package is ESM-only, has no side effects on import (`"sideEffects": false`), and uses no
@@ -226,8 +316,10 @@ import { BACKEND_ID } from "@bounded-authority-protocol/verifier";
 // "node" or "portable": which verifier backend this build resolved. Signing behaves the same in both.
 ```
 
-The signer uses no WebCrypto and never touches a private key: signing is always your handle's
-`sign()`, wherever and however that handle is implemented.
+The signer never touches private-key bytes: signing is always a handle's `sign()`, wherever and
+however that handle is implemented. The only WebCrypto it uses is in the
+[WebCrypto key handles](#webcrypto-key-handles): `crypto.subtle.sign` with your non-extractable
+`CryptoKey`, and `exportKey("raw")` of the public key.
 
 **In-page verification is display-only, never a trust decision.** If a page signs and then
 verifies an envelope (as the playground does), that result is for showing to a person. It
@@ -272,8 +364,13 @@ transitions; a wrong-key handle on every major; 64 ES256 reports from a handle t
 high-`s` about half the time, each normalized and verified) runs on Node 22.23.1 and 24.19.0
 with each verifier backend, on Deno 2.5.6 and Bun 1.3.14, and in Chromium, Firefox and WebKit
 (Linux CI, Playwright, under the strict CSP above); every lane first asserts the verifier
-`BACKEND_ID` it expects. A Chromium lane on a non-secure origin checks the closed
-`producer_error` for a missing default `proofId`. Guards keep Node APIs out of `src/`: a
+`BACKEND_ID` it expects. A lane on a non-secure origin, in each browser, checks the closed
+`producer_error` for a missing default `proofId` and that both key-handle factories refuse without
+touching their arguments. The WebCrypto key-handle battery (92 checks, 95 in browsers, with each engine's
+own keys: accept, sign then verify on v1, v2 and v3 over 64 distinct inputs, the extractable,
+type, algorithm, weak-key, mismatched-pair and relabeled-algorithm refusals, roles, no key
+exposure, the JWS-shape restriction, and a same-origin iframe key in the browsers) runs in every
+one of those lanes and records an engine capability row. Guards keep Node APIs out of `src/`: a
 browser typecheck with no ambient types, lint rules (Node modules and globals, dynamic code,
 `@noble` and WebCrypto), a scan of the browser bundle for unresolved globals, and a
 packed-tarball consumer typecheck with `skipLibCheck: false`. Linux WebKit is evidence for
@@ -287,8 +384,10 @@ before staging a release that a human approves.
 Package versions follow SemVer. Before 1.0 the minor position is the breaking boundary, so
 npm caret ranges such as `^0.2.1` never select `0.3.0`.
 
-0.5.x depends on `@bounded-authority-protocol/verifier` `^0.7.0`, runs in browsers, Deno and
-Bun, adds the contract-major-2 signers, and checks every ES256 signature with the verifier's
+0.6.x adds the WebCrypto key handles (`ed25519KeyHandle`, `es256KeyHandle`) and refuses a
+caller's off-curve P-256 key at resolution (`invalid_key_handle`, before `sign()`); it keeps the
+verifier `^0.7.0`. 0.5.x depends on `@bounded-authority-protocol/verifier` `^0.7.0`, runs in
+browsers, Deno and Bun, adds the contract-major-2 signers, and checks every ES256 signature with the verifier's
 strict `es256VerifyStrict` after low-S normalization. Its `"exports"` map keeps deep imports
 such as `@bounded-authority-protocol/signer/dist/src/v3.js` resolving through a `"./*"`
 passthrough, but deep imports are unsupported API and may be closed in a future 0.x minor;
