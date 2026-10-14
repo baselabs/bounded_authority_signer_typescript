@@ -6,8 +6,7 @@
 // `BAP3-REQUEST\0` digest prefix, the EC proof JWK `{crv, kty, x, y}`, the RFC
 // 7638 EC thumbprint, and 65-byte uncompressed-SEC1 raw public keys. The
 // verifier package's 0.3.0 release ships its own v3 verify surface; delegating
-// composition to the verifier's v3 producers remains a recorded, owner-gated
-// switch.
+// composition to the verifier's v3 producers is not adopted yet.
 //
 // Version-neutral algebra (JCS, JSON, base64url, SHA-256, typed projection,
 // URI normalization, Bounds) single-sources from the verifier package's

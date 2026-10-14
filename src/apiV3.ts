@@ -28,12 +28,13 @@ import {
 } from "./handle.js";
 import { defaultProofId } from "./proof-id.js";
 
-// The ES256 key-handle contract — the same caller-owned-custody shape as the
-// v1 KeyHandle, with the suite's fixed widths: sign() returns the 64-byte raw
-// `r || s` (high-S permitted from the custodian — the library normalizes
-// before emission), publicKey() the 65-byte uncompressed-SEC1 point, and
-// thumbprint() the RFC 7638 EC thumbprint (base64url). The private key never
-// enters this library.
+/**
+ * The ES256 key-handle contract (contract-major 3): the same caller-owned custody as `KeyHandle`, with
+ * the suite's widths. `sign()` returns the 64-byte raw `r || s` (a high `s` is fine: the library
+ * normalizes it to low-S before emission), `publicKey()` the 65-byte uncompressed SEC1 point
+ * (`0x04 || x || y`, on P-256), and `thumbprint()` the RFC 7638 EC thumbprint (base64url). Every method
+ * may return a Promise. The private key never enters this library.
+ */
 export interface Es256KeyHandle {
   sign(message: Uint8Array): Uint8Array | Promise<Uint8Array>; // 64-byte raw r || s
   publicKey(): Uint8Array | Promise<Uint8Array>;               // 65 bytes: 0x04 || x || y
@@ -42,19 +43,27 @@ export interface Es256KeyHandle {
   signingIdentity?(): Promise<AtomicSigningIdentity> | AtomicSigningIdentity;
 }
 
+/** A telemetry event from a v3 signer, passed to {@link V3SignOpts.onEvent}. */
 export interface V3SignerEvent {
   readonly kind: "v3_report" | "v3_anchor" | "v3_grant" | "v3_key_transition";
   readonly phase: "start" | "stop" | "error";
 }
 
+/** Options for the v3 signers: the same fields and defaults as `SignOpts`, with v3 event kinds. */
 export interface V3SignOpts {
+  /** Size limits passed to the v3 producers and assembler. */
   readonly bounds?: Bounds;
-  readonly issuedAt?: number;    // default: wall clock seconds
-  readonly proofId?: string;     // default: crypto.randomUUID() (producer_error where it is absent)
-  readonly anchoredAt?: number;  // anchor timestamp (default: wall clock seconds)
+  /** The proof's `iat` in Unix seconds (`signV3Report`). Default: the wall clock. */
+  readonly issuedAt?: number;
+  /** The proof's `jti` (`signV3Report`). Default: `crypto.randomUUID()`; where that is absent, `producer_error`. */
+  readonly proofId?: string;
+  /** The anchor timestamp in Unix seconds (`signV3Anchor`). Default: the wall clock. */
+  readonly anchoredAt?: number;
+  /** Called with a start event and then a stop or error event. A listener that throws is ignored. */
   readonly onEvent?: (event: V3SignerEvent) => void;
 }
 
+/** The request a v3 holder proof binds (`signV3Report`); the fields mean what they mean in `ReportInput`. */
 export interface V3ReportInput {
   readonly grantCompact: Uint8Array;
   readonly operation: string;
@@ -65,6 +74,7 @@ export interface V3ReportInput {
   readonly nonce?: string;
 }
 
+/** A v3 boundary anchor (`signV3Anchor`); the fields mean what they mean in `AnchorInput`. */
 export interface V3AnchorInput {
   readonly anchorId: string;
   readonly chainId: string;
@@ -72,6 +82,7 @@ export interface V3AnchorInput {
   readonly chainHash: Uint8Array; // 32 bytes
 }
 
+/** A v3 capability grant (`signV3Grant`); the fields mean what they mean in `GrantInput`, with the v2 selector kinds and an EC holder thumbprint. */
 export interface V3GrantInput {
   readonly issuer: string;
   readonly grantId: string;
@@ -83,6 +94,7 @@ export interface V3GrantInput {
   readonly operations: readonly V3OperationInput[];
 }
 
+/** A v3 key transition (`signV3KeyTransition`); `nextPublicKey` is a 65-byte uncompressed P-256 point. */
 export interface V3TransitionInput {
   readonly transitionId: string;
   readonly chainId: string;
@@ -120,6 +132,14 @@ function validateReport(report: V3ReportInput): SignerResult<V3ReportInput> {
   return ok(report);
 }
 
+/**
+ * Sign a contract-major-3 (ES256) holder proof. The signature is normalized to low-S and verified
+ * strictly against the handle's public key before assembly.
+ *
+ * @returns `{ ok: true, value: { grant, proof } }`, or `invalid_report`, `invalid_key_handle`
+ *   (including a public key that is not an uncompressed point on P-256), `producer_error` or `signing_failed`.
+ * @example https://github.com/baselabs/bounded_authority_signer_typescript#contract-major-3-es256
+ */
 export async function signV3Report(report: V3ReportInput, handle: Es256KeyHandle, opts: V3SignOpts = {}): Promise<SignerResult<Envelope>> {
   const emit = emitter(opts, "v3_report");
   emit("start");
@@ -148,6 +168,12 @@ export async function signV3Report(report: V3ReportInput, handle: Es256KeyHandle
   return ok({ grant: report.grantCompact, proof: assembled.value });
 }
 
+/**
+ * Sign a contract-major-3 (ES256) boundary anchor. Needs `handle.keyIdentity()`.
+ *
+ * @returns `{ ok: true, value: { anchor } }`, or `invalid_anchor`, `invalid_key_handle`, `producer_error` or `signing_failed`.
+ * @example https://github.com/baselabs/bounded_authority_signer_typescript#contract-major-3-es256
+ */
 export async function signV3Anchor(input: V3AnchorInput, handle: Es256KeyHandle, opts: V3SignOpts = {}): Promise<SignerResult<AnchorCompact>> {
   const emit = emitter(opts, "v3_anchor");
   emit("start");
@@ -170,6 +196,12 @@ export async function signV3Anchor(input: V3AnchorInput, handle: Es256KeyHandle,
   return ok({ anchor: assembled.value });
 }
 
+/**
+ * Sign a contract-major-3 (ES256) capability grant. Issuer-only: the C1 gate of `signGrant` applies.
+ *
+ * @returns `{ ok: true, value: { grant } }`, or `invalid_grant`, `invalid_key_handle`, `producer_error` or `signing_failed`.
+ * @example https://github.com/baselabs/bounded_authority_signer_typescript#contract-major-3-es256
+ */
 export async function signV3Grant(input: V3GrantInput, handle: Es256KeyHandle, opts: V3SignOpts = {}): Promise<SignerResult<GrantCompact>> {
   const emit = emitter(opts, "v3_grant");
   emit("start");
@@ -198,6 +230,12 @@ export async function signV3Grant(input: V3GrantInput, handle: Es256KeyHandle, o
   return ok({ grant: assembled.value });
 }
 
+/**
+ * Sign a contract-major-3 (ES256) key transition. Needs `handle.keyIdentity()`; `nextPublicKey` is 65 bytes.
+ *
+ * @returns `{ ok: true, value: { keyTransition } }`, or `invalid_transition`, `invalid_key_handle`, `producer_error` or `signing_failed`.
+ * @example https://github.com/baselabs/bounded_authority_signer_typescript#contract-major-3-es256
+ */
 export async function signV3KeyTransition(input: V3TransitionInput, handle: Es256KeyHandle, opts: V3SignOpts = {}): Promise<SignerResult<TransitionCompact>> {
   const emit = emitter(opts, "v3_key_transition");
   emit("start");

@@ -1,9 +1,9 @@
-// The shared signing tail — the port of BARA's universal companion primitive:
+// The shared signing tail — the port of the Elixir adapter's companion primitive:
 // sign via the handle → VERIFY the signature against the resolved public key →
 // assemble through the verifier package. Every object this library signs flows
 // through here.
 //
-// The wrong-key guard is the RA1 cross-vendor finding: a signature that does
+// The wrong-key guard: a signature that does
 // not verify against the resolved public key is signing_failed, never a silent
 // false-success deferred to the verifier downstream.
 import {

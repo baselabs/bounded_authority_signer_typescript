@@ -54,6 +54,7 @@ export interface WebCryptoKeyPairLike {
   readonly publicKey: WebCryptoKeyLike;
 }
 
+/** Options for `ed25519KeyHandle` and `es256KeyHandle`, read from the object's own data properties only. */
 export interface WebCryptoHandleOptions {
   /** Enables keyIdentity() and signingIdentity(): anchors, key transitions and grants need it. */
   readonly keyId?: string;
@@ -150,7 +151,7 @@ interface Options {
   readonly role: KeyRole;
 }
 
-// Own data properties only (F1): an inherited keyId or role, including one on a polluted
+// Own data properties only: an inherited keyId or role, including one on a polluted
 // Object.prototype, is never read.
 function readOptions(opts: unknown): Options | undefined {
   if (opts === undefined) return { keyId: undefined, role: "holder" };
@@ -260,7 +261,7 @@ async function keyHandle(suite: Suite, pair: unknown, opts: unknown): Promise<Si
     if (!algorithmMatches(suite, read(GETTERS.algorithm, privateKey)) || !algorithmMatches(suite, read(GETTERS.algorithm, publicKey))) {
       return err("invalid_key_handle");
     }
-    // 6b. Both keys must be structured-cloneable, as a real CryptoKey is (F2). A Proxy never is (the clone
+    // 6b. Both keys must be structured-cloneable, as a real CryptoKey is. A Proxy never is (the clone
     //     throws DataCloneError), which also refuses a Proxy that lies to the getters on engines whose
     //     internal slots it can reach (Deno). The clones are discarded. Each clone follows the checks that
     //     make it safe: WebKit on Linux (27.2) imports a raw P-256 point with a prefix other than 0x04 and
@@ -290,6 +291,8 @@ async function keyHandle(suite: Suite, pair: unknown, opts: unknown): Promise<Si
  * Build an Ed25519 KeyHandle (contract-majors 1 and 2, the sibling profiles) from a WebCrypto key pair
  * whose private key is non-extractable. Resolves { ok: false, error: "invalid_key_handle" } for anything
  * else; never throws and never rejects.
+ *
+ * @example https://github.com/baselabs/bounded_authority_signer_typescript#webcrypto-key-handles
  */
 export function ed25519KeyHandle(pair: WebCryptoKeyPairLike, opts?: WebCryptoHandleOptions): Promise<SignerResult<KeyHandle>> {
   return keyHandle("Ed25519", pair, opts);
@@ -299,6 +302,8 @@ export function ed25519KeyHandle(pair: WebCryptoKeyPairLike, opts?: WebCryptoHan
  * Build an ES256 Es256KeyHandle (contract-major 3) from a WebCrypto ECDSA P-256 key pair whose private
  * key is non-extractable. Resolves { ok: false, error: "invalid_key_handle" } for anything else; never
  * throws and never rejects.
+ *
+ * @example https://github.com/baselabs/bounded_authority_signer_typescript#webcrypto-key-handles
  */
 export function es256KeyHandle(pair: WebCryptoKeyPairLike, opts?: WebCryptoHandleOptions): Promise<SignerResult<Es256KeyHandle>> {
   return keyHandle("ES256", pair, opts);

@@ -24,19 +24,27 @@ import {
 } from "./handle.js";
 import { defaultProofId } from "./proof-id.js";
 
+/** A telemetry event from a v2 signer, passed to {@link V2SignOpts.onEvent}. */
 export interface V2SignerEvent {
   readonly kind: "v2_report" | "v2_anchor" | "v2_grant" | "v2_key_transition";
   readonly phase: "start" | "stop" | "error";
 }
 
+/** Options for the v2 signers: the same fields and defaults as `SignOpts`, with v2 event kinds. */
 export interface V2SignOpts {
+  /** Size limits passed to the verifier's v2 producers and assembler. */
   readonly bounds?: Bounds;
-  readonly issuedAt?: number;    // default: wall clock seconds
-  readonly proofId?: string;     // default: crypto.randomUUID() (producer_error where it is absent)
-  readonly anchoredAt?: number;  // anchor timestamp (default: wall clock seconds)
+  /** The proof's `iat` in Unix seconds (`signV2Report`). Default: the wall clock. */
+  readonly issuedAt?: number;
+  /** The proof's `jti` (`signV2Report`). Default: `crypto.randomUUID()`; where that is absent, `producer_error`. */
+  readonly proofId?: string;
+  /** The anchor timestamp in Unix seconds (`signV2Anchor`). Default: the wall clock. */
+  readonly anchoredAt?: number;
+  /** Called with a start event and then a stop or error event. A listener that throws is ignored. */
   readonly onEvent?: (event: V2SignerEvent) => void;
 }
 
+/** The request a v2 holder proof binds (`signV2Report`); the fields mean what they mean in `ReportInput`. */
 export interface V2ReportInput {
   readonly grantCompact: Uint8Array;
   readonly operation: string;
@@ -47,6 +55,7 @@ export interface V2ReportInput {
   readonly nonce?: string;
 }
 
+/** A v2 boundary anchor (`signV2Anchor`); the fields mean what they mean in `AnchorInput`. */
 export interface V2AnchorInput {
   readonly anchorId: string;
   readonly chainId: string;
@@ -63,11 +72,13 @@ export type V2SelectorInput =
   | { readonly kind: "lte"; readonly path: readonly string[]; readonly value: Tagged }
   | { readonly kind: "gte"; readonly path: readonly string[]; readonly value: Tagged };
 
+/** One operation a v2 grant allows, with its selectors. */
 export interface V2OperationInput {
   readonly name: string;
   readonly selectors: readonly V2SelectorInput[];
 }
 
+/** A v2 capability grant (`signV2Grant`); the fields mean what they mean in `GrantInput`, with v2 selectors. */
 export interface V2GrantInput {
   readonly issuer: string;
   readonly grantId: string;
@@ -79,6 +90,7 @@ export interface V2GrantInput {
   readonly operations: readonly V2OperationInput[];
 }
 
+/** A v2 key transition (`signV2KeyTransition`); the fields mean what they mean in `TransitionInput`. */
 export interface V2TransitionInput {
   readonly transitionId: string;
   readonly chainId: string;
@@ -112,6 +124,13 @@ function validateReport(report: V2ReportInput): SignerResult<V2ReportInput> {
   return ok(report);
 }
 
+/**
+ * Sign a contract-major-2 holder proof. Same handle, checks and errors as `signReport`.
+ *
+ * @returns `{ ok: true, value: { grant, proof } }`, or `invalid_report`, `invalid_key_handle`,
+ *   `producer_error` or `signing_failed`.
+ * @example https://github.com/baselabs/bounded_authority_signer_typescript#contract-major-2-ed25519-with-range-selectors
+ */
 export async function signV2Report(report: V2ReportInput, handle: KeyHandle, opts: V2SignOpts = {}): Promise<SignerResult<Envelope>> {
   const emit = emitter(opts, "v2_report");
   emit("start");
@@ -138,6 +157,12 @@ export async function signV2Report(report: V2ReportInput, handle: KeyHandle, opt
   return ok({ grant: report.grantCompact, proof: assembled.value });
 }
 
+/**
+ * Sign a contract-major-2 boundary anchor. Same handle (`keyIdentity()` required), checks and errors as `signAnchor`.
+ *
+ * @returns `{ ok: true, value: { anchor } }`, or `invalid_anchor`, `invalid_key_handle`, `producer_error` or `signing_failed`.
+ * @example https://github.com/baselabs/bounded_authority_signer_typescript#anchor-a-chain-and-rotate-its-key
+ */
 export async function signV2Anchor(input: V2AnchorInput, handle: KeyHandle, opts: V2SignOpts = {}): Promise<SignerResult<AnchorCompact>> {
   const emit = emitter(opts, "v2_anchor");
   emit("start");
@@ -160,6 +185,12 @@ export async function signV2Anchor(input: V2AnchorInput, handle: KeyHandle, opts
   return ok({ anchor: assembled.value });
 }
 
+/**
+ * Sign a contract-major-2 capability grant. Issuer-only: the C1 gate of `signGrant` applies.
+ *
+ * @returns `{ ok: true, value: { grant } }`, or `invalid_grant`, `invalid_key_handle`, `producer_error` or `signing_failed`.
+ * @example https://github.com/baselabs/bounded_authority_signer_typescript#contract-major-2-ed25519-with-range-selectors
+ */
 export async function signV2Grant(input: V2GrantInput, handle: KeyHandle, opts: V2SignOpts = {}): Promise<SignerResult<GrantCompact>> {
   const emit = emitter(opts, "v2_grant");
   emit("start");
@@ -195,6 +226,12 @@ export async function signV2Grant(input: V2GrantInput, handle: KeyHandle, opts: 
   return ok({ grant: assembled.value });
 }
 
+/**
+ * Sign a contract-major-2 key transition. Same handle (`keyIdentity()` required), checks and errors as `signKeyTransition`.
+ *
+ * @returns `{ ok: true, value: { keyTransition } }`, or `invalid_transition`, `invalid_key_handle`, `producer_error` or `signing_failed`.
+ * @example https://github.com/baselabs/bounded_authority_signer_typescript#anchor-a-chain-and-rotate-its-key
+ */
 export async function signV2KeyTransition(input: V2TransitionInput, handle: KeyHandle, opts: V2SignOpts = {}): Promise<SignerResult<TransitionCompact>> {
   const emit = emitter(opts, "v2_key_transition");
   emit("start");

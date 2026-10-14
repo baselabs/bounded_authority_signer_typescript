@@ -1,5 +1,5 @@
-// The key-handle contract — the port of BARA's {module(), term()} callbacks
-// (charter §6 invariant 1: the private key NEVER enters this library).
+// The key-handle contract — the port of the Elixir adapter's {module(), term()}
+// callbacks (the protocol's invariant: the private key NEVER enters this library).
 //
 // The caller supplies an object whose methods reach their own custody (an HSM
 // client, a KMS, or an in-process key in tests). Every method may return a
@@ -22,17 +22,33 @@
 
 import { acceptablePublicKey } from "@bounded-authority-protocol/verifier";
 
+/** A handle's role. Only an `"issuer"` identity can sign a grant (the C1 gate). */
 export type KeyRole = "issuer" | "holder";
 
+/** A key id and public key returned together by `keyIdentity()`, so a rotating handle cannot split them. Read from own data properties only. */
 export interface AtomicKeyIdentity {
   readonly keyId: string;
   readonly publicKey: Uint8Array;
 }
 
+/** `AtomicKeyIdentity` plus the role, returned together by `signingIdentity()` (grants). */
 export interface AtomicSigningIdentity extends AtomicKeyIdentity {
   readonly role: KeyRole;
 }
 
+/**
+ * The Ed25519 key-handle contract (contract-majors 1 and 2, and the local-loopback profile). The caller
+ * implements it over their own custody (an HSM, a KMS, a WebCrypto key, or an in-process key in tests);
+ * the private key never enters this library. Every method may return a Promise.
+ *
+ * - `sign(message)`: the 64-byte Ed25519 signature over `message` (a copy of the JWS signing input).
+ * - `publicKey()`: the 32-byte raw public key; it must be canonical and not small-order.
+ * - `thumbprint()`: the RFC 7638 JWK thumbprint, base64url.
+ * - `keyIdentity()`: required by the anchor and key-transition signers.
+ * - `signingIdentity()`: required by the grant signers, with `role: "issuer"`.
+ *
+ * @see https://github.com/baselabs/bounded_authority_signer_typescript#the-key-handle-contract
+ */
 export interface KeyHandle {
   sign(message: Uint8Array): Uint8Array | Promise<Uint8Array>;
   publicKey(): Uint8Array | Promise<Uint8Array>;
@@ -41,6 +57,11 @@ export interface KeyHandle {
   signingIdentity?(): AtomicSigningIdentity | Promise<AtomicSigningIdentity>;
 }
 
+/**
+ * The closed set of signer error codes. No error carries key material, nonce values or report content.
+ *
+ * @see https://github.com/baselabs/bounded_authority_signer_typescript#errors
+ */
 export type SignerErrorCode =
   | "invalid_report"
   | "invalid_anchor"
@@ -50,6 +71,7 @@ export type SignerErrorCode =
   | "signing_failed"
   | "producer_error";
 
+/** Every signer and factory result: check `ok` before reading `value`. */
 export type SignerResult<T> = { readonly ok: true; readonly value: T } | { readonly ok: false; readonly error: SignerErrorCode };
 
 export const ok = <T>(value: T): SignerResult<T> => ({ ok: true, value });

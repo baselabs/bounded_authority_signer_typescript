@@ -1,4 +1,5 @@
-// The five companion-signer entry points — the port of BARA's public surface.
+// The five companion-signer entry points — the port of the Elixir
+// bounded_authority_report_adapter's public surface.
 // This library SIGNS; the verifier package verifies. Every compact produced
 // here is verified by the signer package's own test oracle through the
 // verifier package before release.
@@ -29,58 +30,95 @@ import {
   type SignerResult,
 } from "./handle.js";
 
+/** A telemetry event from a v1 signer, passed to {@link SignOpts.onEvent}: one `start`, then one `stop` or `error`. */
 export interface SignerEvent {
   readonly kind: "report" | "local_loopback_report" | "anchor" | "grant" | "key_transition";
   readonly phase: "start" | "stop" | "error";
 }
 
+/** Options for the v1 signers. Every field is optional. */
 export interface SignOpts {
+  /** Size limits passed to the verifier's producers and assembler (default: the verifier's defaults). */
   readonly bounds?: Bounds;
-  readonly issuedAt?: number;    // default: wall clock seconds
-  readonly proofId?: string;     // default: crypto.randomUUID() (producer_error where it is absent)
-  readonly anchoredAt?: number;  // anchor timestamp (default: wall clock seconds)
+  /** The proof's `iat` in Unix seconds (report signers). Default: the wall clock. */
+  readonly issuedAt?: number;
+  /** The proof's `jti` (report signers). Default: `crypto.randomUUID()`; where that is absent (a plain-HTTP page) the result is `producer_error`. */
+  readonly proofId?: string;
+  /** The anchor timestamp in Unix seconds (`signAnchor`). Default: the wall clock. */
+  readonly anchoredAt?: number;
+  /** Called with a start event and then a stop or error event. A listener that throws is ignored. */
   readonly onEvent?: (event: SignerEvent) => void;
 }
 
+/** The request a holder proof binds (`signReport`, `signLocalLoopbackReport`). */
 export interface ReportInput {
+  /** The signed grant compact, as `signGrant` returned it. It passes through to the envelope untouched. */
   readonly grantCompact: Uint8Array;
+  /** The operation name; it must be one the grant names. */
   readonly operation: string;
+  /** The HTTP method of the request, for example `"POST"`. */
   readonly method: string;
+  /** The absolute request URI. On the loopback profile: `http://127.0.0.1[:port]/…` or `http://[::1][:port]/…` only. */
   readonly targetUri: string;
+  /** The invocation id: a lowercase RFC 4122 UUID (anything else is `producer_error`). */
   readonly invocationId: string;
+  /** The request's arguments as the verifier's type-tagged JSON value; the proof commits to their digest. */
   readonly castArguments: Tagged;
-  readonly nonce?: string;       // REQUIRED (non-empty) on the loopback profile
+  /** A server-issued nonce. Required (non-empty) by `signLocalLoopbackReport`; optional for `signReport`. */
+  readonly nonce?: string;
 }
 
+/** A boundary anchor: a signed checkpoint of a hash chain (`signAnchor`). */
 export interface AnchorInput {
+  /** A non-empty anchor id. */
   readonly anchorId: string;
+  /** A non-empty chain id. */
   readonly chainId: string;
+  /** The chain sequence number this anchor covers: a non-negative integer. */
   readonly sequence: number;
-  readonly chainHash: Uint8Array; // 32 bytes
+  /** The chain hash at that sequence: exactly 32 bytes. */
+  readonly chainHash: Uint8Array;
 }
 
+/** A capability grant (`signGrant`). The issuer key id comes from the handle's `signingIdentity()`. */
 export interface GrantInput {
+  /** The issuer identifier (a StringOrURI, for example `https://issuer.example`). */
   readonly issuer: string;
+  /** A non-empty grant id. */
   readonly grantId: string;
+  /** The resources the grant is for; at least one. */
   readonly audiences: readonly string[];
+  /** `iat`, `nbf` and `exp` in Unix seconds: integers, with `expiresAt` after `notBefore`. */
   readonly issuedAt: number;
   readonly notBefore: number;
   readonly expiresAt: number;
+  /** The holder key's RFC 7638 JWK thumbprint, base64url (the holder handle's `thumbprint()`). */
   readonly holderThumbprint: string;
+  /** The operations the holder may invoke, each with its selectors (`all`, `equals`, `one_of`); at least one. */
   readonly operations: readonly OperationInput[];
 }
 
+/** A key transition: the current key (the handle's) hands a chain to the next key (`signKeyTransition`). */
 export interface TransitionInput {
+  /** A non-empty transition id. */
   readonly transitionId: string;
+  /** The chain the transition applies to. */
   readonly chainId: string;
+  /** When the next key takes over, in Unix seconds (an integer). */
   readonly effectiveAt: number;
+  /** The next key's non-empty key id. */
   readonly nextKeyId: string;
-  readonly nextPublicKey: Uint8Array; // 32 bytes
+  /** The next key's raw Ed25519 public key: exactly 32 bytes. */
+  readonly nextPublicKey: Uint8Array;
 }
 
+/** A report signer's value: the grant compact (unchanged) and the new proof compact, both ASCII bytes. */
 export interface Envelope { readonly grant: Uint8Array; readonly proof: Uint8Array }
+/** An anchor signer's value: the anchor compact. */
 export interface AnchorCompact { readonly anchor: Uint8Array }
+/** A grant signer's value: the grant compact. */
 export interface GrantCompact { readonly grant: Uint8Array }
+/** A key-transition signer's value: the transition compact. */
 export interface TransitionCompact { readonly keyTransition: Uint8Array }
 
 const nowSeconds = () => Math.floor(Date.now() / 1000);
@@ -138,14 +176,43 @@ async function signProofProfile(
   return ok({ grant: report.grantCompact, proof: assembled.value });
 }
 
+/**
+ * Sign a holder proof that binds one request to a grant (contract-major 1).
+ *
+ * Uses `handle.publicKey()` and `handle.sign()`; no identity snapshot is needed.
+ *
+ * @returns `{ ok: true, value: { grant, proof } }`, or `{ ok: false, error }` with `invalid_report`
+ *   (a missing or mistyped field), `invalid_key_handle`, `producer_error` (the verifier's producer
+ *   refused an input, for example a non-UUID `invocationId`, or no default `proofId`) or `signing_failed`.
+ * @example See the README Quickstart: https://github.com/baselabs/bounded_authority_signer_typescript#quickstart
+ */
 export function signReport(report: ReportInput, handle: KeyHandle, opts: SignOpts = {}): Promise<SignerResult<Envelope>> {
   return signProofProfile("report", report, handle, opts);
 }
 
+/**
+ * Sign a holder proof under the local-loopback application-proof profile (`ba+loopback-proof`).
+ *
+ * The profile is chosen by this function, never inferred: `report.nonce` is required, and
+ * `report.targetUri` must be `http://127.0.0.1[:port]/…` or `http://[::1][:port]/…`.
+ *
+ * @returns As {@link signReport}; a missing nonce is `invalid_report`, any other target (`localhost`
+ *   included) is `producer_error`.
+ * @example https://github.com/baselabs/bounded_authority_signer_typescript#sign-for-a-local-app-loopback
+ */
 export function signLocalLoopbackReport(report: ReportInput, handle: KeyHandle, opts: SignOpts = {}): Promise<SignerResult<Envelope>> {
   return signProofProfile("local_loopback_report", report, handle, opts);
 }
 
+/**
+ * Sign a boundary anchor (contract-major 1). Role-agnostic.
+ *
+ * Needs `handle.keyIdentity()`: the key id and public key as one snapshot.
+ *
+ * @returns `{ ok: true, value: { anchor } }`, or `invalid_anchor`, `invalid_key_handle` (including a
+ *   handle without `keyIdentity`), `producer_error` or `signing_failed`.
+ * @example https://github.com/baselabs/bounded_authority_signer_typescript#anchor-a-chain-and-rotate-its-key
+ */
 export async function signAnchor(input: AnchorInput, handle: KeyHandle, opts: SignOpts = {}): Promise<SignerResult<AnchorCompact>> {
   const emit = emitter(opts, "anchor");
   emit("start");
@@ -169,6 +236,17 @@ export async function signAnchor(input: AnchorInput, handle: KeyHandle, opts: Si
   return ok({ anchor: assembled.value });
 }
 
+/**
+ * Sign a capability grant (contract-major 1). Issuer-only.
+ *
+ * Reads `handle.signingIdentity()` once; unless its own `role` is `"issuer"` the result is
+ * `invalid_key_handle` and `sign()` is never called (the C1 gate).
+ *
+ * @returns `{ ok: true, value: { grant } }`, or `invalid_grant`, `invalid_key_handle`,
+ *   `producer_error` (for example no operations, no audiences, or `expiresAt` not after `notBefore`)
+ *   or `signing_failed`.
+ * @example See the README Quickstart: https://github.com/baselabs/bounded_authority_signer_typescript#quickstart
+ */
 export async function signGrant(input: GrantInput, handle: KeyHandle, opts: SignOpts = {}): Promise<SignerResult<GrantCompact>> {
   const emit = emitter(opts, "grant");
   emit("start");
@@ -198,6 +276,15 @@ export async function signGrant(input: GrantInput, handle: KeyHandle, opts: Sign
   return ok({ grant: assembled.value });
 }
 
+/**
+ * Sign a key transition from the handle's key to `input.nextPublicKey` (contract-major 1). Role-agnostic.
+ *
+ * Needs `handle.keyIdentity()`.
+ *
+ * @returns `{ ok: true, value: { keyTransition } }`, or `invalid_transition`, `invalid_key_handle`,
+ *   `producer_error` or `signing_failed`.
+ * @example https://github.com/baselabs/bounded_authority_signer_typescript#anchor-a-chain-and-rotate-its-key
+ */
 export async function signKeyTransition(input: TransitionInput, handle: KeyHandle, opts: SignOpts = {}): Promise<SignerResult<TransitionCompact>> {
   const emit = emitter(opts, "key_transition");
   emit("start");

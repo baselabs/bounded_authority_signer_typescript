@@ -9,8 +9,8 @@
 // emits high-`s` about half the time, and for any valid `(r, s)` the
 // counterpart `(r, n − s)` also verifies — so an emitted high-`s` signature
 // would be malleable. The normalizer is ONE conditional subtraction
-// (`s ← n − s` when high) with no modular inverse, deliberately implementable
-// per the owner's 2026-09-20 decision. The emitted `s` satisfies
+// (`s ← n − s` when high) with no modular inverse, deliberately simple to
+// implement. The emitted `s` satisfies
 // `0 < s ≤ (n−1)/2` always (`n` is odd, so the ceiling is `(n−1)/2`).
 //
 // The post-sign verify is strict: es256VerifyStrict refuses `s > (n−1)/2`, so a
@@ -94,7 +94,7 @@ function signingInputMessage(input: V3SigningInput): Uint8Array {
 
 /**
  * The v3 shared signing tail: sign → normalize to low-S → strict verify
- * (wrong-key guard and low-S check) → assemble. The wrong-key guard is the same RA1 discipline as the v1
+ * (wrong-key guard and low-S check) → assemble. The wrong-key guard is the same rule as the v1
  * tail: a handle whose `sign()` used a different key fails loudly as
  * `signing_failed`, never a silent false-success deferred to the verifier.
  */
