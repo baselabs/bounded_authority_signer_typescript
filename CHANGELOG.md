@@ -18,20 +18,25 @@ stricter P-256 key resolution (one error code changes).
   Node's `webcrypto.CryptoKeyPair` pass without a cast.
 - **What a factory checks**, in order, resolving the value-free `invalid_key_handle` on any
   failure and never throwing or rejecting: a secure context with `crypto.subtle` (nothing the
-  caller passed is read before this); the options; both keys are real `CryptoKey`s, read through
-  the `CryptoKey.prototype` getters captured when the module loads; private and public types; a
+  caller passed is read before this); the options, from own data properties only (an inherited or
+  polluted `role` or `keyId` is ignored); both keys, read once each from the pair's own data
+  properties, are structured-cloneable (a `Proxy` never is, so one that lies to Deno's getters is
+  refused too) and real `CryptoKey`s, read through the `CryptoKey.prototype` getters; private and
+  public types; a
   non-extractable private key (always; no option allows an extractable one); `Ed25519`, or
   `ECDSA` on `P-256`, for both keys; the raw public export (32 bytes, acceptable and torsion-free;
   or the 65-byte uncompressed point on the curve); and one probe signature over a fixed message
   containing a zero byte (so it is never a JWS signing input), verified strictly against the
   exported key. The probe refuses a mismatched pair and a relabeled algorithm (an X25519 pair
-  renamed Ed25519, a P-384 pair renamed P-256) at the factory.
+  renamed Ed25519, a P-384 pair renamed P-256) at the factory. `crypto.subtle`,
+  `SubtleCrypto.prototype.sign` and `exportKey`, the `CryptoKey` getters, `structuredClone` and
+  `Reflect.apply` are captured when the module loads, so patching them later changes nothing.
 - **The handle signs only JWS signing inputs.** `sign()` accepts only bytes of the shape
   `base64url "." base64url` and rejects anything else (inside the signers that is
   `signing_failed`). The ES256 handle returns WebCrypto's raw `r || s` unchanged, high-`s`
   included; the shared v3 tail normalizes it exactly as for a caller-written handle. The handle
   is frozen, its own keys are exactly its methods, and the private `CryptoKey` lives only in its
-  closure.
+  closure. `sign()` takes a same-realm `Uint8Array` (the signers always pass one).
 - README section "WebCrypto key handles" with the threat model: non-extractable stops export,
   not use; one key per purpose; non-extractable is a browser property only (on Node and Bun,
   `KeyObject.from(key).export()` returns the private key to any code in the process; Deno
@@ -40,6 +45,11 @@ stricter P-256 key resolution (one error code changes).
 
 ### Changed
 
+- **Identity snapshots are read from own data properties only.** For every caller handle, the
+  `role`, `keyId` and `publicKey` of a `keyIdentity()` or `signingIdentity()` snapshot are read
+  from the snapshot's own data properties. An inherited field, a getter, or a role supplied by a
+  polluted `Object.prototype` is `invalid_key_handle`; before, a snapshot without its own `role`
+  could become an issuer through `Object.prototype.role`.
 - **P-256 key resolution matches Ed25519's.** A caller handle that reports a 65-byte key that is
   not an uncompressed point on P-256 (`0x04 || x || y`, `x, y < p`, on the curve) is now
   `invalid_key_handle` at resolution, before `sign()` is called, on all four v3 signers. In 0.5.0
@@ -51,7 +61,11 @@ stricter P-256 key resolution (one error code changes).
   other ban still applies there. Everywhere in `src/`, `sign` and `exportKey` may only be called
   directly (never read as a value, reached by a string key, destructured, or routed through
   `.call`, `.apply` or `.bind`), and `deriveBits`, `wrapKey`, `unwrapKey`, `encrypt`, `decrypt`
-  and `digest` join the banned key-material names. `pnpm guard:browser` also scans `dist/src`
+  and `digest` join the banned key-material names (also banned as strings). A computed member
+  whose key is a concatenation or a template with expressions, and `String.fromCharCode` /
+  `fromCodePoint`, are banned in `src/`. `src/webcrypto.ts` captures `sign` and `exportKey` only
+  through `Object.getOwnPropertyDescriptor` and applies the captured `exportKey` only with the
+  literal `"raw"`. `pnpm guard:browser` also scans `dist/src`
   for those names and for the private-key export formats `pkcs8`, `spki` and (in
   `webcrypto.js`) `jwk`.
 
@@ -60,14 +74,16 @@ stricter P-256 key resolution (one error code changes).
 - One key-handle battery with real engine keys (no mocks) runs in every lane: Node 22.23.1 and
   24.19.0 (the unit suite and the runtime lanes, both verifier backends), Deno 2.5.6, Bun 1.3.14,
   and Playwright Chromium, Firefox and WebKit under the strict CSP, including a same-origin iframe
-  key in the browsers. Each lane records an engine capability row (key generation, signature
+  key and a worker-posted key in the browsers, and every signer (all thirteen) with factory
+  handles. Each lane records an engine capability row (key generation, signature
   widths, the high-`s` rate over 64 distinct inputs, whether ECDSA and Ed25519 are
   deterministic, whether weak or off-curve public keys import, whether the algorithm object can
   be relabeled, whether a structured-cloned key is usable). The non-secure-context lane now runs
   on all three engines and checks that both factories refuse without touching a recording Proxy
   passed as the pair and options. Per-lane expectations are explicit: a Proxy that flips
-  symbol-keyed slots defeats the getter read only on Deno (a recorded exception), and
-  `KeyObject.from()` exports a non-extractable key on Node and Bun but not on Deno.
+  symbol-keyed slots, which defeats the getter read on Deno, is refused in every lane by the
+  structured-clone check, and `KeyObject.from()` exports a non-extractable key on Node and Bun but
+  not on Deno.
 - Type tests: DOM and Node pairs assign without a cast; under `@types/node` 26.6.5,
   `webcrypto.subtle.generateKey({ name: "Ed25519" }, ...)` is typed `Promise<CryptoKey>`, so its
   result needs `as unknown as webcrypto.CryptoKeyPair` (TS2345 without it; the README shows the

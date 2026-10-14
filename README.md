@@ -240,10 +240,12 @@ const pair = (await webcrypto.subtle.generateKey({ name: "Ed25519" }, false, ["s
 
 1. a secure context with `crypto.subtle` (on a plain-HTTP page there is none, and nothing you
    passed is read);
-2. the options (`keyId` a non-empty string, `role` `"holder"` or `"issuer"`);
-3. both keys are real `CryptoKey`s: every fact is read through the `CryptoKey.prototype` getters,
-   captured when the module loads, never through `key.extractable`, so a shadowed property or a
-   plain object is refused;
+2. the options (`keyId` a non-empty string, `role` `"holder"` or `"issuer"`), read from the
+   options object's own data properties only: an inherited `role` or `keyId`, including one on a
+   polluted `Object.prototype`, is ignored. The pair's two keys are read the same way;
+3. both keys are real `CryptoKey`s: each must be structured-cloneable (a `Proxy` never is), and
+   every fact is read through the `CryptoKey.prototype` getters, never through `key.extractable`,
+   so a shadowed property, a plain object or a `Proxy` is refused;
 4. a private and a public key;
 5. the private key is non-extractable (always; there is no option to allow an extractable key);
 6. `Ed25519` for both keys, or `ECDSA` on `P-256` for both;
@@ -253,8 +255,16 @@ const pair = (await webcrypto.subtle.generateKey({ name: "Ed25519" }, false, ["s
    is never a JWS signing input), verified strictly against that export. A mismatched pair, or a
    relabeled algorithm (an X25519 pair renamed Ed25519), fails here.
 
+Everything the factory and the handle take from the environment is captured when the module loads:
+`crypto.subtle`, `SubtleCrypto.prototype.sign` and `exportKey`, the `CryptoKey` getters,
+`structuredClone` and `Reflect.apply`. A script that patches them later changes neither the checks
+nor what an existing handle calls.
+
 **The handle signs only JWS signing inputs.** Its `sign()` accepts only bytes shaped
 `base64url "." base64url` and rejects anything else; within the signers that is `signing_failed`.
+The message must be a `Uint8Array` from the same realm as the library: a typed array made in another
+iframe or `vm` context fails the `instanceof Uint8Array` test and is rejected. The signers always pass
+their own copy, so this matters only if you call `handle.sign()` yourself.
 The ES256 handle returns WebCrypto's raw `r || s` unchanged (high-`s` about half the time), and the
 shared v3 tail normalizes it to low-`s` and verifies it strictly, exactly as for your own handles.
 The handle is frozen, its only properties are its methods, and the `CryptoKey` lives only in its
@@ -276,18 +286,20 @@ closure; `JSON.stringify(handle)` is `{}`.
   deprecation warning and still exports). Deno refuses. On a server, prefer a handle that reaches
   a KMS or HSM.
 - **The extractable refusal is a guard against accidents, not against the key's holder.** It
-  stops an exportable key from being paired with a handle meant for a non-exportable one. Whoever
-  owns the key can defeat it on some engines (on Deno, a `Proxy` over an extractable key passes
-  the getter read and signs), so it is never a security boundary against that caller.
+  stops an exportable key from being paired with a handle meant for a non-exportable one. The
+  getter reads and the structured-clone check refuse every disguise tested (a shadowed property, a
+  plain object, a `Proxy`, including one that lies to Deno's getters), but whoever owns the key
+  already controls it (on Node and Bun they can export it anyway), so the refusal is never a
+  security boundary against that caller.
 - **Persistence is yours.** The library stores nothing. A `CryptoKey` you save to IndexedDB stays
   non-extractable, and lives in the browser profile on disk; clearing site data, eviction and
   private browsing lose it. Rotating the pair means building a new handle (the public key is a
   snapshot).
 - **Not hardware-backed.** WebCrypto keys are browser-managed software keys with no attestation.
-- **Other realms.** A key generated in a same-origin iframe or posted from a worker is accepted
-  (the getters brand-check; there is no `instanceof` test). Deno cannot hand a `CryptoKey` across
-  realms: its structured clone of a `CryptoKey` is not a usable key, so generate keys where you
-  sign.
+- **Other realms.** A key generated in a same-origin iframe, or generated in a dedicated worker
+  and posted to the page, is accepted (the getters brand-check; there is no `instanceof` test); the
+  browser lanes test both. Deno cannot hand a `CryptoKey` across realms: its structured clone of a
+  `CryptoKey` is not a usable key, so generate keys where you sign.
 - **Harden the page that holds a key:** the strict CSP above, Trusted Types, Subresource
   Integrity, a minimal dependency set, and a dedicated origin for key use. In-page verification
   stays display-only.
@@ -366,11 +378,12 @@ with each verifier backend, on Deno 2.5.6 and Bun 1.3.14, and in Chromium, Firef
 (Linux CI, Playwright, under the strict CSP above); every lane first asserts the verifier
 `BACKEND_ID` it expects. A lane on a non-secure origin, in each browser, checks the closed
 `producer_error` for a missing default `proofId` and that both key-handle factories refuse without
-touching their arguments. The WebCrypto key-handle battery (92 checks, 95 in browsers, with each engine's
+touching their arguments. The WebCrypto key-handle battery (104 checks, 109 in browsers, with each engine's
 own keys: accept, sign then verify on v1, v2 and v3 over 64 distinct inputs, the extractable,
 type, algorithm, weak-key, mismatched-pair and relabeled-algorithm refusals, roles, no key
-exposure, the JWS-shape restriction, and a same-origin iframe key in the browsers) runs in every
-one of those lanes and records an engine capability row. Guards keep Node APIs out of `src/`: a
+exposure, the JWS-shape restriction, inherited and polluted options, `SubtleCrypto` methods patched
+after load, every signer with factory handles, and an iframe key and a worker-posted key in the
+browsers) runs in every one of those lanes and records an engine capability row. Guards keep Node APIs out of `src/`: a
 browser typecheck with no ambient types, lint rules (Node modules and globals, dynamic code,
 `@noble` and WebCrypto), a scan of the browser bundle for unresolved globals, and a
 packed-tarball consumer typecheck with `skipLibCheck: false`. Linux WebKit is evidence for
