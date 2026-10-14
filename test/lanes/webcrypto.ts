@@ -145,6 +145,7 @@ export interface WebCryptoLaneReport {
 export async function runWebCryptoLane(options: WebCryptoLaneOptions = {}): Promise<WebCryptoLaneReport> {
   const checks: Record<string, boolean> = {};
   const capability: Record<string, unknown> = {};
+  K.generateRetries.count = 0;
   const s = K.subtle();
 
   // ---- capability row ----
@@ -162,6 +163,8 @@ export async function runWebCryptoLane(options: WebCryptoLaneOptions = {}): Prom
   t0 = performance.now();
   const ec = await es256KeyHandle(ecReal);
   capability.es256FactoryMs = Math.round((performance.now() - t0) * 100) / 100;
+  checks["T1 the factories leave the caller's keys intact (a fresh raw export equals the copy taken before)"] =
+    equal(await K.rawPublicKey(edReal), edRaw) && equal(await K.rawPublicKey(ecReal), ecRaw);
   checks["T1 ed25519KeyHandle: a real non-extractable Ed25519 pair -> ok"] = ed.ok;
   checks["T1 es256KeyHandle: a real non-extractable P-256 pair -> ok"] = ec.ok;
   if (ed.ok) {
@@ -416,6 +419,11 @@ export async function runWebCryptoLane(options: WebCryptoLaneOptions = {}): Prom
       imports[name] = pub === undefined ? "refused" : "accepted";
       checks[`T8 factory: a real private key with an imported ${name} public key -> invalid_key_handle`] =
         pub === undefined || await outcome(() => es256KeyHandle({ privateKey: ecReal.privateKey, publicKey: pub })) === refused;
+      // The same imported key in the privateKey slot (WebKit on Linux terminates the page if the factory
+      // structured-clones it before the type check refuses it).
+      checks[`T8 factory: an imported ${name} public key passed as the private key -> invalid_key_handle (es256 and ed25519 factories)`] =
+        pub === undefined || (await outcome(() => es256KeyHandle({ privateKey: pub, publicKey: ecReal.publicKey })) === refused &&
+          await outcome(() => ed25519KeyHandle({ privateKey: pub, publicKey: edReal.publicKey })) === refused);
     }
     capability.p256MutatedPublicImport = imports;
   }
@@ -705,5 +713,6 @@ export async function runWebCryptoLane(options: WebCryptoLaneOptions = {}): Prom
     capability.structuredCloneKey = `threw:${e instanceof Error ? e.name : typeof e}`;
   }
 
+  capability.generateRetries = K.generateRetries.count; // engine OperationErrors retried (K.retryOperationError)
   return { checks, capability, observed: { proxySymbolFlip } };
 }

@@ -2,9 +2,11 @@
 // and the sibling profiles) and Es256KeyHandle (major 3) from a caller-owned WebCrypto key pair whose
 // private key is non-extractable.
 //
-// The library never generates, imports, wraps, stores or exports a private key, and no key bytes enter
-// its memory. The factory reads public facts about the pair through the CryptoKey.prototype getters
-// (captured when this module loads), exports the PUBLIC key in raw form, checks it, and proves the pair
+// The library never generates, imports, wraps, stores or exports a private key, and keeps no key bytes
+// but the public key's raw export (on Deno, a Proxy that passes a private key off as the public one can
+// make that export return private bytes; the factory zeroes its copy and refuses the Proxy). The
+// factory reads public facts about the pair through the CryptoKey.prototype getters (captured when this
+// module loads), exports the PUBLIC key in raw form, checks it, and proves the pair
 // matches with one probe signature. The handle signs through the captured SubtleCrypto sign with the
 // caller's private CryptoKey, held only in the handle's closure, and only over the JWS signing-input shape.
 //
@@ -236,6 +238,7 @@ function buildHandle(suite: Suite, subtle: Subtle, privateKey: unknown, snapshot
 }
 
 async function keyHandle(suite: Suite, pair: unknown, opts: unknown): Promise<SignerResult<KeyHandle & Es256KeyHandle>> {
+  let raw: Uint8Array | undefined;
   try {
     // 1. Runtime gate. Outside a secure context there is no crypto.subtle and no CryptoKey; nothing the
     //    caller passed is read before this passes.
@@ -249,11 +252,6 @@ async function keyHandle(suite: Suite, pair: unknown, opts: unknown): Promise<Si
     if (pair === null || typeof pair !== "object") return err("invalid_key_handle");
     const privateKey = ownValue(pair, "privateKey");
     const publicKey = ownValue(pair, "publicKey");
-    // 3b. Both keys must be structured-cloneable, as a real CryptoKey is (F2). A Proxy never is (the clone
-    //     throws DataCloneError), which also refuses a Proxy that lies to the getters on engines whose
-    //     internal slots it can reach (Deno). The clones are discarded.
-    CLONE(privateKey);
-    CLONE(publicKey);
     // 4. Key types.
     if (read(GETTERS.type, privateKey) !== "private" || read(GETTERS.type, publicKey) !== "public") return err("invalid_key_handle");
     // 5. Extractable refusal (always; there is no option to allow an extractable private key).
@@ -262,14 +260,29 @@ async function keyHandle(suite: Suite, pair: unknown, opts: unknown): Promise<Si
     if (!algorithmMatches(suite, read(GETTERS.algorithm, privateKey)) || !algorithmMatches(suite, read(GETTERS.algorithm, publicKey))) {
       return err("invalid_key_handle");
     }
-    // 7. The public key from its raw export (public keys are always exportable).
-    const raw = new Uint8Array(await exportRaw(subtle, publicKey));
-    // 8. Acceptability and the probe signature; 9. the snapshot.
+    // 6b. Both keys must be structured-cloneable, as a real CryptoKey is (F2). A Proxy never is (the clone
+    //     throws DataCloneError), which also refuses a Proxy that lies to the getters on engines whose
+    //     internal slots it can reach (Deno). The clones are discarded. Each clone follows the checks that
+    //     make it safe: WebKit on Linux (27.2) imports a raw P-256 point with a prefix other than 0x04 and
+    //     then terminates the page when structuredClone serializes that key (it serializes a public EC key
+    //     through its raw export). So the private key is cloned only once its getters say it is a private
+    //     key, and the public key only after its own raw export succeeds (7b), where that export throws a
+    //     catchable OperationError instead.
+    CLONE(privateKey);
+    // 7. The public key from its raw export (public keys are always exportable), copied: Deno (2.5.6)
+    //    returns the key's own internal buffer, so writing to the returned bytes would corrupt the
+    //    caller's key. Only the copy is ever written (zeroed in finally).
+    raw = new Uint8Array(await exportRaw(subtle, publicKey)).slice();
+    // 7b. The public key's clone (6b).
+    CLONE(publicKey);
+    // 8. Acceptability and the probe signature; 9. the snapshot (its own copy of the bytes).
     const snapshot = await admitKeyPair(suite, raw, privateKey);
     if (snapshot === undefined) return err("invalid_key_handle");
     return ok(buildHandle(suite, subtle, privateKey, snapshot, options));
   } catch {
     return err("invalid_key_handle");
+  } finally {
+    raw?.fill(0);
   }
 }
 

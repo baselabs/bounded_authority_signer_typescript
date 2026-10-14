@@ -24,15 +24,39 @@ export const ES256_SIGN = { name: "ECDSA", hash: "SHA-256" } as const;
 
 export type Pair = WebCryptoKeyPairLike;
 
+// WebKit on Linux (27.2) rejects about 1% of Ed25519 generateKey calls with an OperationError (measured:
+// 19 of 2000; P-256: 0 of 2000). The lane makes dozens of keys per run, so generation retries an
+// OperationError up to GENERATE_ATTEMPTS times in total and counts each retry (the iframe and the worker
+// count theirs here too); the lane reports the count as an observed engine fact. Any other error, or a third failure in a row, propagates.
+export const GENERATE_ATTEMPTS = 3;
+export const generateRetries = { count: 0 };
+
+// By name, not instanceof: an iframe's DOMException is not an instance of this realm's Error.
+const isOperationError = (e: unknown): boolean =>
+  typeof e === "object" && e !== null && (e as { name?: unknown }).name === "OperationError";
+
+/** Runs a key generation, retrying an OperationError (see above); every lane realm counts here. */
+export async function retryOperationError<T>(run: () => Promise<T>): Promise<T> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await run();
+    } catch (e) {
+      if (attempt >= GENERATE_ATTEMPTS || !isOperationError(e)) throw e;
+      generateRetries.count++;
+    }
+  }
+}
+
 export async function generate(algorithm: object, extractable: boolean, usages: string[] = ["sign", "verify"]): Promise<Pair> {
-  return (await subtle().generateKey(algorithm, extractable, usages)) as Pair;
+  return (await retryOperationError(() => subtle().generateKey(algorithm, extractable, usages))) as Pair;
 }
 
 export const edPair = (extractable = false): Promise<Pair> => generate(ED25519, extractable);
 export const ecPair = (extractable = false): Promise<Pair> => generate(P256, extractable);
 
+/** A copy of the raw public export (Deno returns the key's own internal buffer; never write to that). */
 export async function rawPublicKey(pair: Pair): Promise<Uint8Array> {
-  return new Uint8Array(await subtle().exportKey("raw", pair.publicKey));
+  return new Uint8Array(await subtle().exportKey("raw", pair.publicKey)).slice();
 }
 
 /** Import raw public-key bytes as a public CryptoKey; undefined when the engine refuses the bytes. */

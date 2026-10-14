@@ -16,21 +16,23 @@ stricter P-256 key resolution (one error code changes).
   (`keyId` enables `keyIdentity()`/`signingIdentity()`; `role` is `"holder"` by default or
   `"issuer"`). No public declaration names a DOM or Node global type: a DOM `CryptoKeyPair` and
   Node's `webcrypto.CryptoKeyPair` pass without a cast.
-- **What a factory checks**, in order, resolving the value-free `invalid_key_handle` on any
-  failure and never throwing or rejecting: a secure context with `crypto.subtle` (nothing the
-  caller passed is read before this); the options, from own data properties only (an inherited or
-  polluted `role` or `keyId` is ignored); both keys, read once each from the pair's own data
-  properties, are structured-cloneable (a `Proxy` never is, so one that lies to Deno's getters is
-  refused too) and real `CryptoKey`s, read through the `CryptoKey.prototype` getters; private and
-  public types; a
-  non-extractable private key (always; no option allows an extractable one); `Ed25519`, or
-  `ECDSA` on `P-256`, for both keys; the raw public export (32 bytes, acceptable and torsion-free;
-  or the 65-byte uncompressed point on the curve); and one probe signature over a fixed message
-  containing a zero byte (so it is never a JWS signing input), verified strictly against the
-  exported key. The probe refuses a mismatched pair and a relabeled algorithm (an X25519 pair
-  renamed Ed25519, a P-384 pair renamed P-256) at the factory. `crypto.subtle`,
-  `SubtleCrypto.prototype.sign` and `exportKey`, the `CryptoKey` getters, `structuredClone` and
-  `Reflect.apply` are captured when the module loads, so patching them later changes nothing.
+- **What a factory checks**, in order, resolving the value-free `invalid_key_handle` on any failure
+  and never throwing or rejecting: a secure context with `crypto.subtle` (nothing the caller passed
+  is read before this); the options, from own data properties only (an inherited or polluted `role`
+  or `keyId` is ignored); both keys, read once each from the pair's own data properties, are real
+  `CryptoKey`s, read through the `CryptoKey.prototype` getters; private and public types; a
+  non-extractable private key (always; no option allows an extractable one); `Ed25519`, or `ECDSA`
+  on `P-256`, for both keys; both keys structured-cloneable (a `Proxy` never is, so one that lies to
+  Deno's getters is refused too), the private key's clone after these checks and the public key's
+  after its raw export, since WebKit on Linux terminates the page when it clones a raw-imported
+  P-256 key whose point prefix is not `0x04` (its export fails cleanly); the raw public export (32
+  bytes, acceptable and torsion-free; or the 65-byte uncompressed point on the curve); and one probe
+  signature over a fixed message containing a zero byte (so it is never a JWS signing input),
+  verified strictly against the exported key. The probe refuses a mismatched pair and a relabeled
+  algorithm (an X25519 pair renamed Ed25519, a P-384 pair renamed P-256) at the factory.
+  `crypto.subtle`, `SubtleCrypto.prototype.sign` and `exportKey`, the `CryptoKey` getters,
+  `structuredClone` and `Reflect.apply` are captured when the module loads, so patching them later
+  changes nothing.
 - **The handle signs only JWS signing inputs.** `sign()` accepts only bytes of the shape
   `base64url "." base64url` and rejects anything else (inside the signers that is
   `signing_failed`). The ES256 handle returns WebCrypto's raw `r || s` unchanged, high-`s`

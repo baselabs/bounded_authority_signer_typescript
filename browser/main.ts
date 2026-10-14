@@ -6,6 +6,7 @@
 import { BACKEND_ID } from "@bounded-authority-protocol/verifier";
 import { runL2, type L2Report } from "../test/lanes/l2.js";
 import { runWebCryptoLane, type WebCryptoLaneReport } from "../test/lanes/webcrypto.js";
+import { generateRetries, retryOperationError } from "../test/lanes/webcrypto-keys.js";
 import type { WebCryptoKeyPairLike } from "../src/index.js";
 
 interface LaneResult {
@@ -45,8 +46,8 @@ async function iframePairs(): Promise<{ ed: WebCryptoKeyPairLike; ec: WebCryptoK
   const frame = document.createElement("iframe");
   document.body.appendChild(frame);
   const subtle = (frame.contentWindow as unknown as { crypto: { subtle: SubtleCrypto } }).crypto.subtle;
-  const ed = await subtle.generateKey({ name: "Ed25519" }, false, ["sign", "verify"]);
-  const ec = await subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, false, ["sign", "verify"]);
+  const ed = await retryOperationError(() => subtle.generateKey({ name: "Ed25519" }, false, ["sign", "verify"]));
+  const ec = await retryOperationError(() => subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, false, ["sign", "verify"]));
   return { ed, ec };
 }
 
@@ -54,10 +55,13 @@ async function iframePairs(): Promise<{ ed: WebCryptoKeyPairLike; ec: WebCryptoK
 function workerPairs(): Promise<{ ed: WebCryptoKeyPairLike; ec: WebCryptoKeyPairLike }> {
   return new Promise((resolve, reject) => {
     const worker = new Worker("/key-worker.js");
-    worker.onmessage = (e: MessageEvent<{ ed: WebCryptoKeyPairLike; ec: WebCryptoKeyPairLike; error?: string }>) => {
+    worker.onmessage = (e: MessageEvent<{ ed: WebCryptoKeyPairLike; ec: WebCryptoKeyPairLike; retries: number; error?: string }>) => {
       worker.terminate();
       if (e.data.error !== undefined) reject(new Error(`worker: ${e.data.error}`));
-      else resolve(e.data);
+      else {
+        generateRetries.count += e.data.retries; // the worker's retries, counted with the page's
+        resolve({ ed: e.data.ed, ec: e.data.ec });
+      }
     };
     worker.onerror = (e) => { worker.terminate(); reject(new Error(`worker error: ${e.message}`)); };
   });

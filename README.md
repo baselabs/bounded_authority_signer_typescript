@@ -243,9 +243,14 @@ const pair = (await webcrypto.subtle.generateKey({ name: "Ed25519" }, false, ["s
 2. the options (`keyId` a non-empty string, `role` `"holder"` or `"issuer"`), read from the
    options object's own data properties only: an inherited `role` or `keyId`, including one on a
    polluted `Object.prototype`, is ignored. The pair's two keys are read the same way;
-3. both keys are real `CryptoKey`s: each must be structured-cloneable (a `Proxy` never is), and
-   every fact is read through the `CryptoKey.prototype` getters, never through `key.extractable`,
-   so a shadowed property, a plain object or a `Proxy` is refused;
+3. both keys are real `CryptoKey`s: every fact is read through the `CryptoKey.prototype`
+   getters, never through `key.extractable`, and each key must be structured-cloneable (a
+   `Proxy` never is), so a shadowed property, a plain object or a `Proxy` is refused. The clones
+   run after the checks of steps 4 to 6, and the public key's after its raw export at step 7:
+   WebKit on Linux terminates the page when it clones a raw-imported P-256 key with a bad point
+   prefix, while that key's export fails cleanly. On Deno, where a `Proxy` can reach a key's
+   internal slots, a `Proxy` that passes a private key off as the public one makes that export
+   return private bytes; the factory zeroes its copy and the clone refuses the `Proxy`;
 4. a private and a public key;
 5. the private key is non-extractable (always; there is no option to allow an extractable key);
 6. `Ed25519` for both keys, or `ECDSA` on `P-256` for both;
@@ -296,6 +301,9 @@ closure; `JSON.stringify(handle)` is `{}`.
   private browsing lose it. Rotating the pair means building a new handle (the public key is a
   snapshot).
 - **Not hardware-backed.** WebCrypto keys are browser-managed software keys with no attestation.
+- **Retry key generation on WebKit for Linux.** WebKit 27.2 on Linux rejects about 1% of
+  Ed25519 `generateKey` calls with an `OperationError` (measured: 19 of 2000; P-256: 0 of 2000).
+  Generating the pair is your code, so retry that error a few times.
 - **Other realms.** A key generated in a same-origin iframe, or generated in a dedicated worker
   and posted to the page, is accepted (the getters brand-check; there is no `instanceof` test); the
   browser lanes test both. Deno cannot hand a `CryptoKey` across realms: its structured clone of a

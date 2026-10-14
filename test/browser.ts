@@ -88,7 +88,7 @@ for (const name of SELECTED) {
 
   test(`${name}: BACKEND_ID portable in a secure context under the strict CSP; v1, v2 and v3 sign then verify (L2) with low-S holding (L3)`, async (t) => {
     const served = await serve();
-    const browser = await launch(name);
+    const browser = await launch(name).catch((e: unknown) => { served.server.close(); throw e; }); // a failed launch must not leave the server holding the process open
     try {
       const page = await browser.newPage();
       const response = await page.goto(`http://127.0.0.1:${served.port}/`);
@@ -124,7 +124,7 @@ for (const name of SELECTED) {
 
   test(`${name}: red-proof: a page expecting the wrong backend runs no check`, async () => {
     const served = await serve();
-    const browser = await launch(name);
+    const browser = await launch(name).catch((e: unknown) => { served.server.close(); throw e; }); // a failed launch must not leave the server holding the process open
     try {
       const page = await browser.newPage();
       await page.goto(`http://127.0.0.1:${served.port}/?expect=node`);
@@ -140,7 +140,7 @@ for (const name of SELECTED) {
 
   test(`${name}: red-proof: eval is blocked by the served CSP and the securitypolicyviolation listener records it`, async () => {
     const served = await serve();
-    const browser = await launch(name);
+    const browser = await launch(name).catch((e: unknown) => { served.server.close(); throw e; }); // a failed launch must not leave the server holding the process open
     try {
       const page = await browser.newPage();
       await page.goto(`http://127.0.0.1:${served.port}/eval-probe.html`);
@@ -156,7 +156,7 @@ for (const name of SELECTED) {
 
   test(`${name}: in a non-secure context, a report signed without a proofId is a closed producer_error, and both key-handle factories refuse (T11) without touching their arguments`, async (t) => {
     const served = await serve();
-    const browser = await launch(name);
+    const browser = await launch(name).catch((e: unknown) => { served.server.close(); throw e; }); // a failed launch must not leave the server holding the process open
     try {
       const context = await browser.newContext();
       // http://bap.test is not a secure context; Playwright routes it to the lane server.
