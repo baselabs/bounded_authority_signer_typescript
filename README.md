@@ -4,236 +4,742 @@
 [![CI](https://github.com/baselabs/bounded_authority_signer_typescript/actions/workflows/ci.yml/badge.svg)](https://github.com/baselabs/bounded_authority_signer_typescript/actions/workflows/ci.yml)
 [![license](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
-**Try it in your browser — no install:** the [envelope playground](https://baselabs.github.io/bounded_authority_signer_typescript/)
-runs this package and the verifier package for real, in the page, with a key your browser
-generates. For the "why" (what this adds over OAuth for MCP servers, agents, and APIs),
-start at the playground's landing sections.
+The signing side of the Bounded Authority Protocol, in TypeScript. An issuer uses it to sign a
+**grant**: the holder of one key may invoke named operations, with constraints on their arguments,
+at named resources, within a time window. The holder (an agent, an app, a service) uses it to sign a **proof** that binds
+one request to that grant. A resource server checks the pair with
+[`@bounded-authority-protocol/verifier`](https://www.npmjs.com/package/@bounded-authority-protocol/verifier)
+and gets facts back. The same package signs boundary anchors and key transitions for audit chains.
 
-The holder/issuer companion **signer** for the Bounded Authority Protocol in TypeScript —
-the port of the Elixir
-[`bounded_authority_report_adapter`](https://hex.pm/packages/bounded_authority_report_adapter)
-([GitHub](https://github.com/baselabs/bounded_authority_report_adapter)). This package signs
-**contract-major 1** (the byte-frozen v1 profile and the local-loopback profile),
-**contract-major 2** (the v2 profile: `v: 2` payloads, `BAP2-*` separators and the `lte`/`gte`
-range selectors, Ed25519) and **contract-major 3** (the `BAP3-ES256-SHA256` suite: ECDSA P-256
-with SHA-256, low-S normalized, defined by
-[ADR 0035](https://github.com/baselabs/bounded_authority_protocol/blob/main/docs/adr/0035-es256-contract-major-activation.md)).
-It runs on Node.js, in browsers, in Deno and in
-Bun with no Node API (see [Browsers, Deno, Bun and workers](#browsers-deno-bun-and-workers)).
+You pass a **key handle**: an object whose `sign()` reaches your own key custody (a KMS, an HSM, a
+WebCrypto key, or an in-process key in tests). The private key never enters the library, and every
+handle method may be async.
 
-The protocol's verifier package produces each object's deterministic signing input and
-**refuses to sign**. This library takes a caller-owned key handle and a report and produces
-the signed compact form. **The private key never enters the library**: callers supply a
-handle whose methods reach their own custody — an HSM, a KMS, a non-extractable WebCrypto key
-(see [WebCrypto key handles](#webcrypto-key-handles)), or an in-process key in tests. Every
-handle method may be async; remote custodians are first-class.
+**Try it in your browser first:** the [envelope playground](https://baselabs.github.io/bounded_authority_signer_typescript/)
+runs this package and the verifier in the page, with keys your browser generates.
 
-It signs; [`@bounded-authority-protocol/verifier`](https://www.npmjs.com/package/@bounded-authority-protocol/verifier)
-verifies. It is not a decision maker, not a transport, and not the authority runtime.
+What it is not: it does not verify (that is the verifier package), decide whether a request is
+allowed, store keys, transport anything, or track replay and revocation (that is your authority
+runtime).
+
+It signs three wire contract-majors, each with its own functions:
+
+| Contract-major | Suite | Signers |
+|---|---|---|
+| 1 | Ed25519 | `signGrant`, `signReport`, `signLocalLoopbackReport`, `signAnchor`, `signKeyTransition` |
+| 2 | Ed25519, adds the `lte`/`gte` range selectors | `signV2Grant`, `signV2Report`, `signV2Anchor`, `signV2KeyTransition` |
+| 3 | ES256 (ECDSA P-256, SHA-256) | `signV3Grant`, `signV3Report`, `signV3Anchor`, `signV3KeyTransition` |
 
 ## Install
 
 ```bash
-npm install @bounded-authority-protocol/signer
+npm install @bounded-authority-protocol/signer@0.5.0
 ```
 
-Runs on Node.js `>= 22` (the repository develops on the pinned 22.23.1 — see
-[`.tool-versions`](.tool-versions) — and runs CI on 22.23.1 and 24.19.0), current browsers,
-Deno and Bun. One runtime dependency: the verifier package.
+That is the latest release on npm. This README documents the source on `main`, version 0.6.0,
+which is not released yet; the parts only 0.6.0 has are marked **0.6.0**.
 
-## Protocol family
+It runs on Node.js 22 or later, current browsers, Deno and Bun, with one runtime dependency: the
+verifier package.
 
-- [`@bounded-authority-protocol/verifier`](https://www.npmjs.com/package/@bounded-authority-protocol/verifier)
-  ([GitHub](https://github.com/baselabs/bounded_authority_protocol_typescript)) — the verify
-  side; this library signs, that package verifies. The dependency is one-directional (this
-  signer depends on the verifier, never the reverse), and the verifier's README carries a
-  worked "Pairing with the signer" example — the three-role production flow with this
-  package's five signers, executed against published versions.
-- [`baselabs/bounded_authority_protocol`](https://github.com/baselabs/bounded_authority_protocol)
-  — the protocol monorepo: the wire specs this package signs (`spec/bap-v1.md`,
-  `spec/bap-local-loopback-http-v1.md`, `spec/bap-v2.md`, `spec/bap-v3.md`) and the governing
-  ADRs.
-- [`baselabs/bounded_authority_report_adapter`](https://github.com/baselabs/bounded_authority_report_adapter)
-  — the Elixir reference implementation this package ports; signing behavior tracks it, and
-  divergences carry a recorded decision.
+## Quickstart
 
-## The five signers
+An issuer grants an agent read access to one repository; the agent proves one request; the
+resource server verifies it. First, a key handle over in-process keys, for trying the library
+(in production, `sign()` calls your KMS, HSM or WebCrypto key instead). Save it as `key-handle.ts`:
 
-| Function | Object | Role |
-|---|---|---|
-| `signReport` | holder proof (the grant passes through untouched) | holder |
-| `signLocalLoopbackReport` | local-loopback application proof (`ba+loopback-proof`) | holder |
-| `signAnchor` | boundary anchor | role-agnostic |
-| `signKeyTransition` | key transition | role-agnostic |
-| `signGrant` | grant | issuer-only, structurally gated |
-
-Every result is `{ ok: true, value }` or `{ ok: false, error }` with a closed error-code set
-(`invalid_report`, `invalid_anchor`, `invalid_grant`, `invalid_transition`,
-`invalid_key_handle`, `signing_failed`, `producer_error`) — no key material, nonce values, or
-report content ever appears in an error.
-
-## The four v2 signers
-
-| Function | Object | Role |
-|---|---|---|
-| `signV2Report` | holder proof (the v2 grant passes through untouched) | holder |
-| `signV2Anchor` | boundary anchor | role-agnostic |
-| `signV2KeyTransition` | key transition | role-agnostic |
-| `signV2Grant` | grant | issuer-only, structurally gated |
-
-Before 0.5.0 contract-major 2 had no signing surface in this package. The v2 functions take
-the same Ed25519 `KeyHandle` as the v1 functions and compose through the verifier package's
-public v2 signing inputs (`v2.grantSigningInput`, `v2.proofSigningInput`,
-`v2.boundaryAnchorSigningInput`, `v2.keyTransitionSigningInput`) and `v2.assembleCompact`, so
-the bytes are the verifier's v2 format and nothing more: `v: 2` payloads, the `BAP2-*` domain
-separators, and the five-kind selector algebra (`all`, `equals`, `one_of`, `lte`, `gte`; a
-range bound is integer- or float-tagged). The same gates apply: the C1 role gate, the
-wrong-key guard, the atomic identity snapshot, and the weak-key refusal. The local-loopback
-profile is contract-major-1-bound and has no v2 form. Each major verifies only its own bytes:
-`checkEnvelope` refuses a v2 envelope and `v2.checkEnvelope` refuses a v1 one.
-
+<!-- readme-sample: file key-handle.ts -->
 ```ts
-const grant = await signV2Grant({
-  issuer: "https://issuer.example.test", grantId: "urn:example:grant:2",
-  audiences: ["https://resource.example.test"],
-  issuedAt: 1_731_728_000, notBefore: 1_731_728_000, expiresAt: 1_731_736_000,
-  holderThumbprint: holderThumbprintB64,
-  operations: [{ name: "transfer", selectors: [{ kind: "lte", path: ["amount"], value: { t: "int", v: 10_000 } }] }],
-}, issuerHsmHandle);
-// then signV2Report(...) with the holder's handle, and v2.checkEnvelope(...) on the receiving side
-```
+import { generateKeyPairSync, sign } from "node:crypto";
+import { jwkFromPublicKey, thumbprint, v3 } from "@bounded-authority-protocol/verifier";
+import type { Es256KeyHandle, KeyHandle, KeyRole } from "@bounded-authority-protocol/signer";
 
-## The four v3 signers (ES256)
+const fromBase64url = (text: string): Uint8Array => new Uint8Array(Buffer.from(text, "base64url"));
 
-| Function | Object | Role |
-|---|---|---|
-| `signV3Report` | holder proof (the v3 grant passes through untouched) | holder |
-| `signV3Anchor` | boundary anchor | role-agnostic |
-| `signV3KeyTransition` | key transition | role-agnostic |
-| `signV3Grant` | grant | issuer-only, structurally gated |
+/** An Ed25519 handle over a fresh in-process key (contract-majors 1 and 2). */
+export function testKeyHandle(keyId: string, role: KeyRole = "holder"): KeyHandle {
+  const { publicKey, privateKey } = generateKeyPairSync("ed25519");
+  const raw = fromBase64url(publicKey.export({ format: "jwk" }).x!);
+  return {
+    sign: (message) => new Uint8Array(sign(null, message, privateKey)),
+    publicKey: () => raw,
+    thumbprint: () => thumbprint(jwkFromPublicKey(raw)),
+    keyIdentity: () => ({ keyId, publicKey: raw }),
+    signingIdentity: () => ({ role, keyId, publicKey: raw }),
+  };
+}
 
-The v3 surface mirrors the v1 functions under the `BAP3-ES256-SHA256` suite: `alg: "ES256"`
-protected headers, payload `v: 3`, the `BAP3-REQUEST\0` digest prefix, the EC proof JWK
-`{"crv":"P-256","kty":"EC","x":…,"y":…}` with the RFC 7638 EC thumbprint as `cnf.jkt`, the
-five-kind selector algebra (including `lte`/`gte`), 65-byte uncompressed-SEC1 raw public
-keys (`0x04 || x || y`), and 64-byte raw `r || s` signatures with **low-S normalization** —
-`s` is replaced by `n − s` when high, so every emitted signature satisfies
-`0 < s ≤ (n−1)/2` and cannot be re-spelled into a second valid encoding (ECDSA malleability;
-the backend emits high-`s` about half the time). The v3 key-handle contract
-(`Es256KeyHandle`) keeps the same custody boundary with the suite's widths. The
-local-loopback profile is contract-major-1-bound and has no v3 form. The v3 producing profile
-is authored in this package (delegating composition to the verifier's v3 producers remains a
-recorded, owner-gated switch), and the compacts CI produces under it cross-verify through
-the verifier package's own v3 surface — no self-round-trip claims.
-
-## Quickstart — an edge agent proves a request
-
-```ts
-import { signGrant, signReport } from "@bounded-authority-protocol/signer";
-
-// Issuer side: an issuer-role handle signs the capability grant.
-const grantResult = await signGrant(
-  {
-    issuer: "https://issuer.example.test",
-    grantId: "urn:example:grant:1",
-    audiences: ["https://resource.example.test"],
-    issuedAt: 1_731_728_000, notBefore: 1_731_728_000, expiresAt: 1_731_736_000,
-    holderThumbprint: holderThumbprintB64, // RFC 7638 thumbprint of the holder key
-    operations: [{ name: "transfer", selectors: [{ kind: "all" }] }],
-  },
-  issuerHsmHandle, // { signingIdentity(): { role: "issuer", keyId, publicKey }, sign, ... }
-);
-if (!grantResult.ok) throw new Error(`grant signing failed: ${grantResult.error}`);
-
-// Holder side: the agent's handle signs the proof binding THIS request.
-const proofResult = await signReport(
-  {
-    grantCompact: grantResult.value.grant, operation: "transfer", method: "POST",
-    targetUri: "https://resource.example.test/invoke",
-    invocationId: "550e8400-e29b-41d4-a716-446655440000",
-    castArguments: { t: "object", v: new Map([["amount", { t: "int", v: 5000 }]]) },
-  },
-  holderHandle,
-  { proofId: "urn:example:proof:1", issuedAt: 1_731_728_030 },
-);
-if (!proofResult.ok) throw new Error(`proof signing failed: ${proofResult.error}`);
-const envelope = proofResult.value; // { grant, proof }
-
-// The receiver verifies with the verifier package, never trusting this library:
-// checkEnvelope(envelope.grant, envelope.proof, expected) returns cryptographic facts.
-```
-
-Every signer returns a result to check before use: `{ ok: true, value }` or
-`{ ok: false, error }`. The verifier README's
-[Pairing with the signer](https://github.com/baselabs/bounded_authority_protocol_typescript#pairing-with-the-signer)
-section runs this flow through `checkEnvelope` with every expected input spelled out.
-
-## The key-handle contract
-
-```ts
-interface KeyHandle {
-  sign(message: Uint8Array): Uint8Array | Promise<Uint8Array>;        // 64-byte Ed25519
-  publicKey(): Uint8Array | Promise<Uint8Array>;                       // 32 bytes
-  thumbprint(): string | Promise<string>;                              // RFC 7638, base64url
-  keyIdentity?(): { keyId, publicKey } | Promise<...>;                 // anchor + transition
-  signingIdentity?(): { role: "issuer" | "holder", keyId, publicKey }; // grants
+/** An ES256 handle over a fresh in-process P-256 key (contract-major 3). */
+export function testEs256KeyHandle(keyId: string, role: KeyRole = "holder"): Es256KeyHandle {
+  const { publicKey, privateKey } = generateKeyPairSync("ec", { namedCurve: "P-256" });
+  const { x, y } = publicKey.export({ format: "jwk" }) as { x: string; y: string };
+  const raw = new Uint8Array([0x04, ...fromBase64url(x), ...fromBase64url(y)]);
+  return {
+    sign: (message) => new Uint8Array(sign("sha256", message, { key: privateKey, dsaEncoding: "ieee-p1363" })),
+    publicKey: () => raw,
+    thumbprint: () => v3.thumbprint({ crv: "P-256", kty: "EC", x, y }),
+    keyIdentity: () => ({ keyId, publicKey: raw }),
+    signingIdentity: () => ({ role, keyId, publicKey: raw }),
+  };
 }
 ```
 
-The v3 suite takes the same contract shape under `Es256KeyHandle` with the suite's fixed
-widths: `sign()` returns the 64-byte raw `r || s` (a high-`s` from the custodian is fine —
-the library normalizes before emission), `publicKey()` the 65-byte uncompressed-SEC1 point,
-and `thumbprint()` the RFC 7638 EC thumbprint.
+Then `quickstart.ts`, and run it with `npx tsx quickstart.ts`:
 
-Two load-bearing rules port unchanged from the Elixir adapter (both v1 and v3):
+<!-- readme-sample: run -->
+```ts
+import { signGrant, signReport } from "@bounded-authority-protocol/signer";
+import { checkEnvelope, strUtf8, type Tagged } from "@bounded-authority-protocol/verifier";
+import { testKeyHandle } from "./key-handle.js";
 
-- **The C1 gate** — `signGrant` resolves the handle's role, key id, and public key as ONE
-  atomic `signingIdentity()` snapshot and fails closed before `sign()` is ever called unless
-  the role is `issuer`. A holder handle can never mint its own capability.
-- **The wrong-key guard** — the shared signing tail verifies every signature against the
-  resolved public key *before* assembly, with the verifier package's strict functions
-  (`verifyStrict` for Ed25519, `es256VerifyStrict` for ES256, which also refuses a high-`s`
-  signature, so a missed low-S normalization fails closed). A handle whose `sign()` used a
-  different key (a rotation race, a misconfigured signing service) fails loudly as
-  `signing_failed`, never a silent false-success deferred to the verifier. A handle that
-  returns `r` or `s` outside `(0, n)` is `signing_failed` too. The handle gets its own copy of
-  the message (it may rewrite or transfer it), and the library keeps private copies of the
-  message, the resolved key and the returned signature, so nothing the handle still holds can
-  change what is checked or assembled. A handle method or getter that throws, a `null`
-  snapshot or a Proxy-wrapped key is `invalid_key_handle`; a throwing `onEvent` listener is
-  ignored.
+const issuer = testKeyHandle("issuer-key-1", "issuer"); // the authorization server's key
+const agent = testKeyHandle("agent-key-1");             // the holder: the agent's own key
 
-The local-loopback profile is selected by function name — never inferred: the nonce is
-required, and the target must be exactly `http://127.0.0.1[:port]/…` or `http://[::1][:port]/…`
-(`localhost` and every non-canonical spelling fail closed).
+// 1. The issuer grants the agent one operation on one repository, for two hours.
+const grant = await signGrant({
+  issuer: "https://issuer.example",
+  grantId: "urn:example:grant:1",
+  audiences: ["https://code.example"],
+  issuedAt: 1_767_225_600, notBefore: 1_767_225_600, expiresAt: 1_767_232_800,
+  holderThumbprint: await agent.thumbprint(),
+  operations: [{
+    name: "read_file",
+    selectors: [{ kind: "equals", path: ["repository"], value: { t: "string", v: strUtf8("example/website") } }],
+  }],
+}, issuer);
+if (!grant.ok) throw new Error(`signGrant: ${grant.error}`);
+
+// 2. The agent proves one request under that grant.
+const args: Tagged = { t: "object", v: new Map<string, Tagged>([
+  ["repository", { t: "string", v: strUtf8("example/website") }],
+  ["path", { t: "string", v: strUtf8("README.md") }],
+]) };
+const request = {
+  method: "GET",
+  targetUri: "https://code.example/files",
+  invocationId: "0f8d5a5e-7c3b-4e7a-9a51-2f4c1d6b8e90", // a lowercase RFC 4122 UUID
+  operation: "read_file",
+  castArguments: args,
+};
+const envelope = await signReport({ grantCompact: grant.value.grant, ...request }, agent, { issuedAt: 1_767_225_660 });
+if (!envelope.ok) throw new Error(`signReport: ${envelope.error}`);
+
+// 3. The resource server verifies the pair with the verifier package and gets facts, not a decision.
+const facts = checkEnvelope(envelope.value.grant, envelope.value.proof, {
+  ...request,
+  trustedIssuer: { keyId: "issuer-key-1", publicKey: await issuer.publicKey() },
+  issuer: "https://issuer.example",
+  audience: "https://code.example",
+  evaluationTime: 1_767_225_700, clockSkew: 60, proofMaxAge: 300,
+  nonce: { kind: "not_required" },
+});
+if (!facts.ok) throw new Error("the envelope did not verify");
+console.log(`verified: ${facts.value.operation} under ${facts.value.grantId}`);
+```
+
+Output:
+
+<!-- readme-output -->
+```text
+verified: read_file under urn:example:grant:1
+```
+
+Every signer returns `{ ok: true, value }` or `{ ok: false, error }`; check `ok` before reading
+`value`. Change the `repository` argument to another value and `checkEnvelope` returns
+`{ ok: false }`: the proof still signs, but the grant's `equals` selector does not match.
+
+## The key-handle contract
+
+A handle is any object with these methods (the exported types, verbatim):
+
+<!-- readme-sample: types -->
+```ts
+type KeyRole = "issuer" | "holder";
+
+interface AtomicKeyIdentity {
+  readonly keyId: string;
+  readonly publicKey: Uint8Array;
+}
+
+interface AtomicSigningIdentity extends AtomicKeyIdentity {
+  readonly role: KeyRole;
+}
+
+// Contract-majors 1 and 2, and the local-loopback profile (Ed25519).
+interface KeyHandle {
+  sign(message: Uint8Array): Uint8Array | Promise<Uint8Array>;                     // 64-byte signature
+  publicKey(): Uint8Array | Promise<Uint8Array>;                                    // 32 bytes
+  thumbprint(): string | Promise<string>;                                           // RFC 7638, base64url
+  keyIdentity?(): AtomicKeyIdentity | Promise<AtomicKeyIdentity>;                   // anchors, key transitions
+  signingIdentity?(): AtomicSigningIdentity | Promise<AtomicSigningIdentity>;       // grants
+}
+
+// Contract-major 3 (ES256).
+interface Es256KeyHandle {
+  sign(message: Uint8Array): Uint8Array | Promise<Uint8Array>;                     // 64-byte raw r || s
+  publicKey(): Uint8Array | Promise<Uint8Array>;                                    // 65 bytes: 0x04 || x || y
+  thumbprint(): string | Promise<string>;                                           // RFC 7638 EC, base64url
+  keyIdentity?(): { keyId: string; publicKey: Uint8Array } | Promise<{ keyId: string; publicKey: Uint8Array }>;
+  signingIdentity?(): Promise<AtomicSigningIdentity> | AtomicSigningIdentity;
+}
+```
+
+What the library does with a handle:
+
+- **Which methods it calls.** Every signer calls `sign()`. Report signers read `publicKey()`;
+  anchor and key-transition signers read `keyIdentity()`; grant signers read `signingIdentity()`.
+  `thumbprint()` is for you: put the holder's thumbprint in the grant's `holderThumbprint`.
+- **The C1 role gate.** A grant signer reads `signingIdentity()` once and fails closed with
+  `invalid_key_handle`, before `sign()` is ever called, unless the snapshot's own `role` is
+  `"issuer"`. A holder handle can never mint its own grant. `role`, `keyId` and `publicKey` count
+  only as the snapshot's own data properties, never inherited ones or getters (**0.6.0**; 0.5.0 also
+  read inherited ones).
+- **Key checks before signing.** An Ed25519 key must be 32 bytes, canonical and not small-order; a
+  P-256 key must be the 65-byte uncompressed point on the curve (checked here from **0.6.0**; 0.5.0
+  refused an off-curve key later, as `producer_error`). Anything else is `invalid_key_handle`, and
+  `sign()` is not called.
+- **The wrong-key guard.** Every signature is verified against the resolved public key before
+  assembly, with the verifier's strict checks (`verifyStrict` for Ed25519; for ES256 the library
+  first normalizes `s` to low-S, then `es256VerifyStrict` checks it). A handle whose `sign()` used a
+  different key (a rotation race, a misconfigured signing service) gets `signing_failed`, never a
+  compact that only the verifier would reject.
+- **Copies.** `sign()` receives its own copy of the message, and the library keeps private copies of
+  the message, the key and the signature, so nothing the handle still holds can change what is
+  checked or assembled.
+- **Faults.** A handle method or getter that throws, a `null` snapshot or a Proxy-wrapped key is
+  `invalid_key_handle`; a `sign()` that throws or returns anything but a 64-byte `Uint8Array` is
+  `signing_failed`. An `onEvent` listener that throws is ignored.
+
+An ES256 custodian may return a high `s`: the library replaces it with `n − s`, so every emitted
+signature has `0 < s ≤ (n−1)/2` and cannot be re-spelled into a second valid encoding. An `r` or
+`s` outside `(0, n)` is `signing_failed`.
+
+## API reference
+
+### Signers
+
+Every signer is `async (input, handle, opts?) => SignerResult<value>`.
+
+| Function | Input | Handle | Needs | `value` |
+|---|---|---|---|---|
+| `signGrant` | `GrantInput` | `KeyHandle` | `signingIdentity()`, role `"issuer"` | `{ grant }` |
+| `signReport` | `ReportInput` | `KeyHandle` | `publicKey()` | `{ grant, proof }` |
+| `signLocalLoopbackReport` | `ReportInput` (nonce required) | `KeyHandle` | `publicKey()` | `{ grant, proof }` |
+| `signAnchor` | `AnchorInput` | `KeyHandle` | `keyIdentity()` | `{ anchor }` |
+| `signKeyTransition` | `TransitionInput` | `KeyHandle` | `keyIdentity()` | `{ keyTransition }` |
+| `signV2Grant` | `V2GrantInput` | `KeyHandle` | `signingIdentity()`, role `"issuer"` | `{ grant }` |
+| `signV2Report` | `V2ReportInput` | `KeyHandle` | `publicKey()` | `{ grant, proof }` |
+| `signV2Anchor` | `V2AnchorInput` | `KeyHandle` | `keyIdentity()` | `{ anchor }` |
+| `signV2KeyTransition` | `V2TransitionInput` | `KeyHandle` | `keyIdentity()` | `{ keyTransition }` |
+| `signV3Grant` | `V3GrantInput` | `Es256KeyHandle` | `signingIdentity()`, role `"issuer"` | `{ grant }` |
+| `signV3Report` | `V3ReportInput` | `Es256KeyHandle` | `publicKey()` | `{ grant, proof }` |
+| `signV3Anchor` | `V3AnchorInput` | `Es256KeyHandle` | `keyIdentity()` | `{ anchor }` |
+| `signV3KeyTransition` | `V3TransitionInput` | `Es256KeyHandle` | `keyIdentity()` | `{ keyTransition }` |
+
+Every value field is a compact JWS as ASCII bytes (`Uint8Array`). A report signer's `grant` is the
+`grantCompact` you passed, unchanged.
+
+The package also exports the key-handle factories `ed25519KeyHandle` and `es256KeyHandle`
+(**0.6.0**, see [WebCrypto key handles](#webcrypto-key-handles)), and these types: `KeyHandle`,
+`Es256KeyHandle`, `KeyRole`, `AtomicKeyIdentity`, `AtomicSigningIdentity`, `SignerErrorCode`,
+`SignerResult`, the input and option types named in this section, `SignerEvent`, `V2SignerEvent`,
+`V3SignerEvent`, `V2OperationInput`, `V2SelectorInput`, the value types `Envelope`, `GrantCompact`,
+`AnchorCompact` and `TransitionCompact`, and (**0.6.0**) `WebCryptoKeyLike`, `WebCryptoKeyPairLike` and
+`WebCryptoHandleOptions`.
+
+### Inputs
+
+`GrantInput` (and `V2GrantInput`, `V3GrantInput`):
+
+| Field | Type | Rules |
+|---|---|---|
+| `issuer` | `string` | the issuer identifier, for example `https://issuer.example` |
+| `grantId` | `string` | non-empty |
+| `audiences` | `string[]` | the resources the grant is for; at least one |
+| `issuedAt`, `notBefore`, `expiresAt` | `number` | Unix seconds, integers; `expiresAt` after `notBefore` |
+| `holderThumbprint` | `string` | the holder key's RFC 7638 thumbprint, base64url (the holder handle's `thumbprint()`) |
+| `operations` | `{ name, selectors }[]` | at least one; selector kinds `all`, `equals`, `one_of` on v1, plus `lte` and `gte` on v2 and v3 |
+
+A selector is `{ kind: "all" }` (or the string `"all"`), `{ kind: "equals", path, value }`,
+`{ kind: "one_of", path, values }`, or on v2 and v3 `{ kind: "lte" | "gte", path, value }` with an
+`int`- or `float`-tagged bound. `path` names a member of the request's `castArguments`; every
+selector of an operation must match. The signer does not evaluate selectors; the verifier does.
+
+`ReportInput` (and `V2ReportInput`, `V3ReportInput`):
+
+| Field | Type | Rules |
+|---|---|---|
+| `grantCompact` | `Uint8Array` | the grant the proof is for |
+| `operation` | `string` | an operation the grant names |
+| `method` | `string` | the HTTP method, for example `"POST"` |
+| `targetUri` | `string` | the absolute request URI; on the loopback profile `http://127.0.0.1[:port]/…` or `http://[::1][:port]/…` only |
+| `invocationId` | `string` | a lowercase RFC 4122 UUID |
+| `castArguments` | `Tagged` | the request's arguments as the verifier's type-tagged JSON: `{ t: "null" }`, `{ t: "bool", v: boolean }`, `{ t: "int" \| "float", v: number }`, `{ t: "string", v: Uint8Array }` (UTF-8 bytes: `strUtf8("…")` from the verifier), `{ t: "array", v: Tagged[] }`, `{ t: "object", v: Map<string, Tagged> }` |
+| `nonce` | `string`, optional | required and non-empty for `signLocalLoopbackReport` |
+
+`AnchorInput` (and v2, v3): `anchorId` and `chainId` (non-empty strings), `sequence` (a
+non-negative integer), `chainHash` (32 bytes).
+
+`TransitionInput` (and v2, v3): `transitionId`, `chainId` and `nextKeyId` (non-empty strings),
+`effectiveAt` (Unix seconds, an integer), `nextPublicKey` (32 bytes; 65 bytes for v3).
+
+### Options
+
+`SignOpts` (and `V2SignOpts`, `V3SignOpts`), all optional:
+
+| Option | Used by | Default |
+|---|---|---|
+| `issuedAt` | report signers: the proof's `iat`, Unix seconds | the wall clock |
+| `proofId` | report signers: the proof's `jti` | `crypto.randomUUID()`; on a plain-HTTP page, where that is absent, the result is `producer_error`, so pass one |
+| `anchoredAt` | anchor signers, Unix seconds | the wall clock |
+| `bounds` | every signer: size limits for the verifier's producers | the verifier's defaults |
+| `onEvent` | every signer: called with `{ kind, phase }`, `phase` `"start"` then `"stop"` or `"error"` | none |
+
+The `kind` is `report`, `local_loopback_report`, `anchor`, `grant` or `key_transition` on v1, and
+the same names prefixed `v2_` or `v3_` on the other majors (there is no loopback form there).
+
+## Errors
+
+The error codes are a closed set (`SignerErrorCode`). No error carries key material, nonce values or
+report content.
+
+| Code | Returned by | Meaning | Fix |
+|---|---|---|---|
+| `invalid_report` | report signers | a field is missing, empty or the wrong type, or the loopback `nonce` is missing | pass every `ReportInput` field |
+| `invalid_grant` | grant signers | a field is missing or the wrong type (non-array `audiences` or `operations`, non-integer times, empty strings) | pass every `GrantInput` field |
+| `invalid_anchor` | anchor signers | an empty id, a non-integer `sequence`, or a `chainHash` that is not 32 bytes | pass every `AnchorInput` field |
+| `invalid_transition` | key-transition signers | an empty id, a non-integer `effectiveAt`, or a `nextPublicKey` of the wrong width | pass every `TransitionInput` field |
+| `invalid_key_handle` | every signer, both factories | the handle is unusable: a method or getter threw; a key of the wrong width, or one the suite refuses (non-canonical or small-order Ed25519, a P-256 key off the curve); no `keyIdentity()` for an anchor or transition; no `signingIdentity()`, or a role other than `"issuer"`, for a grant; a factory check failed | fix the handle; a holder handle cannot sign grants |
+| `signing_failed` | every signer | `sign()` threw, returned something other than a 64-byte `Uint8Array`, or returned a signature that does not verify against the handle's public key | make `sign()` use the key that `publicKey()` reports |
+| `producer_error` | every signer | the protocol refused an input: a non-UUID `invocationId`, a malformed identifier or URI, no audiences or operations, `expiresAt` not after `notBefore`, a negative `sequence`, an exceeded bound, a loopback target other than `127.0.0.1` or `[::1]` over `http`; or no `proofId` could be generated | correct the value; pass `proofId` on a plain-HTTP page |
+
+The type is closed, so a `switch` over it is checked for exhaustiveness. Here a holder handle
+tries to sign a grant:
+
+<!-- readme-sample: run -->
+```ts
+import { signGrant, type SignerErrorCode } from "@bounded-authority-protocol/signer";
+import { testKeyHandle } from "./key-handle.js";
+
+function advice(code: SignerErrorCode): string {
+  switch (code) {
+    case "invalid_report":
+    case "invalid_grant":
+    case "invalid_anchor":
+    case "invalid_transition":
+      return "a required input field is missing or has the wrong type";
+    case "invalid_key_handle":
+      return "the key handle cannot be used for this operation";
+    case "signing_failed":
+      return "the custodian's signature does not match the handle's public key";
+    case "producer_error":
+      return "the protocol refused an input value";
+  }
+}
+
+const agent = testKeyHandle("agent-key-1"); // role "holder"
+const result = await signGrant({
+  issuer: "https://issuer.example", grantId: "urn:example:grant:self",
+  audiences: ["https://code.example"],
+  issuedAt: 1_767_225_600, notBefore: 1_767_225_600, expiresAt: 1_767_232_800,
+  holderThumbprint: await agent.thumbprint(),
+  operations: [{ name: "read_file", selectors: [{ kind: "all" }] }],
+}, agent);
+if (!result.ok) console.log(`${result.error}: ${advice(result.error)}`);
+```
+
+<!-- readme-output -->
+```text
+invalid_key_handle: the key handle cannot be used for this operation
+```
+
+## Contract-major 2: Ed25519 with range selectors
+
+The v2 signers take the same `KeyHandle` and emit the verifier's v2 format: `v: 2` payloads, the
+`BAP2-*` domain separators, and the `lte` and `gte` selectors with an `int`- or `float`-tagged bound.
+They compose through the verifier's own v2 signing inputs and `v2.assembleCompact`. Each major
+verifies only its own bytes: `checkEnvelope` refuses a v2 envelope and `v2.checkEnvelope` refuses a
+v1 one. Here a home assistant may set a thermostat between 18.5 and 24.5 °C:
+
+<!-- readme-sample: run -->
+```ts
+import { signV2Grant, signV2Report } from "@bounded-authority-protocol/signer";
+import { v2, type Tagged } from "@bounded-authority-protocol/verifier";
+import { testKeyHandle } from "./key-handle.js";
+
+const home = testKeyHandle("home-issuer-1", "issuer");
+const assistant = testKeyHandle("assistant-key-1");
+
+const grant = await signV2Grant({
+  issuer: "https://home.example", grantId: "urn:example:grant:thermostat",
+  audiences: ["https://thermostat.example"],
+  issuedAt: 1_767_225_600, notBefore: 1_767_225_600, expiresAt: 1_767_312_000,
+  holderThumbprint: await assistant.thumbprint(),
+  operations: [{ name: "set_temperature", selectors: [
+    { kind: "gte", path: ["celsius"], value: { t: "float", v: 18.5 } },
+    { kind: "lte", path: ["celsius"], value: { t: "float", v: 24.5 } },
+  ] }],
+}, home);
+if (!grant.ok) throw new Error(`signV2Grant: ${grant.error}`);
+const grantCompact = grant.value.grant;
+
+async function setTemperature(celsius: number): Promise<boolean> {
+  const request = {
+    method: "PUT", targetUri: "https://thermostat.example/setpoint",
+    invocationId: "3b9e1c52-8d4f-4a1e-b7c2-5e6f7a8b9c0d", operation: "set_temperature",
+    castArguments: { t: "object", v: new Map<string, Tagged>([["celsius", { t: "float", v: celsius }]]) } satisfies Tagged,
+  };
+  const envelope = await signV2Report({ grantCompact, ...request }, assistant, { issuedAt: 1_767_225_660 });
+  if (!envelope.ok) throw new Error(`signV2Report: ${envelope.error}`);
+  return v2.checkEnvelope(envelope.value.grant, envelope.value.proof, {
+    ...request,
+    trustedIssuer: { keyId: "home-issuer-1", publicKey: await home.publicKey() },
+    issuer: "https://home.example", audience: "https://thermostat.example",
+    evaluationTime: 1_767_225_700, clockSkew: 60, proofMaxAge: 300, nonce: { kind: "not_required" },
+  }).ok;
+}
+
+console.log(`21.5 °C verifies: ${await setTemperature(21.5)}`);
+console.log(`30.5 °C verifies: ${await setTemperature(30.5)}`);
+```
+
+<!-- readme-output -->
+```text
+21.5 °C verifies: true
+30.5 °C verifies: false
+```
+
+The local-loopback profile belongs to contract-major 1 and has no v2 form.
+
+## Contract-major 3: ES256
+
+The v3 signers sign the `BAP3-ES256-SHA256` suite: `alg: "ES256"` headers, payload `v: 3`, the
+`BAP3-*` separators, the EC proof key `{"crv":"P-256","kty":"EC","x":…,"y":…}` with its RFC 7638
+thumbprint as `cnf.jkt`, the five selector kinds, 65-byte uncompressed public keys and 64-byte raw
+`r || s` signatures, low-S normalized (see [the key-handle contract](#the-key-handle-contract)). The
+v3 signing inputs are built in this package; the v1 and v2 ones come from the verifier's producers.
+Here a deploy bot may scale one service up to 10 replicas:
+
+<!-- readme-sample: run -->
+```ts
+import { signV3Grant, signV3Report } from "@bounded-authority-protocol/signer";
+import { strUtf8, v3, type Tagged } from "@bounded-authority-protocol/verifier";
+import { testEs256KeyHandle } from "./key-handle.js";
+
+const platform = testEs256KeyHandle("platform-issuer-1", "issuer");
+const deployBot = testEs256KeyHandle("deploy-bot-1");
+
+const grant = await signV3Grant({
+  issuer: "https://platform.example", grantId: "urn:example:grant:scale-web",
+  audiences: ["https://deploy.example"],
+  issuedAt: 1_767_225_600, notBefore: 1_767_225_600, expiresAt: 1_767_227_400,
+  holderThumbprint: await deployBot.thumbprint(),
+  operations: [{ name: "scale_service", selectors: [
+    { kind: "equals", path: ["service"], value: { t: "string", v: strUtf8("web") } },
+    { kind: "lte", path: ["replicas"], value: { t: "int", v: 10 } },
+  ] }],
+}, platform);
+if (!grant.ok) throw new Error(`signV3Grant: ${grant.error}`);
+
+const request = {
+  method: "POST", targetUri: "https://deploy.example/scale",
+  invocationId: "6a1f0d3c-2b4e-4f5a-8c6d-7e8f9a0b1c2d", operation: "scale_service",
+  castArguments: { t: "object", v: new Map<string, Tagged>([
+    ["service", { t: "string", v: strUtf8("web") }],
+    ["replicas", { t: "int", v: 4 }],
+  ]) } satisfies Tagged,
+};
+const envelope = await signV3Report({ grantCompact: grant.value.grant, ...request }, deployBot, { issuedAt: 1_767_225_660 });
+if (!envelope.ok) throw new Error(`signV3Report: ${envelope.error}`);
+
+const facts = v3.checkEnvelope(envelope.value.grant, envelope.value.proof, {
+  ...request,
+  trustedIssuer: { keyId: "platform-issuer-1", publicKey: await platform.publicKey() },
+  issuer: "https://platform.example", audience: "https://deploy.example",
+  evaluationTime: 1_767_225_700, clockSkew: 60, proofMaxAge: 300, nonce: { kind: "not_required" },
+});
+console.log(`v3 envelope verifies: ${facts.ok}`);
+```
+
+<!-- readme-output -->
+```text
+v3 envelope verifies: true
+```
+
+`signV3Anchor` and `signV3KeyTransition` work like their v1 counterparts in the next section, with
+an `Es256KeyHandle` and a 65-byte `nextPublicKey`:
+
+<!-- readme-sample: run -->
+```ts
+import { signV3Anchor, signV3KeyTransition } from "@bounded-authority-protocol/signer";
+import { base64urlDecode, strUtf8, v3 } from "@bounded-authority-protocol/verifier";
+import { testEs256KeyHandle } from "./key-handle.js";
+
+const current = testEs256KeyHandle("ledger-key-1");
+const next = testEs256KeyHandle("ledger-key-2");
+const fingerprint = async (handle: typeof current) => base64urlDecode(strUtf8(await handle.thumbprint()));
+const chainHash = new Uint8Array(32); // the chain's hash at this sequence (all zero at genesis)
+
+const anchor = await signV3Anchor(
+  { anchorId: "urn:example:anchor:0", chainId: "urn:example:chain:ledger", sequence: 0, chainHash },
+  current, { anchoredAt: 1_767_225_600 },
+);
+const transition = await signV3KeyTransition({
+  transitionId: "urn:example:transition:1", chainId: "urn:example:chain:ledger",
+  effectiveAt: 1_767_312_000, nextKeyId: "ledger-key-2", nextPublicKey: await next.publicKey(),
+}, current);
+if (!anchor.ok || !transition.ok) throw new Error("signing failed");
+
+const currentKey = { keyId: "ledger-key-1", publicKey: await current.publicKey(), validFrom: 0, validBefore: null };
+const nextKey = { keyId: "ledger-key-2", publicKey: await next.publicKey(), validFrom: 1_767_312_000, validBefore: null };
+const anchorFacts = v3.verifyHistoricalAnchor(anchor.value.anchor, currentKey, {
+  anchorId: "urn:example:anchor:0", chainId: "urn:example:chain:ledger", keyId: "ledger-key-1",
+  sequence: 0, anchoredAt: 1_767_225_600, chainHash, keyFingerprint: await fingerprint(current),
+});
+const transitionFacts = v3.verifyKeyTransition(transition.value.keyTransition, currentKey, nextKey, {
+  transitionId: "urn:example:transition:1", chainId: "urn:example:chain:ledger", effectiveAt: 1_767_312_000,
+  currentKeyId: "ledger-key-1", nextKeyId: "ledger-key-2",
+  currentKeyFingerprint: await fingerprint(current), nextKeyFingerprint: await fingerprint(next),
+});
+console.log(`v3 anchor verifies: ${anchorFacts.ok}; v3 transition verifies: ${transitionFacts.ok}`);
+```
+
+<!-- readme-output -->
+```text
+v3 anchor verifies: true; v3 transition verifies: true
+```
+
+## Anchor a chain and rotate its key
+
+A boundary anchor signs a checkpoint of a hash chain (an audit log, for example): its id, sequence
+number and hash at that sequence. A key transition, signed by the current key, names the key that
+takes over and when. Both need `keyIdentity()` and are role-agnostic. The verifier checks them
+with `verifyHistoricalAnchor` and `verifyKeyTransition`:
+
+<!-- readme-sample: run -->
+```ts
+import { signAnchor, signKeyTransition } from "@bounded-authority-protocol/signer";
+import { publicKeyThumbprintRaw, verifyHistoricalAnchor, verifyKeyTransition } from "@bounded-authority-protocol/verifier";
+import { testKeyHandle } from "./key-handle.js";
+
+const current = testKeyHandle("audit-key-1");
+const next = testKeyHandle("audit-key-2");
+const chainHash = new Uint8Array(32); // the chain's hash at this sequence (all zero at genesis)
+
+const anchor = await signAnchor(
+  { anchorId: "urn:example:anchor:0", chainId: "urn:example:chain:audit-log", sequence: 0, chainHash },
+  current, { anchoredAt: 1_767_225_600 },
+);
+if (!anchor.ok) throw new Error(`signAnchor: ${anchor.error}`);
+
+// Rotate: the current key signs the handover to the next key.
+const transition = await signKeyTransition({
+  transitionId: "urn:example:transition:1", chainId: "urn:example:chain:audit-log",
+  effectiveAt: 1_767_312_000, nextKeyId: "audit-key-2", nextPublicKey: await next.publicKey(),
+}, current);
+if (!transition.ok) throw new Error(`signKeyTransition: ${transition.error}`);
+
+const currentKey = { keyId: "audit-key-1", publicKey: await current.publicKey(), validFrom: 0, validBefore: null };
+const nextKey = { keyId: "audit-key-2", publicKey: await next.publicKey(), validFrom: 1_767_312_000, validBefore: null };
+const anchorFacts = verifyHistoricalAnchor(anchor.value.anchor, currentKey, {
+  anchorId: "urn:example:anchor:0", chainId: "urn:example:chain:audit-log", keyId: "audit-key-1",
+  sequence: 0, anchoredAt: 1_767_225_600, chainHash, keyFingerprint: publicKeyThumbprintRaw(currentKey.publicKey),
+});
+const transitionFacts = verifyKeyTransition(transition.value.keyTransition, currentKey, nextKey, {
+  transitionId: "urn:example:transition:1", chainId: "urn:example:chain:audit-log", effectiveAt: 1_767_312_000,
+  currentKeyId: "audit-key-1", nextKeyId: "audit-key-2",
+  currentKeyFingerprint: publicKeyThumbprintRaw(currentKey.publicKey),
+  nextKeyFingerprint: publicKeyThumbprintRaw(nextKey.publicKey),
+});
+console.log(`anchor verifies: ${anchorFacts.ok}; transition verifies: ${transitionFacts.ok}`);
+```
+
+<!-- readme-output -->
+```text
+anchor verifies: true; transition verifies: true
+```
+
+On contract-major 2, `signV2Anchor` and `signV2KeyTransition` take the same inputs and the same
+handle, and `v2.verifyHistoricalAnchor` and `v2.verifyKeyTransition` check them:
+
+<!-- readme-sample: run -->
+```ts
+import { signV2Anchor, signV2KeyTransition } from "@bounded-authority-protocol/signer";
+import { publicKeyThumbprintRaw, v2 } from "@bounded-authority-protocol/verifier";
+import { testKeyHandle } from "./key-handle.js";
+
+const current = testKeyHandle("audit-key-1");
+const next = testKeyHandle("audit-key-2");
+const chainHash = new Uint8Array(32);
+
+const anchor = await signV2Anchor(
+  { anchorId: "urn:example:anchor:0", chainId: "urn:example:chain:audit-log", sequence: 0, chainHash },
+  current, { anchoredAt: 1_767_225_600 },
+);
+const transition = await signV2KeyTransition({
+  transitionId: "urn:example:transition:1", chainId: "urn:example:chain:audit-log",
+  effectiveAt: 1_767_312_000, nextKeyId: "audit-key-2", nextPublicKey: await next.publicKey(),
+}, current);
+if (!anchor.ok || !transition.ok) throw new Error("signing failed");
+
+const currentKey = { keyId: "audit-key-1", publicKey: await current.publicKey(), validFrom: 0, validBefore: null };
+const nextKey = { keyId: "audit-key-2", publicKey: await next.publicKey(), validFrom: 1_767_312_000, validBefore: null };
+const anchorFacts = v2.verifyHistoricalAnchor(anchor.value.anchor, currentKey, {
+  anchorId: "urn:example:anchor:0", chainId: "urn:example:chain:audit-log", keyId: "audit-key-1",
+  sequence: 0, anchoredAt: 1_767_225_600, chainHash, keyFingerprint: publicKeyThumbprintRaw(currentKey.publicKey),
+});
+const transitionFacts = v2.verifyKeyTransition(transition.value.keyTransition, currentKey, nextKey, {
+  transitionId: "urn:example:transition:1", chainId: "urn:example:chain:audit-log", effectiveAt: 1_767_312_000,
+  currentKeyId: "audit-key-1", nextKeyId: "audit-key-2",
+  currentKeyFingerprint: publicKeyThumbprintRaw(currentKey.publicKey),
+  nextKeyFingerprint: publicKeyThumbprintRaw(nextKey.publicKey),
+});
+console.log(`v2 anchor verifies: ${anchorFacts.ok}; v2 transition verifies: ${transitionFacts.ok}`);
+```
+
+<!-- readme-output -->
+```text
+v2 anchor verifies: true; v2 transition verifies: true
+```
+
+To rotate a holder or issuer key, you also build a new handle: a handle reports one public key.
+
+## Sign for a local app (loopback)
+
+`signLocalLoopbackReport` signs the local-loopback application-proof profile
+(`ba+loopback-proof`), for a desktop or local app that serves a protocol endpoint on the loopback
+interface. The profile is selected by the function name, never inferred. The app issues a nonce,
+the proof must carry it, and the target must be exactly `http://127.0.0.1[:port]/…` or
+`http://[::1][:port]/…` (`localhost` and every other spelling are `producer_error`):
+
+<!-- readme-sample: run -->
+```ts
+import { signGrant, signLocalLoopbackReport } from "@bounded-authority-protocol/signer";
+import { checkLocalLoopbackHttpEnvelope, strUtf8, type Tagged } from "@bounded-authority-protocol/verifier";
+import { testKeyHandle } from "./key-handle.js";
+
+const issuer = testKeyHandle("issuer-key-1", "issuer");
+const helper = testKeyHandle("helper-key-1"); // an agent on the same machine
+
+const grant = await signGrant({
+  issuer: "https://issuer.example", grantId: "urn:example:grant:notes",
+  audiences: ["https://notes.example"],
+  issuedAt: 1_767_225_600, notBefore: 1_767_225_600, expiresAt: 1_767_229_200,
+  holderThumbprint: await helper.thumbprint(),
+  operations: [{ name: "open_note", selectors: [{ kind: "all" }] }],
+}, issuer);
+if (!grant.ok) throw new Error(`signGrant: ${grant.error}`);
+
+const nonce = "c8f2a1"; // issued by the local app for this request
+const request = {
+  method: "POST", targetUri: "http://127.0.0.1:47321/rpc",
+  invocationId: "9c4b2e7a-1d3f-4c5b-a6e7-8f9a0b1c2d3e", operation: "open_note",
+  castArguments: { t: "object", v: new Map<string, Tagged>([["title", { t: "string", v: strUtf8("Groceries") }]]) } satisfies Tagged,
+};
+const envelope = await signLocalLoopbackReport({ grantCompact: grant.value.grant, ...request, nonce }, helper, { issuedAt: 1_767_225_660 });
+if (!envelope.ok) throw new Error(`signLocalLoopbackReport: ${envelope.error}`);
+
+const facts = checkLocalLoopbackHttpEnvelope(envelope.value.grant, envelope.value.proof, {
+  ...request,
+  trustedIssuer: { keyId: "issuer-key-1", publicKey: await issuer.publicKey() },
+  issuer: "https://issuer.example", audience: "https://notes.example",
+  evaluationTime: 1_767_225_700, clockSkew: 60, proofMaxAge: 300,
+  nonce: { kind: "required", value: nonce },
+});
+console.log(`loopback envelope verifies: ${facts.ok}`);
+```
+
+<!-- readme-output -->
+```text
+loopback envelope verifies: true
+```
+
+## Test your integration
+
+- Use in-process handles like `key-handle.ts` above in tests; keep them out of production code.
+- Verify what you sign with the verifier package (`checkEnvelope`, `verifyGrant`,
+  `verifyHistoricalAnchor`, `verifyKeyTransition`, and the `v2` and `v3` namespaces), with the
+  same expected values your resource server uses. A signer `ok` means the bytes were assembled and
+  the signature matches the handle's key; only the verifier tells you the envelope verifies.
+- Pin `issuedAt`, `proofId`, `anchoredAt` and the verifier's `evaluationTime` so the results do not
+  depend on the clock.
+- Assert the closed error codes for the cases you handle, for example `invalid_key_handle` for a
+  holder handle passed to `signGrant`.
+- If your handle reaches a remote custodian, test a `sign()` that rejects and one that signs with
+  another key: both must give `signing_failed`.
 
 ## WebCrypto key handles
 
-Since 0.6.0, two factories build the handles above from a WebCrypto key pair whose private key
-is **non-extractable**, so a page (or Deno, Bun or Node) signs with a key it cannot export:
+**New in 0.6.0, which is on npm only once the [Install](#install) line names it.** The published
+0.5.0 does not have these factories; with 0.5.0, write a handle over WebCrypto yourself, the way
+`key-handle.ts` in the [Quickstart](#quickstart) does over `node:crypto`.
 
+Two factories build the handles above from a WebCrypto key pair whose private key is
+**non-extractable**, so a page (or Deno, Bun or Node) signs with a key it cannot export.
+`ed25519KeyHandle(pair, opts?)` returns a `KeyHandle`, `es256KeyHandle(pair, opts?)` an
+`Es256KeyHandle`. `opts.keyId` (a non-empty string) adds `keyIdentity()` and `signingIdentity()`;
+`opts.role` is `"holder"` (the default) or `"issuer"`. Each resolves a `SignerResult`: never a throw
+or a rejection, and on any failure the value-free `invalid_key_handle`.
+
+<!-- readme-sample: run-dom -->
 ```ts
-import { ed25519KeyHandle, es256KeyHandle, signReport, signV3Report } from "@bounded-authority-protocol/signer";
+import { ed25519KeyHandle, es256KeyHandle, signGrant, signV3Anchor } from "@bounded-authority-protocol/signer";
 
 // You create the pair and own its lifetime; the library never generates, imports or exports a private key.
-const pair = await crypto.subtle.generateKey({ name: "Ed25519" }, false, ["sign", "verify"]);
-const made = await ed25519KeyHandle(pair, { keyId: "agent-key-1" }); // role: "holder" (default) or "issuer"
-if (!made.ok) throw new Error(made.error); // "invalid_key_handle"; the factory never throws or rejects
-const envelope = await signReport(report, made.value, { proofId });
+const issuerPair = await crypto.subtle.generateKey({ name: "Ed25519" }, false, ["sign", "verify"]);
+const issuer = await ed25519KeyHandle(issuerPair, { keyId: "issuer-key-1", role: "issuer" });
+if (!issuer.ok) throw new Error(issuer.error);
 
-// Contract-major 3 (ES256):
-const ecPair = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, false, ["sign", "verify"]);
-const ec = await es256KeyHandle(ecPair);
+const agentPair = await crypto.subtle.generateKey({ name: "Ed25519" }, false, ["sign", "verify"]);
+const agent = await ed25519KeyHandle(agentPair); // role "holder"
+if (!agent.ok) throw new Error(agent.error);
+
+const grant = await signGrant({
+  issuer: "https://issuer.example", grantId: "urn:example:grant:calendar",
+  audiences: ["https://calendar.example"],
+  issuedAt: 1_767_225_600, notBefore: 1_767_225_600, expiresAt: 1_767_232_800,
+  holderThumbprint: await agent.value.thumbprint(),
+  operations: [{ name: "create_event", selectors: [{ kind: "all" }] }],
+}, issuer.value);
+
+// Contract-major 3 (ES256): the same with an ECDSA P-256 pair.
+const ledgerPair = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, false, ["sign", "verify"]);
+const ledger = await es256KeyHandle(ledgerPair, { keyId: "ledger-key-1" });
+if (!ledger.ok) throw new Error(ledger.error);
+const anchor = await signV3Anchor(
+  { anchorId: "urn:example:anchor:0", chainId: "urn:example:chain:ledger", sequence: 0, chainHash: new Uint8Array(32) },
+  ledger.value,
+);
+
+// An extractable private key is refused.
+const exportable = await crypto.subtle.generateKey({ name: "Ed25519" }, true, ["sign", "verify"]);
+const refused = await ed25519KeyHandle(exportable);
+console.log(`grant: ${grant.ok}; anchor: ${anchor.ok}; extractable pair: ${refused.ok ? "accepted" : refused.error}`);
+```
+
+<!-- readme-output -->
+```text
+grant: true; anchor: true; extractable pair: invalid_key_handle
 ```
 
 The parameter type is structural: a DOM `CryptoKeyPair` and Node's `webcrypto.CryptoKeyPair` pass
-without a cast. One exception, from the Node types: `@types/node` (26.6.5) types
-`webcrypto.subtle.generateKey({ name: "Ed25519" }, ...)` as `Promise<CryptoKey>`, so cast its
-result:
+without a cast. The sample above typechecks with the DOM library. One exception comes from the Node
+types: `@types/node` (26.6.5) types `webcrypto.subtle.generateKey({ name: "Ed25519" }, ...)` as
+`Promise<CryptoKey>`, so cast its result:
 
+<!-- readme-sample: run -->
 ```ts
 import { webcrypto } from "node:crypto";
+import { ed25519KeyHandle } from "@bounded-authority-protocol/signer";
+
 const pair = (await webcrypto.subtle.generateKey({ name: "Ed25519" }, false, ["sign", "verify"])) as unknown as webcrypto.CryptoKeyPair;
+const made = await ed25519KeyHandle(pair);
+console.log(`handle: ${made.ok}`);
+```
+
+<!-- readme-output -->
+```text
+handle: true
 ```
 
 **What the factory checks**, in this order. Any failure is `invalid_key_handle`, with no detail:
@@ -271,7 +777,7 @@ The message must be a `Uint8Array` from the same realm as the library: a typed a
 iframe or `vm` context fails the `instanceof Uint8Array` test and is rejected. The signers always pass
 their own copy, so this matters only if you call `handle.sign()` yourself.
 The ES256 handle returns WebCrypto's raw `r || s` unchanged (high-`s` about half the time), and the
-shared v3 tail normalizes it to low-`s` and verifies it strictly, exactly as for your own handles.
+shared v3 path normalizes it to low-`s` and verifies it strictly, exactly as for your own handles.
 The handle is frozen, its only properties are its methods, and the `CryptoKey` lives only in its
 closure; `JSON.stringify(handle)` is `{}`.
 
@@ -290,7 +796,7 @@ closure; `JSON.stringify(handle)` is `{}`.
   export a non-extractable private key with `KeyObject.from(key).export()` (Node 24 prints a
   deprecation warning and still exports). Deno refuses. On a server, prefer a handle that reaches
   a KMS or HSM.
-- **The extractable refusal is a guard against accidents, not against the key's holder.** It
+- **The extractable refusal guards against accidents**, not against the key's holder. It
   stops an exportable key from being paired with a handle meant for a non-exportable one. The
   getter reads and the structured-clone check refuse every disguise tested (a shadowed property, a
   plain object, a `Proxy`, including one that lies to Deno's getters), but whoever owns the key
@@ -308,7 +814,8 @@ closure; `JSON.stringify(handle)` is `{}`.
   and posted to the page, is accepted (the getters brand-check; there is no `instanceof` test); the
   browser lanes test both. Deno cannot hand a `CryptoKey` across realms: its structured clone of a
   `CryptoKey` is not a usable key, so generate keys where you sign.
-- **Harden the page that holds a key:** the strict CSP above, Trusted Types, Subresource
+- **Harden the page that holds a key:** the strict Content Security Policy described in
+  [Browsers, Deno, Bun and workers](#browsers-deno-bun-and-workers), Trusted Types, Subresource
   Integrity, a minimal dependency set, and a dedicated origin for key use. In-page verification
   stays display-only.
 
@@ -331,15 +838,18 @@ verifier's pure-JavaScript portable backend and Node.js keeps `node:crypto`:
 | Deno, Bun | `"portable"` |
 | Browsers and bundlers targeting them, workers | `"portable"` |
 
+<!-- readme-sample: run -->
 ```ts
 import { BACKEND_ID } from "@bounded-authority-protocol/verifier";
+
 // "node" or "portable": which verifier backend this build resolved. Signing behaves the same in both.
+console.log(BACKEND_ID);
 ```
 
 The signer never touches private-key bytes: signing is always a handle's `sign()`, wherever and
 however that handle is implemented. The only WebCrypto it uses is in the
-[WebCrypto key handles](#webcrypto-key-handles): `crypto.subtle.sign` with your non-extractable
-`CryptoKey`, and `exportKey("raw")` of the public key.
+[WebCrypto key handles](#webcrypto-key-handles) (**0.6.0**): `crypto.subtle.sign` with your
+non-extractable `CryptoKey`, and `exportKey("raw")` of the public key.
 
 **In-page verification is display-only, never a trust decision.** If a page signs and then
 verifies an envelope (as the playground does), that result is for showing to a person. It
@@ -354,73 +864,105 @@ and no dynamic `import()`. The default `proofId` comes from `crypto.randomUUID()
 browsers provide only in a secure context (HTTPS or `localhost`). On a plain-HTTP page, pass
 `proofId` explicitly; without it the report signers return the closed `producer_error`.
 
-Bundle size (esbuild, minified, browser target, tree-shaken from the package entry, verifier
-included): every export 184 KB (49 KB gzip); `{ signReport }` 113 KB (31 KB gzip);
-`{ signV2Report }` 111 KB (30 KB gzip); `{ signV3Report }` 69 KB (25 KB gzip). CI fails a
-change that grows any of these by more than 10%.
+Bundle size of the 0.6.0 source (esbuild, minified, browser target, tree-shaken from the package
+entry, verifier included): every export 187 KB (51 KB gzip); `{ signReport }` 114 KB (31 KB gzip);
+`{ signV2Report }` 111 KB (30 KB gzip); `{ signV3Report }` 69 KB (25 KB gzip). `pnpm size` prints
+the current figures, and CI fails a change that takes any of them more than 10% past the first
+measurement in [`tools/bundle-size-limits.json`](tools/bundle-size-limits.json).
 
-## Evidence
+## How this package is tested
 
-Every compact this library produces is verified in CI through the independent verifier
-package (`checkEnvelope`, `verifyGrant`, `verifyHistoricalAnchor`, `verifyKeyTransition`, the
-loopback profile's `checkEnvelope`, and the `v2` and `v3` namespaces' equivalents) — no
-self-round-trip claims. The v1 and v2 profiles compose through the verifier package's own
-producers; the v3 producing profile is authored here (delegating composition to the verifier's
-v3 producers remains a recorded, owner-gated switch), and its compacts cross-verify through
-the verifier package's `v3` surface — the flip the former gap pin anticipated — while every
-produced signature is additionally pinned at the byte level: verified over the exact RFC 7515
-signing input under node:crypto, both in the raw `ieee-p1363` form and re-encoded as DER.
-The closure gates (C1 role gate, wrong-key guard, loopback
-nonce and canonical-target admission, atomic-identity requirement, and the v3 additions:
-low-S normalization and the P-256 on-curve check) are red-capable: mechanically removing
-the check fails its test. CI runs the full gate on `ubuntu-24.04` only: CI is
-Linux only. The clone → build → test contract holding on macOS and Linux
-is a developer-setup property, proven on a developer machine, not a CI matter. Windows
-developers use WSL2 (clone inside the WSL filesystem, not under `/mnt/c`), which is the
-Linux path; no native-Windows developer path is maintained.
+- **Through the verifier, never a self-round-trip.** Every compact this library produces in CI is
+  verified through the independent verifier package (`checkEnvelope`, `verifyGrant`,
+  `verifyHistoricalAnchor`, `verifyKeyTransition`, the loopback profile's
+  `checkLocalLoopbackHttpEnvelope`, and the `v2` and `v3` namespaces' equivalents). The v3
+  signatures are also checked at the byte level: each verifies over the exact RFC 7515 signing
+  input under `node:crypto`, both in the raw `ieee-p1363` form and re-encoded as DER.
+- **Red-capable gates.** The C1 role gate, the wrong-key guard, the loopback nonce and target
+  rules, the identity-snapshot requirement, low-S normalization and the P-256 on-curve check each
+  have a test that fails when the check is removed.
+- **Every runtime.** One sign-then-verify battery (v1, loopback, v2 and v3 envelopes, grants,
+  anchors and key transitions; a wrong-key handle on every major; 64 ES256 reports from a handle
+  that emits high-`s` about half the time) runs on Node 22.23.1 and 24.19.0 with each verifier
+  backend, on Deno 2.5.6 and Bun 1.3.14, and in Chromium, Firefox and WebKit through Playwright
+  under the strict CSP. Every lane first asserts the verifier `BACKEND_ID` it expects. A lane on a
+  non-secure origin, in each browser, checks the closed `producer_error` for a missing default
+  `proofId` and that both key-handle factories refuse without touching their arguments.
+- **WebCrypto key handles (0.6.0).** A key-handle battery runs in every one of those lanes with the
+  engine's own keys: sign then verify on v1, v2 and v3, the extractable, type, algorithm, weak-key,
+  mismatched-pair and relabeled-algorithm refusals, roles, the JWS-shape restriction, inherited and
+  polluted options, `SubtleCrypto` methods patched after load, every signer with factory handles,
+  and in the browsers an iframe key and a worker-posted key. Each lane records what its engine
+  allows (key generation, signature widths, determinism, which weak keys import).
+- **Browser safety.** A browser typecheck with no ambient types, lint rules (Node modules and
+  globals, dynamic code, `@noble` and WebCrypto outside `src/webcrypto.ts`), a scan of the browser
+  bundle for unresolved globals, and a typecheck of the packed tarball as a consumer installs it,
+  with `skipLibCheck: false`.
+- **The README.** Every TypeScript sample in this file is typechecked and run by
+  `test/readme.test.ts`, and each printed result is compared with the output shown under it.
 
-The sign-then-verify battery (v1, loopback, v2 and v3 envelopes, grants, anchors and key
-transitions; a wrong-key handle on every major; 64 ES256 reports from a handle that emits
-high-`s` about half the time, each normalized and verified) runs on Node 22.23.1 and 24.19.0
-with each verifier backend, on Deno 2.5.6 and Bun 1.3.14, and in Chromium, Firefox and WebKit
-(Linux CI, Playwright, under the strict CSP above); every lane first asserts the verifier
-`BACKEND_ID` it expects. A lane on a non-secure origin, in each browser, checks the closed
-`producer_error` for a missing default `proofId` and that both key-handle factories refuse without
-touching their arguments. The WebCrypto key-handle battery (104 checks, 109 in browsers, with each engine's
-own keys: accept, sign then verify on v1, v2 and v3 over 64 distinct inputs, the extractable,
-type, algorithm, weak-key, mismatched-pair and relabeled-algorithm refusals, roles, no key
-exposure, the JWS-shape restriction, inherited and polluted options, `SubtleCrypto` methods patched
-after load, every signer with factory handles, and an iframe key and a worker-posted key in the
-browsers) runs in every one of those lanes and records an engine capability row. Guards keep Node APIs out of `src/`: a
-browser typecheck with no ambient types, lint rules (Node modules and globals, dynamic code,
-`@noble` and WebCrypto), a scan of the browser bundle for unresolved globals, and a
-packed-tarball consumer typecheck with `skipLibCheck: false`. Linux WebKit is evidence for
-this pure-JavaScript code only, not for Safari. The publish lane is separate: it re-verifies
-(build, typecheck, lint, guards, tests, the runtime, tarball and browser lanes, and
-`npm audit signatures`) on Node 24 — the npm >= 11.5 that trusted publishing requires —
-before staging a release that a human approves.
+CI runs on Linux (`ubuntu-24.04`). Linux WebKit is evidence for this code on that WebKit build,
+not for Safari. The release workflow repeats every lane on Node 24.19.0, then stages the publish
+for a person to approve; packages are published with npm provenance.
 
 ## Versioning and compatibility
 
-Package versions follow SemVer. Before 1.0 the minor position is the breaking boundary, so
-npm caret ranges such as `^0.2.1` never select `0.3.0`.
+Package versions follow SemVer. Before 1.0 the minor position is the breaking boundary, so a caret
+range such as `^0.5.0` never selects `0.6.0`. Compatibility with other implementations is governed
+by the wire contract-majors this package signs (1, 2 and 3), not by package version numbers.
 
-0.6.x adds the WebCrypto key handles (`ed25519KeyHandle`, `es256KeyHandle`) and refuses a
-caller's off-curve P-256 key at resolution (`invalid_key_handle`, before `sign()`); it keeps the
-verifier `^0.7.0`. 0.5.x depends on `@bounded-authority-protocol/verifier` `^0.7.0`, runs in
-browsers, Deno and Bun, adds the contract-major-2 signers, and checks every ES256 signature with the verifier's
-strict `es256VerifyStrict` after low-S normalization. Its `"exports"` map keeps deep imports
-such as `@bounded-authority-protocol/signer/dist/src/v3.js` resolving through a `"./*"`
-passthrough, but deep imports are unsupported API and may be closed in a future 0.x minor;
-import from the package root. 0.4.x depends on `@bounded-authority-protocol/verifier`
-`^0.6.0` and refuses small-order and non-canonical Ed25519 key handles. 0.3.x depends on `@bounded-authority-protocol/verifier`
-`^0.5.0` and signs through its producers, so it inherits that release's stricter identifier
-admission. Identifiers with repeated fragment delimiters, raw brackets in userinfo or outside
-authority, or malformed bracketed IPv6 hosts such as `http://[abc]/x` now return
-`producer_error` instead of producing bytes a verifier would reject. Valid identifiers, including bracketed IPv6
-literals such as `http://[::1]/`, sign as before. Compatibility with other implementations
-is governed by the wire contract-majors (this package signs majors 1, 2 and 3), not by package
-version numbers. Release notes are in [CHANGELOG.md](CHANGELOG.md).
+- **0.6.0** ([release status](#install)) adds the WebCrypto key handles, reads identity
+  snapshots from own data properties only, and refuses a handle's off-curve P-256 key at resolution
+  (`invalid_key_handle`, before `sign()`). It keeps the verifier at `^0.7.0`.
+- **0.5.x** depends on the verifier `^0.7.0`, runs in browsers, Deno and Bun, adds the
+  contract-major-2 signers, and checks every ES256 signature with the verifier's strict
+  `es256VerifyStrict` after low-S normalization.
+- **0.4.x** depends on the verifier `^0.6.0` and refuses small-order and non-canonical Ed25519
+  handles.
+- **0.3.x** depends on the verifier `^0.5.0` and inherits its stricter identifier admission:
+  identifiers with repeated fragment delimiters, raw brackets in userinfo or outside the authority,
+  or malformed bracketed IPv6 hosts such as `http://[abc]/x` return `producer_error`.
+
+The `"exports"` map keeps deep imports such as `@bounded-authority-protocol/signer/dist/src/v3.js`
+resolving through a `"./*"` passthrough, but deep imports are not supported API and may close in a
+future 0.x minor: import from the package root. Release notes are in [CHANGELOG.md](CHANGELOG.md).
+
+## Protocol family
+
+- [`@bounded-authority-protocol/verifier`](https://www.npmjs.com/package/@bounded-authority-protocol/verifier)
+  ([GitHub](https://github.com/baselabs/bounded_authority_protocol_typescript)): the verify side.
+  This package depends on it, never the reverse. Its README's "Pairing with the signer" section
+  shows the issuer, holder and resource roles with `signGrant`, `signReport` and `checkEnvelope`.
+- [`baselabs/bounded_authority_protocol`](https://github.com/baselabs/bounded_authority_protocol):
+  the protocol, with the wire specifications this package signs (`spec/bap-v1.md`,
+  `spec/bap-local-loopback-http-v1.md`, `spec/bap-v2.md`, `spec/bap-v3.md`) and their design records.
+- [`bounded_authority_report_adapter`](https://hex.pm/packages/bounded_authority_report_adapter)
+  ([GitHub](https://github.com/baselabs/bounded_authority_report_adapter)): the Elixir signer this
+  package ports.
+
+## Development
+
+```bash
+pnpm install --frozen-lockfile
+pnpm typecheck && pnpm build && pnpm lint && pnpm test
+```
+
+The repository pins Node 22.23.1 in [`.tool-versions`](.tool-versions); CI also runs Node 24.19.0.
+The CI scripts:
+
+| Script | What it checks |
+|---|---|
+| `typecheck`, `build` | strict typecheck; the `dist/` build |
+| `typecheck:browser`, `typecheck:web` | `src/` with the DOM library and no ambient types; the playground |
+| `lint`, `guard:browser` | the browser-safety lint rules; a scan of the browser bundle |
+| `size` | the bundle-size limits |
+| `test`, `test:portable` | unit tests, gates, the verifier oracle and the README samples, on the verifier's node and portable backends |
+| `test:gates` | the red-capable gates alone |
+| `test:runtimes` | the sign-then-verify lanes; `BAP_RUNTIMES` selects from `node,node-portable,deno,bun` (default: all four) |
+| `test:tarball` | the packed package as a consumer installs it (needs Deno and Bun) |
+| `test:browser` | Playwright lanes; `BAP_BROWSERS` selects from `chromium,firefox,webkit` (default `chromium`); install the engines with `pnpm exec playwright install` |
+| `check:currency` | every dependency at its latest version, or pinned with a recorded reason |
+| `build:site`, `guard:site` | the playground bundle, and its scan |
 
 ## License
 
