@@ -47,7 +47,7 @@
     <h1>Your OAuth proves <em>who</em> is calling.<br>BAP proves <em>what they may do</em>.</h1>
     <p class="lede">If you run an MCP server, an agent, or any API that authenticates callers with
     OAuth, you already have the <strong>who</strong>. BAP is the missing half: every request carries
-    a cryptographically signed capability — named operations, a named resource, a time window — and a fresh
+    a cryptographically signed capability — named operations, named resources, a time window — and a fresh
     proof from the caller’s own key. The resource verifies the envelope and gets facts, never trust.
     Keys never leave your custody.</p>
     <div class="hero-actions">
@@ -83,7 +83,7 @@
       <p class="pain">A stolen or over-scoped token keeps every power it was granted, on every
       resource, until it expires. “read” means <em>all</em> reads, everywhere, for the token’s whole life.</p>
       <p class="answer"><svg class="ic"><use href="#i-check"/></svg> With BAP, each capability is a signed grant naming
-      <strong>its operations, its resource, its window</strong> — and each request carries a fresh proof
+      <strong>its operations, its resources, its window</strong> — and each request carries a fresh proof
       bound to exactly that request.</p>
     </article>
     <article class="whycard">
@@ -114,16 +114,6 @@
   </div>
   <div class="grid4 cases-grid">
     <article class="casecard">
-      <h3>An agent that can spend money</h3>
-      <p class="ctx">MCP agent · payments API</p>
-      <p class="pain">Hand the agent a token and whatever it decides — or gets injected to decide —
-      the token allows, until it expires.</p>
-      <p class="grantline">grant: transfer · acct acme-77 · until 14:15</p>
-      <p class="answer"><svg class="ic"><use href="#i-check"/></svg> No proof, no transfer: a hijacked
-      prompt can’t move funds at 14:40, or to a different account — the API enforces the envelope,
-      not the agent’s good behavior.</p>
-    </article>
-    <article class="casecard">
       <h3>A third-party tool you didn’t write</h3>
       <p class="ctx">your workspace · someone else’s MCP server</p>
       <p class="pain">Connecting a tool today often means blanket, long-lived scopes over your files
@@ -140,8 +130,8 @@
       to revoke.</p>
       <p class="grantline">grant: deploy + rollback · staging · 30 min</p>
       <p class="answer"><svg class="ic"><use href="#i-check"/></svg> The window closes itself —
-      yesterday’s grant is cryptographically useless today, with no revocation list to babysit.
-      Key rotation rides the same rails (signKeyTransition).</p>
+      yesterday’s grant fails verification today. Withdrawing a grant before it expires is your
+      authority runtime’s revocation; key rotation rides the same rails (signKeyTransition).</p>
     </article>
     <article class="casecard">
       <h3>Support reading one customer</h3>
@@ -151,6 +141,16 @@
       <p class="grantline">grant: read · tenant #4821 · ticket #90112</p>
       <p class="answer"><svg class="ic"><use href="#i-check"/></svg> Curiosity can’t cross tenants:
       each read is proven against a grant that names one tenant and one ticket’s lifetime.</p>
+    </article>
+    <article class="casecard">
+      <h3>An agent that can spend money</h3>
+      <p class="ctx">MCP agent · payments API</p>
+      <p class="pain">Hand the agent a token and whatever it decides — or gets injected to decide —
+      the token allows, until it expires.</p>
+      <p class="grantline">grant: transfer · acct acme-77 · until 14:15</p>
+      <p class="answer"><svg class="ic"><use href="#i-check"/></svg> No proof, no transfer: a hijacked
+      prompt can’t move funds at 14:40, or to a different account — the API enforces the envelope,
+      not the agent’s good behavior.</p>
     </article>
   </div>
 </section>
@@ -235,7 +235,7 @@
   <div class="wrap grid4">
     <article><svg class="ic big"><use href="#i-lock"/></svg><h3>Custody boundary</h3>
       <p>Keys stay in your custody — an HSM, a KMS, or the browser key store this page just used. The library only ever sees a handle.</p></article>
-    <article><svg class="ic big"><use href="#i-ban"/></svg><h3>C1 role gate</h3>
+    <article><svg class="ic big"><use href="#i-ban"/></svg><h3>Issuer-role gate</h3>
       <p>A holder handle can never mint its own capability: grants require an issuer-role identity resolved atomically, before <code>sign()</code> is even called.</p></article>
     <article><svg class="ic big"><use href="#i-alert"/></svg><h3>Wrong-key guard</h3>
       <p>Every signature is verified against the resolved public key before assembly. A misconfigured custodian fails loudly as <code>signing_failed</code> — never a silent false success.</p></article>
@@ -274,7 +274,7 @@
   publicKey(): Uint8Array | Promise&lt;Uint8Array&gt;;                       // 32 bytes
   thumbprint(): string | Promise&lt;string&gt;;                              // RFC 7638, base64url
   keyIdentity?(): { keyId, publicKey } | Promise&lt;…&gt;;                  // anchor + transition
-  signingIdentity?(): { role, keyId, publicKey } | Promise&lt;…&gt;;       // grants: role "issuer" (the C1 gate)
+  signingIdentity?(): { role, keyId, publicKey } | Promise&lt;…&gt;;       // grants: role "issuer" only
 }</pre>
   <div class="install-row">
     <pre class="code slim">npm i @bounded-authority-protocol/signer    # Node >= 22, browsers, Deno, Bun; one runtime dep: the verifier</pre>

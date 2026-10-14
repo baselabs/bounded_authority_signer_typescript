@@ -5,8 +5,10 @@
 WebCrypto key handles. Two factories build the existing handle types from a WebCrypto key pair
 whose private key is non-extractable, so a browser page (or Deno, Bun or Node) can sign with a key
 it cannot export. The library still never generates, imports, wraps, stores or exports a private
-key: the caller creates the pair and owns its lifetime. Everything below is additive except the
-stricter P-256 key resolution (one error code changes).
+key: the caller creates the pair and owns its lifetime. Everything below is additive except the two
+stricter handle checks under Changed: identity snapshots are read from own data properties only
+(0.5.0 also read inherited ones, so an inherited `role: "issuer"` could sign a grant), and P-256 key
+resolution (one error code changes).
 
 ### Added
 
@@ -54,8 +56,9 @@ stricter P-256 key resolution (one error code changes).
 - **Identity snapshots are read from own data properties only.** For every caller handle, the
   `role`, `keyId` and `publicKey` of a `keyIdentity()` or `signingIdentity()` snapshot are read
   from the snapshot's own data properties. An inherited field, a getter, or a role supplied by a
-  polluted `Object.prototype` is `invalid_key_handle`; before, a snapshot without its own `role`
-  could become an issuer through `Object.prototype.role`.
+  polluted `Object.prototype` is `invalid_key_handle`. This changes behavior: 0.5.0 read inherited
+  fields, so a snapshot without its own `role` could become an issuer through
+  `Object.prototype.role`, and a snapshot whose fields sit on its prototype was accepted.
 - **P-256 key resolution matches Ed25519's.** A caller handle that reports a 65-byte key that is
   not an uncompressed point on P-256 (`0x04 || x || y`, `x, y < p`, on the curve) is now
   `invalid_key_handle` at resolution, before `sign()` is called, on all four v3 signers. In 0.5.0
@@ -98,31 +101,45 @@ stricter P-256 key resolution (one error code changes).
 
 ### Documentation
 
-- **README rewritten for a first run.** What the package is and is not, an install line naming the
-  latest release (0.5.0) with the 0.6.0-only feature marked, and a Quickstart that runs end to end:
-  in-process key handles, a grant, a proof, and verification through the verifier package. New
-  sections: the exported handle types verbatim, an API reference (every signer, input, option and
-  result), an error table with each code's meaning and fix, and guides for contract-majors 2 and 3,
-  anchors and key rotation, the loopback profile, testing an integration, and the development
-  scripts. The examples span code hosting, home automation, deployment, notes and calendars.
+- **README rewritten for a first run.** What the package is and is not, a table of contents, an
+  install line naming the latest releases (signer 0.5.0, verifier 0.7.0) with what only 0.6.0 has
+  marked, and a Quickstart that runs end to end from an empty directory: the setup commands (an ES
+  module project, both packages, `tsx`), in-process key handles, a grant, a proof, and verification
+  through the verifier package with each expected value explained. New sections: the exported handle
+  types verbatim, an API reference (every signer, input, option and result), an error table with
+  each code's meaning and fix, and guides for contract-majors 2 and 3, anchors and key rotation, the
+  loopback profile, testing an integration, and the development scripts. The examples span code
+  hosting, home automation, deployment, notes and calendars.
 - **Every README sample runs.** `test/readme.test.ts` (part of `pnpm test` and `pnpm test:portable`)
   typechecks each TypeScript sample with the Node types or the DOM library, runs it against this
-  source, compares what it prints with the output shown, checks that the documented handle types
-  are the exported ones, and checks every README anchor that the README or a doc comment links to.
+  source, compares what it prints with the output shown, compares the documented handle and
+  selector types text for text with their declarations, and checks every README anchor that the
+  README or a doc comment links to. `test/reader.ts` (part of `pnpm test:tarball`) runs the
+  Quickstart as a reader does: an empty directory outside the repository, the README's setup
+  commands verbatim, the pinned packages from npm (this repository's packed tarball only when the
+  README pins the unpublished package.json version), `npx tsx`, and the output shown. It also
+  fails when the README's signer pin is not npm's latest (or the package.json version with a release
+  tag at HEAD), or its verifier pin is not npm's latest within the dependency range.
 - **TSDoc on every export**: each signer's parameters, result and error codes, and each input and
   option field, with a link to the README example.
 - **Corrections.** `castArguments` strings are UTF-8 bytes (`{ t: "string", v: Uint8Array }`); a
   grant's `expiresAt` must be after its `notBefore` (equal is `producer_error`); the verifier README's
   pairing example uses `signGrant` and `signReport`, not all five v1 signers; the WebCrypto battery's
   check count is no longer stated (the README said 104, Node runs 109); bundle sizes are re-measured
-  on this source.
+  on this source. The role gate is named in plain words everywhere: the issuer-role gate.
 - `package.json` gains `keywords`.
-- **Playground.** The demo is a support agent reading one ticket's record (it was a money transfer;
-  the use-case cards keep one payments example). The hero and the first card say a grant names its
-  operations (a grant can name several), and the key-handle shape shows that every method may return
-  a Promise. The Pages workflow's badge check compares the page's npm badge with the latest version
-  on the npm registry instead of `package.json`, which names 0.6.0 before it is released; the check
-  had failed the Pages deploy on `main` since the version bump.
+- **Playground.** The demo is a support agent reading one ticket's record (it was a money transfer).
+  The use-case cards keep one payments example, now the last card instead of the first. The hero and
+  the first card say a grant names its operations and resources (a grant can name several of each),
+  the just-in-time card leaves early withdrawal to the authority runtime's revocation, and the
+  key-handle shape shows that every method may return a Promise.
+- **Pages badge check.** The check compared the page's npm badge with `package.json`, which names a
+  version before it is published, and had failed the Pages deploy on `main` since the 0.6.0 bump.
+  `tools/check-site-badge.mjs` now passes a badge that names the latest npm release, or
+  `package.json`'s version on a release commit (a `v<version>` tag at HEAD, read from `origin` so a
+  shallow checkout sees it), since the release commit's deploy runs before the publish is approved. A
+  registry outage fails closed with a message to rerun. `test/site-badge.ts` covers each state with
+  real git repositories and the real and an unreachable registry.
 - Source comments no longer use internal shorthand.
 
 ## [0.5.0] — 2026-10-13
@@ -140,7 +157,7 @@ post-sign check and the closed error for a missing default `proofId`.
   Contract-major 2 had no signing surface in this package; these functions take the existing
   Ed25519 `KeyHandle` and compose through the verifier's public v2 signing inputs and
   `v2.assembleCompact`, so they emit exactly the verifier's v2 format (`v: 2`, `BAP2-*`
-  separators, the `all`/`equals`/`one_of`/`lte`/`gte` selectors). The C1 role gate, the wrong-key
+  separators, the `all`/`equals`/`one_of`/`lte`/`gte` selectors). The issuer-role gate, the wrong-key
   guard, the atomic identity snapshot and the weak-key refusal apply as on v1.
 - An `"exports"` map (`"."`, `"./package.json"`, and a `"./*"` passthrough) and
   `"sideEffects": false`.
@@ -301,7 +318,7 @@ Documentation patch; no code or dependency change.
   no-self-round-trip evidence rule, with the crypto-level signature pinning retained as
   byte-level composition evidence.
 - The v3 closure gates are red-capable (proven at authoring by mechanical removal):
-  low-S normalization, the wrong-key guard (ES256 form), the C1 issuer-role gate (ES256
+  low-S normalization, the wrong-key guard (ES256 form), the issuer-role gate (ES256
   form), and the producer's P-256 on-curve/width check each redden exactly their leg.
 - Dependency currency (the latest-first gate): in-range lockfile updates discovered by
   running the gate — `@types/node` 26.6.2, `tsx` 4.23.15 (never pinnable, in-range drift).
@@ -315,14 +332,14 @@ Documentation patch; no code or dependency change.
 ## [0.1.2] — 2026-09-18
 
 No library-code change — alignment with the protocol family as of September 17, 2026 (protocol
-0.4.1, Elixir `bounded_authority_report_adapter` 0.6.2). The five-function surface is 1:1 with the
+0.4.1, Elixir `bounded_authority_report_adapter` 0.6.2 and that adapter's pin move). The five-function surface is 1:1 with the
 Elixir reference (compared against its `main` @ `d235a4a`: same signing table, profiles, bounds
 flow, closed error set, and five-span telemetry) with zero signing-behavior delta since its
 0.6.0; its 0.6.1 and 0.6.2 changed repository tooling and pins only.
 
 - Dependency currency: the lockfile resolves `@bounded-authority-protocol/verifier` **0.2.2**
-  (the verifier's family-alignment release — itself no library-code change; first 0.2.0 →
-  0.2.1 provenance-bound, then 0.2.2 after its own alignment release). The requirement
+  (a verifier release with no library-code change; its 0.2.1 was its first provenance-bound
+  release). The requirement
   deliberately holds the caret `^0.2.0` — an exact pin in a published package's dependencies
   would force every consumer's resolution and block dedupe, and reproducibility is already
   provided by the tracked lockfile plus CI's `--frozen-lockfile` installs.
@@ -360,7 +377,7 @@ flow, closed error set, and five-span telemetry) with zero signing-behavior delt
 - First release: the TypeScript port of the Elixir bounded_authority_report_adapter
   (tracked against its 0.6.0 / protocol 0.4.0). The five companion signers (report,
   local-loopback report, anchor, key transition, grant), the caller-owned key-handle
-  contract with atomic identity snapshots, the C1 issuer-role gate, the wrong-key
+  contract with atomic identity snapshots, the issuer-role gate, the wrong-key
   signature guard, and the closed error-code set. All outputs oracle-verified through the
   independent @bounded-authority-protocol/verifier package in CI; closure gates are
   red-capable.

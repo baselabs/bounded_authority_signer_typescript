@@ -308,7 +308,7 @@ function accordion(title: string, chip: string | undefined, facts: unknown, open
 }
 
 
-// Raw-JSON code box for the FACTS area (owner-directed: no formatted view) —
+// Raw-JSON code box for the FACTS area (deliberately unformatted) —
 // defensively hex any string that still carries control/lossy characters.
 function sanitize(v: unknown): unknown {
   // Byte arrays render as their base64url wire form — JSON.stringify on a

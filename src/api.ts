@@ -240,7 +240,7 @@ export async function signAnchor(input: AnchorInput, handle: KeyHandle, opts: Si
  * Sign a capability grant (contract-major 1). Issuer-only.
  *
  * Reads `handle.signingIdentity()` once; unless its own `role` is `"issuer"` the result is
- * `invalid_key_handle` and `sign()` is never called (the C1 gate).
+ * `invalid_key_handle` and `sign()` is never called (the issuer-role gate).
  *
  * @returns `{ ok: true, value: { grant } }`, or `invalid_grant`, `invalid_key_handle`,
  *   `producer_error` (for example no operations, no audiences, or `expiresAt` not after `notBefore`)
@@ -256,7 +256,7 @@ export async function signGrant(input: GrantInput, handle: KeyHandle, opts: Sign
     emit("error");
     return err("invalid_grant");
   }
-  // The C1 gate: only an issuer-role identity (resolved atomically) may sign a
+  // The issuer-role gate: only an issuer-role identity (resolved atomically) may sign a
   // grant — a holder handle (or one without signingIdentity) fails closed
   // BEFORE sign() is called.
   const identity = await resolveIssuerIdentity(handle);

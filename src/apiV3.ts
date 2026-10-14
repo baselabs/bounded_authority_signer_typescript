@@ -118,7 +118,7 @@ type Es256KeyIdentity = { keyId: string; publicKey: Uint8Array };
 
 const resolveEs256PublicKey = (handle: Es256KeyHandle): Promise<Uint8Array | undefined> => resolveKeyWith(() => handle.publicKey(), p256Key);
 const resolveEs256KeyIdentity = (handle: Es256KeyHandle): Promise<Es256KeyIdentity | undefined> => resolveIdentityWith(() => handle.keyIdentity?.(), p256Key);
-/** The C1 gate, ES256 form: grants require an issuer-role identity resolved atomically. */
+/** The issuer-role gate, ES256 form: grants require an issuer-role identity resolved atomically. */
 const resolveEs256IssuerIdentity = (handle: Es256KeyHandle): Promise<Es256KeyIdentity | undefined> => resolveIssuerWith(() => handle.signingIdentity?.(), p256Key);
 
 // --- the four signers --------------------------------------------------------
@@ -197,7 +197,7 @@ export async function signV3Anchor(input: V3AnchorInput, handle: Es256KeyHandle,
 }
 
 /**
- * Sign a contract-major-3 (ES256) capability grant. Issuer-only: the C1 gate of `signGrant` applies.
+ * Sign a contract-major-3 (ES256) capability grant. Issuer-only: the issuer-role gate of `signGrant` applies.
  *
  * @returns `{ ok: true, value: { grant } }`, or `invalid_grant`, `invalid_key_handle`, `producer_error` or `signing_failed`.
  * @example https://github.com/baselabs/bounded_authority_signer_typescript#contract-major-3-es256
@@ -211,7 +211,7 @@ export async function signV3Grant(input: V3GrantInput, handle: Es256KeyHandle, o
     emit("error");
     return err("invalid_grant");
   }
-  // The C1 gate (ES256 form): only an issuer-role identity (resolved
+  // The issuer-role gate (ES256 form): only an issuer-role identity (resolved
   // atomically) may sign a grant — a holder handle fails closed BEFORE
   // sign() is ever called.
   const identity = await resolveEs256IssuerIdentity(handle);

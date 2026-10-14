@@ -18,11 +18,11 @@
 //                                              AND kid AND public key as ONE
 //                                              atomic snapshot. A holder-role
 //                                              handle can never sign a grant —
-//                                              the C1 gate.
+//                                              the issuer-role gate.
 
 import { acceptablePublicKey } from "@bounded-authority-protocol/verifier";
 
-/** A handle's role. Only an `"issuer"` identity can sign a grant (the C1 gate). */
+/** A handle's role. Only an `"issuer"` identity can sign a grant (the issuer-role gate). */
 export type KeyRole = "issuer" | "holder";
 
 /** A key id and public key returned together by `keyIdentity()`, so a rotating handle cannot split them. Read from own data properties only. */
@@ -132,7 +132,7 @@ export async function resolveIdentityWith(read: () => unknown, check: KeyCheck):
   }
 }
 
-/** The C1 gate: grants require an issuer-role identity resolved atomically. */
+/** The issuer-role gate: grants require an issuer-role identity resolved atomically. */
 export async function resolveIssuerWith(read: () => unknown, check: KeyCheck): Promise<AtomicKeyIdentity | undefined> {
   try {
     const snap: unknown = await read();

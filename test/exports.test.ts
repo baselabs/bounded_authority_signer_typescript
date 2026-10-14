@@ -1,6 +1,7 @@
 // Every type a public declaration names must itself be importable from the package root. The test walks
 // the type annotations of everything src/index.ts exports (function parameters, return types, interface
-// members, type aliases), follows each type reference transitively, and fails for any type declared in
+// members, type aliases), follows each type reference transitively (named references, `extends`
+// clauses, `typeof` queries and `import("./x.js").T` types), and fails for any type declared in
 // this package's src/ that the root does not export: such a type is reachable only through a deep import.
 // Types from the verifier package (Bounds, Tagged, OperationInput, ...) are public there, so they are not
 // required here. An exported function must annotate its return type, so nothing inferred escapes the walk.
@@ -53,6 +54,7 @@ export function unexportedReachableTypes(rootFile: string = INDEX): { missing: s
     if (ts.isTypeReferenceNode(node)) name = node.typeName;
     else if (ts.isExpressionWithTypeArguments(node)) name = node.expression;
     else if (ts.isTypeQueryNode(node)) name = node.exprName;
+    else if (ts.isImportTypeNode(node)) name = node.qualifier; // import("./x.js").T
     if (name !== undefined) {
       const ref = checker.getSymbolAtLocation(ts.isQualifiedName(name) ? name.right : name);
       if (ref !== undefined) {

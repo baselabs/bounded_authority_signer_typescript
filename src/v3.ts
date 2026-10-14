@@ -247,6 +247,11 @@ export function v3RequestDigest(operation: string, castArguments: Tagged, bounds
 // ---------------------------------------------------------------------------
 // Producer types.
 
+/**
+ * A contract-major-3 selector: `all` (also the bare string `"all"`), `equals`, `one_of`, or the range
+ * kinds `lte` and `gte` with an `int`- or `float`-tagged bound. `path` names a member of the request's
+ * `castArguments`; the verifier evaluates selectors, the signer does not. Same shape as `V2SelectorInput`.
+ */
 export type V3SelectorInput =
   | "all"
   | { readonly kind: "all" }
@@ -255,6 +260,7 @@ export type V3SelectorInput =
   | { readonly kind: "lte"; readonly path: readonly string[]; readonly value: Tagged }
   | { readonly kind: "gte"; readonly path: readonly string[]; readonly value: Tagged };
 
+/** One operation a v3 grant allows (`V3GrantInput.operations`): its name and its selectors, all of which must match. */
 export interface V3OperationInput {
   readonly name: string;
   readonly selectors: readonly V3SelectorInput[];

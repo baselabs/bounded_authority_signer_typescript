@@ -186,7 +186,7 @@ export async function signV2Anchor(input: V2AnchorInput, handle: KeyHandle, opts
 }
 
 /**
- * Sign a contract-major-2 capability grant. Issuer-only: the C1 gate of `signGrant` applies.
+ * Sign a contract-major-2 capability grant. Issuer-only: the issuer-role gate of `signGrant` applies.
  *
  * @returns `{ ok: true, value: { grant } }`, or `invalid_grant`, `invalid_key_handle`, `producer_error` or `signing_failed`.
  * @example https://github.com/baselabs/bounded_authority_signer_typescript#contract-major-2-ed25519-with-range-selectors
@@ -200,7 +200,7 @@ export async function signV2Grant(input: V2GrantInput, handle: KeyHandle, opts: 
     emit("error");
     return err("invalid_grant");
   }
-  // The C1 gate: only an issuer-role identity (resolved atomically) may sign a grant — a holder handle
+  // The issuer-role gate: only an issuer-role identity (resolved atomically) may sign a grant — a holder handle
   // (or one without signingIdentity) fails closed BEFORE sign() is called.
   const identity = await resolveIssuerIdentity(handle);
   if (identity === undefined) { emit("error"); return err("invalid_key_handle"); }

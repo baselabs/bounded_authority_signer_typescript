@@ -58,7 +58,7 @@ export interface WebCryptoKeyPairLike {
 export interface WebCryptoHandleOptions {
   /** Enables keyIdentity() and signingIdentity(): anchors, key transitions and grants need it. */
   readonly keyId?: string;
-  /** "holder" (the default) or "issuer". Only an issuer handle can sign a grant (the C1 gate). */
+  /** "holder" (the default) or "issuer". Only an issuer handle can sign a grant (the issuer-role gate). */
   readonly role?: KeyRole;
 }
 
