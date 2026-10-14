@@ -22,6 +22,17 @@ What it is not: it does not verify (that is the verifier package), decide whethe
 allowed, store keys, transport anything, or track replay and revocation (that is your authority
 runtime).
 
+Contents: [Install](#install) · [Quickstart](#quickstart) ·
+[The key-handle contract](#the-key-handle-contract) · [API reference](#api-reference) ·
+[Errors](#errors) · [Contract-major 2](#contract-major-2-ed25519-with-range-selectors) ·
+[Contract-major 3](#contract-major-3-es256) ·
+[Anchors and key rotation](#anchor-a-chain-and-rotate-its-key) ·
+[Loopback](#sign-for-a-local-app-loopback) · [Testing](#test-your-integration) ·
+[WebCrypto key handles](#webcrypto-key-handles) ·
+[Browsers, Deno, Bun](#browsers-deno-bun-and-workers) · [How it is tested](#how-this-package-is-tested) ·
+[Versioning](#versioning-and-compatibility) · [Protocol family](#protocol-family) ·
+[Development](#development)
+
 It signs three wire contract-majors, each with its own functions:
 
 | Contract-major | Suite | Signers |
@@ -33,20 +44,32 @@ It signs three wire contract-majors, each with its own functions:
 ## Install
 
 ```bash
-npm install @bounded-authority-protocol/signer@0.5.0
+npm install @bounded-authority-protocol/signer@0.5.0 @bounded-authority-protocol/verifier@0.7.0
 ```
 
 That is the latest release on npm. This README documents the source on `main`, version 0.6.0,
 which is not released yet; the parts only 0.6.0 has are marked **0.6.0**.
 
-It runs on Node.js 22 or later, current browsers, Deno and Bun, with one runtime dependency: the
-verifier package.
+The signer's one runtime dependency is the verifier. Install the verifier yourself too when your
+code imports it, as every example here does (pnpm, for one, does not let you import a package you
+did not install). It runs on Node.js 22 or later, current browsers, Deno and Bun.
 
 ## Quickstart
 
 An issuer grants an agent read access to one repository; the agent proves one request; the
-resource server verifies it. First, a key handle over in-process keys, for trying the library
-(in production, `sign()` calls your KMS, HSM or WebCrypto key instead). Save it as `key-handle.ts`:
+resource server verifies it. You need Node.js 22 or later. In an empty directory, create an ES
+module project (the examples use top-level `await`), install both packages, and install
+[tsx](https://www.npmjs.com/package/tsx) to run TypeScript:
+
+<!-- readme-sample: setup -->
+```bash
+npm init -y && npm pkg set type=module
+npm install @bounded-authority-protocol/signer@0.5.0 @bounded-authority-protocol/verifier@0.7.0
+npm install --save-dev tsx
+```
+
+First, a key handle over in-process keys, for trying the library (in production, `sign()` calls
+your KMS, HSM or WebCrypto key instead). Save it as `key-handle.ts`:
 
 <!-- readme-sample: file key-handle.ts -->
 ```ts
@@ -126,12 +149,14 @@ if (!envelope.ok) throw new Error(`signReport: ${envelope.error}`);
 
 // 3. The resource server verifies the pair with the verifier package and gets facts, not a decision.
 const facts = checkEnvelope(envelope.value.grant, envelope.value.proof, {
-  ...request,
-  trustedIssuer: { keyId: "issuer-key-1", publicKey: await issuer.publicKey() },
-  issuer: "https://issuer.example",
-  audience: "https://code.example",
-  evaluationTime: 1_767_225_700, clockSkew: 60, proofMaxAge: 300,
-  nonce: { kind: "not_required" },
+  ...request,                       // the request the server actually received
+  trustedIssuer: { keyId: "issuer-key-1", publicKey: await issuer.publicKey() }, // a key the server already trusts
+  issuer: "https://issuer.example", // the issuer the grant must name
+  audience: "https://code.example", // this server: one of the grant's audiences
+  evaluationTime: 1_767_225_700,    // "now", in Unix seconds: the verifier reads no clock
+  clockSkew: 60,                    // seconds of tolerance between the parties' clocks
+  proofMaxAge: 300,                 // seconds a proof stays acceptable after its issuedAt
+  nonce: { kind: "not_required" },  // this server issues no nonces
 });
 if (!facts.ok) throw new Error("the envelope did not verify");
 console.log(`verified: ${facts.value.operation} under ${facts.value.grantId}`);
@@ -150,7 +175,7 @@ Every signer returns `{ ok: true, value }` or `{ ok: false, error }`; check `ok`
 
 ## The key-handle contract
 
-A handle is any object with these methods (the exported types, verbatim):
+A handle is any object with these methods (the exported declarations, verbatim; the comments are added):
 
 <!-- readme-sample: types -->
 ```ts
@@ -189,7 +214,7 @@ What the library does with a handle:
 - **Which methods it calls.** Every signer calls `sign()`. Report signers read `publicKey()`;
   anchor and key-transition signers read `keyIdentity()`; grant signers read `signingIdentity()`.
   `thumbprint()` is for you: put the holder's thumbprint in the grant's `holderThumbprint`.
-- **The C1 role gate.** A grant signer reads `signingIdentity()` once and fails closed with
+- **The issuer-role gate.** A grant signer reads `signingIdentity()` once and fails closed with
   `invalid_key_handle`, before `sign()` is ever called, unless the snapshot's own `role` is
   `"issuer"`. A holder handle can never mint its own grant. `role`, `keyId` and `publicKey` count
   only as the snapshot's own data properties, never inherited ones or getters (**0.6.0**; 0.5.0 also
@@ -243,8 +268,8 @@ The package also exports the key-handle factories `ed25519KeyHandle` and `es256K
 (**0.6.0**, see [WebCrypto key handles](#webcrypto-key-handles)), and these types: `KeyHandle`,
 `Es256KeyHandle`, `KeyRole`, `AtomicKeyIdentity`, `AtomicSigningIdentity`, `SignerErrorCode`,
 `SignerResult`, the input and option types named in this section, `SignerEvent`, `V2SignerEvent`,
-`V3SignerEvent`, `V2OperationInput`, `V2SelectorInput`, `V3OperationInput` and `V3SelectorInput`
-(**0.6.0**; see [Inputs](#inputs)), the value types `Envelope`, `GrantCompact`,
+`V3SignerEvent`, `V2OperationInput`, `V2SelectorInput`, from **0.6.0** `V3OperationInput` and
+`V3SelectorInput` (see [Inputs](#inputs)), the value types `Envelope`, `GrantCompact`,
 `AnchorCompact` and `TransitionCompact`, and (**0.6.0**) `WebCryptoKeyLike`, `WebCryptoKeyPairLike` and
 `WebCryptoHandleOptions`.
 
@@ -269,7 +294,7 @@ selector of an operation must match. The signer does not evaluate selectors; the
 The operation and selector types: on v1 the verifier package's `OperationInput` and `SelectorInput`
 (import them from `@bounded-authority-protocol/verifier`); on v2 `V2OperationInput` and
 `V2SelectorInput`; on v3 `V3OperationInput` and `V3SelectorInput`, exported from the package root
-from **0.6.0** (0.5.0 reached them only through a deep import). The v2 and v3 shapes are the same:
+from **0.6.0** (0.5.0 reached them only through a deep import):
 
 <!-- readme-sample: types -->
 ```ts
@@ -288,10 +313,9 @@ interface V3OperationInput {
   readonly selectors: readonly V3SelectorInput[];
 }
 
-// The v2 types have the same shapes.
-type V2SelectorInput = V3SelectorInput;
-interface V2OperationInput extends V3OperationInput {}
 ```
+
+`V2SelectorInput` and `V2OperationInput` declare the same members.
 
 `ReportInput` (and `V2ReportInput`, `V3ReportInput`):
 
@@ -906,7 +930,7 @@ measurement in [`tools/bundle-size-limits.json`](tools/bundle-size-limits.json).
   `checkLocalLoopbackHttpEnvelope`, and the `v2` and `v3` namespaces' equivalents). The v3
   signatures are also checked at the byte level: each verifies over the exact RFC 7515 signing
   input under `node:crypto`, both in the raw `ieee-p1363` form and re-encoded as DER.
-- **Red-capable gates.** The C1 role gate, the wrong-key guard, the loopback nonce and target
+- **Red-capable gates.** The issuer-role gate, the wrong-key guard, the loopback nonce and target
   rules, the identity-snapshot requirement, low-S normalization and the P-256 on-curve check each
   have a test that fails when the check is removed.
 - **Every runtime.** One sign-then-verify battery (v1, loopback, v2 and v3 envelopes, grants,
@@ -928,8 +952,11 @@ measurement in [`tools/bundle-size-limits.json`](tools/bundle-size-limits.json).
   with `skipLibCheck: false`.
 - **Public types.** `test/exports.test.ts` fails if a public declaration names a type that the
   package root does not export.
-- **The README.** Every TypeScript sample in this file is typechecked and run by
-  `test/readme.test.ts`, and each printed result is compared with the output shown under it.
+- **The README.** Every TypeScript sample in this file is typechecked and run against the source by
+  `test/readme.test.ts`, and each printed result is compared with the output shown under it; the
+  handle and selector types are compared text for text with their declarations. `test/reader.ts`
+  runs the Quickstart as a reader does, in an empty directory with the setup commands above, the
+  pinned packages from npm and `npx tsx`, and checks that the pinned versions are npm's latest.
 
 CI runs on Linux (`ubuntu-24.04`). Linux WebKit is evidence for this code on that WebKit build,
 not for Safari. The release workflow repeats every lane on Node 24.19.0, then stages the publish
@@ -989,7 +1016,7 @@ The CI scripts:
 | `test`, `test:portable` | unit tests, gates, the verifier oracle and the README samples, on the verifier's node and portable backends |
 | `test:gates` | the red-capable gates alone |
 | `test:runtimes` | the sign-then-verify lanes; `BAP_RUNTIMES` selects from `node,node-portable,deno,bun` (default: all four) |
-| `test:tarball` | the packed package as a consumer installs it (needs Deno and Bun) |
+| `test:tarball` | the packed package as a consumer installs it (needs Deno and Bun); the Quickstart as a reader runs it, the README's version pins, and the playground badge rules (these need the npm registry) |
 | `test:browser` | Playwright lanes; `BAP_BROWSERS` selects from `chromium,firefox,webkit` (default `chromium`); install the engines with `pnpm exec playwright install` |
 | `check:currency` | every dependency at its latest version, or pinned with a recorded reason |
 | `build:site`, `guard:site` | the playground bundle, and its scan |

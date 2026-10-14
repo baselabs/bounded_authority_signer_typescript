@@ -56,7 +56,7 @@
     "test": "node --test --import tsx/esm test/*.test.ts",
     "test:portable": "node --test --conditions=bap-portable --import tsx/esm test/*.test.ts",
     "test:gates": "node --test --import tsx/esm test/gates.test.ts",
-    "test:tarball": "pnpm build && node --test --import tsx/esm test/tarball.ts",
+    "test:tarball": "pnpm build && node --test --import tsx/esm test/tarball.ts test/reader.ts test/site-badge.ts",
     "test:runtimes": "node --test --import tsx/esm test/runtimes.ts",
     "test:browser": "node --test --import tsx/esm test/browser.ts",
     "check:currency": "node tools/check-currency.mjs",

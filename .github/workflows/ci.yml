@@ -158,7 +158,7 @@ jobs:
       - name: Install (frozen lockfile)
         run: pnpm install --frozen-lockfile
 
-      - name: Packed tarball checks (builds first)
+      - name: Packed tarball checks, the README Quickstart run as a reader runs it, the README version pins, and the site badge rules (builds first; uses the npm registry)
         run: pnpm test:tarball
 
   browser:

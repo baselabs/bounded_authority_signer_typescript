@@ -1,18 +1,10 @@
 // The README's TypeScript samples, typechecked and run against this source (no mocks: real keys, the
-// real verifier package). Each code fence in README.md that a reader would copy carries a marker on the
-// line before it:
-//
-//   <!-- readme-sample: file NAME -->  a module the other samples import (typechecked with them)
-//   <!-- readme-sample: run -->        typechecked under tsconfig.json (Node types), then run
-//   <!-- readme-sample: run-dom -->    typechecked under tsconfig.browser.json (DOM library, no Node types), then run
-//   <!-- readme-sample: types -->      typechecked; every interface or type it declares must be mutually
-//                                      assignable with the package export of the same name
-//   <!-- readme-output -->             before a text fence: the exact console output of the run sample above it
-//
-// A ts/typescript/js fence without a marker fails the test. The package specifier is rewritten to this
-// repository's src/index.js, so the samples run against the code at HEAD; under test:portable they run on
-// the verifier's portable backend. The last test checks that every README anchor that the README itself
-// or a src/ doc comment links to exists.
+// real verifier package). The markers are described in test/readme-samples.ts. The package specifier is
+// rewritten to this repository's src/index.js, so the samples run against the code at HEAD; under
+// test:portable they run on the verifier's portable backend. test/reader.ts runs the Quickstart the way a
+// reader does instead: an empty directory, the README's setup commands, the published packages.
+// The types samples must be the exported declarations, text for text; the last test checks that every
+// README anchor that the README itself or a src/ doc comment links to exists.
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
@@ -20,52 +12,14 @@ import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { format } from "node:util";
 import ts from "typescript";
+import { parse } from "./readme-samples.js";
 
 const REPO = fileURLToPath(new URL("..", import.meta.url));
 const SRC_INDEX = join(REPO, "src/index.js");
 const PACKAGE = "@bounded-authority-protocol/signer";
 const README = readFileSync(join(REPO, "README.md"), "utf8");
 
-type Kind = "file" | "run" | "run-dom" | "types";
-interface Sample {
-  readonly kind: Kind;
-  readonly line: number;      // 1-based line of the opening fence
-  readonly code: string;
-  readonly fileName: string;
-  output?: string;
-}
-
-function parse(markdown: string): Sample[] {
-  const lines = markdown.split("\n");
-  const samples: Sample[] = [];
-  let index = 0;
-  for (let i = 0; i < lines.length; i++) {
-    const fence = /^```(\w*)/.exec(lines[i]!);
-    if (fence === null) continue;
-    const lang = fence[1]!;
-    let end = i + 1;
-    while (end < lines.length && lines[end] !== "```") end++;
-    assert.ok(end < lines.length, `README.md:${i + 1}: unclosed fence`);
-    const body = lines.slice(i + 1, end).join("\n");
-    const marker = i > 0 ? lines[i - 1]! : "";
-    if (marker === "<!-- readme-output -->") {
-      assert.equal(lang, "text", `README.md:${i + 1}: an output block is a text fence`);
-      const owner = samples.at(-1);
-      assert.ok(owner !== undefined && (owner.kind === "run" || owner.kind === "run-dom") && owner.output === undefined,
-        `README.md:${i + 1}: an output block must follow a run sample that has no output block yet`);
-      owner.output = body;
-    } else if (["ts", "typescript", "js", "javascript", "tsx", "mjs"].includes(lang)) {
-      const m = /^<!-- readme-sample: (file ([\w.-]+\.ts)|run|run-dom|types) -->$/.exec(marker);
-      assert.ok(m !== null, `README.md:${i + 1}: a ${lang} fence needs a readme-sample marker on the line before it`);
-      const kind = (m[2] === undefined ? m[1] : "file") as Kind;
-      samples.push({ kind, line: i + 1, code: body, fileName: m[2] ?? `sample-${String(++index).padStart(2, "0")}-line-${i + 1}.ts` });
-    }
-    i = end;
-  }
-  return samples;
-}
-
-const SAMPLES = parse(README);
+const SAMPLES = parse(README).filter((s) => s.kind !== "setup");
 let dir = "";
 
 function typecheck(baseConfig: string, files: readonly string[]): string[] {
@@ -132,6 +86,50 @@ for (const sample of SAMPLES.filter((s) => s.kind === "run" || s.kind === "run-d
     if (sample.output !== undefined) assert.equal(printed.join("\n"), sample.output);
   });
 }
+
+// The text of a declaration without comments, `export`, or whitespace differences.
+const normalized = (text: string): string =>
+  text.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "").replace(/^\s*export\s+/, "").replace(/\s+/g, " ").replace(/\s*([;{}()<>|:,?=\[\]])\s*/g, "$1").trim();
+
+/** The source text of every type the package root exports, by exported name. */
+function exportedDeclarations(): Map<string, string> {
+  const index = join(REPO, "src/index.ts");
+  const program = ts.createProgram({ rootNames: [index], options: { strict: true, module: ts.ModuleKind.NodeNext, moduleResolution: ts.ModuleResolutionKind.NodeNext, noEmit: true } });
+  const checker = program.getTypeChecker();
+  const moduleSymbol = checker.getSymbolAtLocation(program.getSourceFile(index)!)!;
+  const found = new Map<string, string>();
+  for (const symbol of checker.getExportsOfModule(moduleSymbol)) {
+    const target = symbol.flags & ts.SymbolFlags.Alias ? checker.getAliasedSymbol(symbol) : symbol;
+    const decl = target.declarations?.find((d) => ts.isInterfaceDeclaration(d) || ts.isTypeAliasDeclaration(d));
+    if (decl !== undefined) found.set(symbol.getName(), decl.getText());
+  }
+  return found;
+}
+
+test("README: every declaration in a types sample is the exported declaration, text for text (comments aside)", () => {
+  const source = exportedDeclarations();
+  let compared = 0;
+  for (const sample of SAMPLES.filter((s) => s.kind === "types")) {
+    const file = ts.createSourceFile("sample.ts", sample.code, ts.ScriptTarget.ES2022, true);
+    for (const statement of file.statements) {
+      if (ts.isImportDeclaration(statement)) continue;
+      assert.ok(ts.isInterfaceDeclaration(statement) || ts.isTypeAliasDeclaration(statement), `README.md:${sample.line}: a types sample holds only imports and type declarations`);
+      const name = statement.name.text;
+      const exported = source.get(name);
+      assert.ok(exported !== undefined, `README.md:${sample.line}: ${name} is not an exported type`);
+      assert.equal(normalized(statement.getText()), normalized(exported), `README.md:${sample.line}: ${name} differs from its source declaration`);
+      compared++;
+    }
+  }
+  assert.ok(compared >= 7, `compared ${compared} declarations`);
+});
+
+test("README: V2SelectorInput and V2OperationInput declare the same members as their v3 counterparts, as the README says", () => {
+  const source = exportedDeclarations();
+  const body = (name: string): string => normalized(source.get(name)!).replace(/^(type|interface)\s*\w+/, "").replaceAll("V2SelectorInput", "V3SelectorInput");
+  assert.equal(body("V2SelectorInput"), body("V3SelectorInput"));
+  assert.equal(body("V2OperationInput"), body("V3OperationInput"));
+});
 
 // GitHub's heading anchors: lowercase, punctuation other than hyphens and spaces dropped, spaces to hyphens.
 function anchors(markdown: string): Set<string> {
