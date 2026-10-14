@@ -61,7 +61,9 @@ export const err = <T = never>(error: SignerErrorCode): SignerResult<T> => ({ ok
 // a reference to the array it returned and rewrite it later. So each resolver reads the snapshot's
 // fields once, inside a try, validates them there, and returns its own fresh object with a private
 // copy of the key: a later rewrite of the handle's array cannot change the key the library composes
-// with and checks against. Any fault is undefined, which the signers map to invalid_key_handle.
+// with and checks against. Snapshot fields are read from OWN data properties only (ownValue), so an
+// inherited or polluted role, key id or key never counts. Any fault is undefined, which the signers map
+// to invalid_key_handle.
 
 /** A key check over the library's own copy (width, and for Ed25519 the verifier's acceptability). */
 export type KeyCheck = (key: Uint8Array) => boolean;
@@ -80,6 +82,12 @@ function copyKey(value: unknown, check: KeyCheck): Uint8Array | undefined {
 
 const isKeyId = (v: unknown): v is string => typeof v === "string" && v.length > 0;
 
+/**
+ * An OWN data property's value, or undefined: never an inherited property (a polluted Object.prototype
+ * cannot supply a role or a key id) and never a getter's result.
+ */
+export const ownValue = (object: object, key: string): unknown => Object.getOwnPropertyDescriptor(object, key)?.value;
+
 export async function resolveKeyWith(read: () => unknown, check: KeyCheck): Promise<Uint8Array | undefined> {
   try {
     return copyKey(await read(), check);
@@ -92,7 +100,8 @@ export async function resolveIdentityWith(read: () => unknown, check: KeyCheck):
   try {
     const snap: unknown = await read();
     if (snap === null || typeof snap !== "object") return undefined;
-    const { keyId, publicKey } = snap as { keyId?: unknown; publicKey?: unknown };
+    const keyId = ownValue(snap, "keyId");
+    const publicKey = ownValue(snap, "publicKey");
     if (!isKeyId(keyId)) return undefined;
     const key = copyKey(publicKey, check);
     return key === undefined ? undefined : { keyId, publicKey: key };
@@ -106,7 +115,9 @@ export async function resolveIssuerWith(read: () => unknown, check: KeyCheck): P
   try {
     const snap: unknown = await read();
     if (snap === null || typeof snap !== "object") return undefined;
-    const { role, keyId, publicKey } = snap as { role?: unknown; keyId?: unknown; publicKey?: unknown };
+    const role = ownValue(snap, "role");
+    const keyId = ownValue(snap, "keyId");
+    const publicKey = ownValue(snap, "publicKey");
     if (role !== "issuer" || !isKeyId(keyId)) return undefined;
     const key = copyKey(publicKey, check);
     return key === undefined ? undefined : { keyId, publicKey: key };

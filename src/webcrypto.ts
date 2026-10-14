@@ -5,11 +5,11 @@
 // The library never generates, imports, wraps, stores or exports a private key, and no key bytes enter
 // its memory. The factory reads public facts about the pair through the CryptoKey.prototype getters
 // (captured when this module loads), exports the PUBLIC key in raw form, checks it, and proves the pair
-// matches with one probe signature. The handle signs through crypto.subtle.sign with the caller's private
-// CryptoKey, held only in the handle's closure, and only over the JWS signing-input shape.
+// matches with one probe signature. The handle signs through the captured SubtleCrypto sign with the
+// caller's private CryptoKey, held only in the handle's closure, and only over the JWS signing-input shape.
 //
-// This is the only file in src/ that may reach crypto.subtle (eslint.config.js), and only as two direct
-// calls: subtle.sign(...) and subtle.exportKey("raw", ...).
+// This is the only file in src/ that may reach crypto.subtle (eslint.config.js), and only for two
+// operations, through the methods captured at module load: sign, and exportKey with the literal "raw".
 //
 // What the checks are, and are not:
 //   - The extractable refusal is a policy guard against an accidental pairing, not a defense against the
@@ -19,6 +19,9 @@
 //     non-extractable private key through node:crypto's KeyObject.from(); Deno refuses.
 //   - Whoever holds the handle can sign with the key. sign() accepts only the JWS signing-input shape
 //     (base64url "." base64url), so the handle cannot sign arbitrary bytes, but it signs any JWS input.
+//   - Everything the factory relies on from the environment is captured when this module loads:
+//     crypto.subtle, SubtleCrypto.prototype.sign and exportKey, the CryptoKey getters, structuredClone
+//     and Reflect.apply. A page that patches them later changes nothing here.
 import {
   acceptablePublicKey,
   base64urlEncode,
@@ -30,7 +33,7 @@ import {
 } from "@bounded-authority-protocol/verifier";
 import type { Es256KeyHandle } from "./apiV3.js";
 import { normalizeLowS } from "./es256.js";
-import { err, ok, type KeyHandle, type KeyRole, type SignerResult } from "./handle.js";
+import { err, ok, ownValue, type KeyHandle, type KeyRole, type SignerResult } from "./handle.js";
 import { ecThumbprint, isOnCurveP256 } from "./v3.js";
 
 // --- public types: structural only (no DOM or Node global type in any public declaration) ---
@@ -61,12 +64,6 @@ export interface WebCryptoHandleOptions {
 /** The two suites: Ed25519 (majors 1 and 2, the sibling profiles) and ES256 (major 3). */
 export type Suite = "Ed25519" | "ES256";
 
-/** The two SubtleCrypto methods this file calls, structurally. */
-export interface SubtleSigner {
-  sign(algorithm: { readonly name: string; readonly hash?: string }, key: unknown, data: Uint8Array): Promise<ArrayBuffer>;
-  exportKey(format: "raw", key: unknown): Promise<ArrayBuffer>;
-}
-
 type Getter = (this: unknown) => unknown;
 interface CryptoKeyGetters {
   readonly type: Getter;
@@ -74,9 +71,49 @@ interface CryptoKeyGetters {
   readonly algorithm: Getter;
 }
 
-// The CryptoKey.prototype getters and Reflect.apply, captured when this module loads, so a page that
-// replaces them later does not change what the factory reads. Absent outside a secure context.
+// Captured when this module loads, so a page that replaces them later changes nothing: Reflect.apply,
+// structuredClone, the CryptoKey.prototype getters, crypto.subtle and SubtleCrypto.prototype.sign and
+// exportKey. The WebCrypto ones are absent outside a secure context.
 const reflectApply = Reflect.apply;
+const CLONE: ((value: unknown) => unknown) | undefined =
+  typeof globalThis.structuredClone === "function" ? globalThis.structuredClone : undefined;
+
+type Method = (...args: unknown[]) => unknown;
+
+// The first own function along the prototype chain that `lookup` finds (WebIDL operations live on the
+// prototype); undefined if there is none.
+function findMethod(target: object, lookup: (o: object) => unknown): Method | undefined {
+  for (let o: object | null = target; o !== null; o = Object.getPrototypeOf(o) as object | null) {
+    const value = lookup(o);
+    if (typeof value === "function") return value as Method;
+  }
+  return undefined;
+}
+
+const SUBTLE_TARGET: object | undefined = (() => {
+  try {
+    const target: unknown = (globalThis as unknown as { crypto?: { subtle?: unknown } }).crypto?.subtle;
+    return target === null || typeof target !== "object" ? undefined : target;
+  } catch {
+    return undefined;
+  }
+})();
+const SUBTLE_SIGN = SUBTLE_TARGET && findMethod(SUBTLE_TARGET, (o) => Object.getOwnPropertyDescriptor(o, "sign")?.value);
+const SUBTLE_EXPORT_KEY = SUBTLE_TARGET && findMethod(SUBTLE_TARGET, (o) => Object.getOwnPropertyDescriptor(o, "exportKey")?.value);
+
+/** The captured SubtleCrypto: present only when crypto.subtle and both methods were found at load. */
+interface Subtle {
+  readonly target: object;
+}
+const SUBTLE: Subtle | undefined =
+  SUBTLE_TARGET !== undefined && SUBTLE_SIGN !== undefined && SUBTLE_EXPORT_KEY !== undefined ? Object.freeze({ target: SUBTLE_TARGET }) : undefined;
+
+// The only two WebCrypto operations, through the captured methods: a signature with the caller's
+// private key, and the raw export of the PUBLIC key.
+const subtleSign = (subtle: Subtle, algorithm: object, key: unknown, data: Uint8Array): Promise<ArrayBuffer> =>
+  reflectApply(SUBTLE_SIGN as Method, subtle.target, [algorithm, key, data]) as Promise<ArrayBuffer>;
+const exportRaw = (subtle: Subtle, key: unknown): Promise<ArrayBuffer> =>
+  reflectApply(SUBTLE_EXPORT_KEY as Method, subtle.target, ["raw", key]) as Promise<ArrayBuffer>;
 const GETTERS: CryptoKeyGetters | undefined = (() => {
   try {
     const ctor: unknown = (globalThis as unknown as { CryptoKey?: unknown }).CryptoKey;
@@ -98,11 +135,6 @@ const GETTERS: CryptoKeyGetters | undefined = (() => {
 // engines a Proxy). A throw is a refusal.
 const read = (getter: Getter, key: unknown): unknown => reflectApply(getter, key, []);
 
-function runtimeSubtle(): SubtleSigner | undefined {
-  const subtle = (globalThis as unknown as { crypto?: { subtle?: SubtleSigner } }).crypto?.subtle;
-  return subtle === null || typeof subtle !== "object" ? undefined : subtle;
-}
-
 const signAlgorithm = (suite: Suite) => (suite === "Ed25519" ? { name: "Ed25519" } : { name: "ECDSA", hash: "SHA-256" });
 
 function algorithmMatches(suite: Suite, algorithm: unknown): boolean {
@@ -116,10 +148,13 @@ interface Options {
   readonly role: KeyRole;
 }
 
+// Own data properties only (F1): an inherited keyId or role, including one on a polluted
+// Object.prototype, is never read.
 function readOptions(opts: unknown): Options | undefined {
   if (opts === undefined) return { keyId: undefined, role: "holder" };
   if (opts === null || typeof opts !== "object") return undefined;
-  const { keyId, role } = opts as { keyId?: unknown; role?: unknown };
+  const keyId = ownValue(opts, "keyId");
+  const role = ownValue(opts, "role");
   if (keyId !== undefined && (typeof keyId !== "string" || keyId.length === 0)) return undefined;
   if (role !== undefined && role !== "holder" && role !== "issuer") return undefined;
   return { keyId: keyId as string | undefined, role: (role as KeyRole | undefined) ?? "holder" };
@@ -143,15 +178,17 @@ export interface KeySnapshot {
  * mismatched pair, a relabeled algorithm (X25519 as Ed25519, P-384 as P-256) or a key that cannot sign
  * fails here. Never throws: any failure is undefined.
  */
-export async function admitKeyPair(suite: Suite, raw: Uint8Array, privateKey: unknown, subtle: SubtleSigner): Promise<KeySnapshot | undefined> {
+export async function admitKeyPair(suite: Suite, raw: Uint8Array, privateKey: unknown): Promise<KeySnapshot | undefined> {
   try {
+    const subtle = SUBTLE;
+    if (subtle === undefined) return undefined;
     const key = new Uint8Array(raw);
     if (suite === "Ed25519") {
       if (key.length !== 32 || !acceptablePublicKey(key) || !torsionFree(key)) return undefined;
     } else if (key.length !== 65 || key[0] !== 0x04 || !isOnCurveP256(key.subarray(1, 33), key.subarray(33))) {
       return undefined;
     }
-    const signature = new Uint8Array(await subtle.sign(signAlgorithm(suite), privateKey, PROBE.slice()));
+    const signature = new Uint8Array(await subtleSign(subtle, signAlgorithm(suite), privateKey, PROBE.slice()));
     if (signature.length !== 64) return undefined;
     const matches = suite === "Ed25519" ? verifyStrict(PROBE, signature, key) : es256VerifyStrict(PROBE, normalizeLowS(signature), key);
     if (!matches) return undefined;
@@ -180,7 +217,7 @@ function jwsSigningInput(message: unknown): Uint8Array {
   return bytes;
 }
 
-function buildHandle(suite: Suite, subtle: SubtleSigner, privateKey: unknown, snapshot: KeySnapshot, options: Options): KeyHandle & Es256KeyHandle {
+function buildHandle(suite: Suite, subtle: Subtle, privateKey: unknown, snapshot: KeySnapshot, options: Options): KeyHandle & Es256KeyHandle {
   const publicKey = (): Uint8Array => snapshot.publicKey.slice();
   const { keyId, role } = options;
   const identity = keyId === undefined ? {} : {
@@ -191,7 +228,7 @@ function buildHandle(suite: Suite, subtle: SubtleSigner, privateKey: unknown, sn
     // Ed25519: the 64-byte signature. ES256: WebCrypto's raw IEEE P1363 r || s, unchanged (high-S
     // included); the shared v3 tail normalizes it, exactly as for a caller-written handle.
     sign: async (message: Uint8Array): Promise<Uint8Array> =>
-      new Uint8Array(await subtle.sign(signAlgorithm(suite), privateKey, jwsSigningInput(message))),
+      new Uint8Array(await subtleSign(subtle, signAlgorithm(suite), privateKey, jwsSigningInput(message))),
     publicKey,
     thumbprint: (): string => snapshot.thumbprint,
     ...identity,
@@ -202,13 +239,21 @@ async function keyHandle(suite: Suite, pair: unknown, opts: unknown): Promise<Si
   try {
     // 1. Runtime gate. Outside a secure context there is no crypto.subtle and no CryptoKey; nothing the
     //    caller passed is read before this passes.
-    const subtle = runtimeSubtle();
-    if (subtle === undefined || GETTERS === undefined) return err("invalid_key_handle");
+    const subtle = SUBTLE;
+    if (subtle === undefined || GETTERS === undefined || CLONE === undefined) return err("invalid_key_handle");
     // 2. Options.
     const options = readOptions(opts);
     if (options === undefined) return err("invalid_key_handle");
-    // 3. Each key is read from the pair exactly once; every fact about it comes from the brand-checked getters.
-    const { privateKey, publicKey } = pair as { privateKey: unknown; publicKey: unknown };
+    // 3. Each key is read from the pair exactly once, from an own data property; every fact about it
+    //    comes from the brand-checked getters.
+    if (pair === null || typeof pair !== "object") return err("invalid_key_handle");
+    const privateKey = ownValue(pair, "privateKey");
+    const publicKey = ownValue(pair, "publicKey");
+    // 3b. Both keys must be structured-cloneable, as a real CryptoKey is (F2). A Proxy never is (the clone
+    //     throws DataCloneError), which also refuses a Proxy that lies to the getters on engines whose
+    //     internal slots it can reach (Deno). The clones are discarded.
+    CLONE(privateKey);
+    CLONE(publicKey);
     // 4. Key types.
     if (read(GETTERS.type, privateKey) !== "private" || read(GETTERS.type, publicKey) !== "public") return err("invalid_key_handle");
     // 5. Extractable refusal (always; there is no option to allow an extractable private key).
@@ -218,9 +263,9 @@ async function keyHandle(suite: Suite, pair: unknown, opts: unknown): Promise<Si
       return err("invalid_key_handle");
     }
     // 7. The public key from its raw export (public keys are always exportable).
-    const raw = new Uint8Array(await subtle.exportKey("raw", publicKey));
+    const raw = new Uint8Array(await exportRaw(subtle, publicKey));
     // 8. Acceptability and the probe signature; 9. the snapshot.
-    const snapshot = await admitKeyPair(suite, raw, privateKey, subtle);
+    const snapshot = await admitKeyPair(suite, raw, privateKey);
     if (snapshot === undefined) return err("invalid_key_handle");
     return ok(buildHandle(suite, subtle, privateKey, snapshot, options));
   } catch {

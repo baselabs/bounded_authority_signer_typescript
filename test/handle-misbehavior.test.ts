@@ -10,6 +10,8 @@
 //       key: the closed invalid_key_handle, never a thrown TypeError.
 //   m5. an onEvent listener that throws: the call still returns its result (ok, or its closed error).
 //   m6. operations: [null] gives the same closed error on v1, v2 and v3.
+//   m7. identity snapshots are read from own data properties only: inherited keyId, publicKey or role,
+//       and a polluted Object.prototype.role, are invalid_key_handle (sign() never called).
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { checkEnvelope, v2, v3 } from "@bounded-authority-protocol/verifier";
@@ -200,6 +202,29 @@ for (const m of MAJORS) {
     assert.deepEqual(await settle(() => m.signReport(report(new Uint8Array(10)), viaPublicKey, opts)), { ok: false, error: "invalid_key_handle" });
     assert.deepEqual(await settle(() => m.signAnchor(viaIdentity)), { ok: false, error: "invalid_key_handle" });
     assert.deepEqual(await settle(() => m.signGrant(grantInput("AAAA"), viaSigning)), { ok: false, error: "invalid_key_handle" });
+  });
+
+  test(`m7 ${m.name}: identity snapshots are read from OWN data properties only; inherited fields and a polluted Object.prototype are invalid_key_handle`, async () => {
+    const k = m.key();
+    const base = m.handle(k, { keyId: "k", role: "issuer" });
+    const calls = { count: 0 };
+    const counted = (h: Handle): Handle => ({ ...h, sign: (msg: Uint8Array) => { calls.count += 1; return h.sign(msg); } });
+    const inheritedIdentity: Handle = { ...base, keyIdentity: () => Object.create({ keyId: "k", publicKey: k.publicKey }) as never };
+    const inheritedRole: Handle = { ...base, signingIdentity: () => Object.assign(Object.create({ role: "issuer" }) as object, { keyId: "k", publicKey: k.publicKey }) as never };
+    const noRole: Handle = { ...base, signingIdentity: () => ({ keyId: "k", publicKey: k.publicKey }) as never };
+    assert.deepEqual(await settle(() => m.signAnchor(inheritedIdentity)), { ok: false, error: "invalid_key_handle" });
+    assert.deepEqual(await settle(() => m.signTransition(inheritedIdentity, m.key().publicKey)), { ok: false, error: "invalid_key_handle" });
+    assert.deepEqual(await settle(() => m.signGrant(grantInput("AAAA"), counted(inheritedRole))), { ok: false, error: "invalid_key_handle" });
+    const proto = Object.prototype as Record<string, unknown>;
+    let polluted: unknown;
+    try {
+      Object.defineProperty(proto, "role", { value: "issuer", configurable: true, writable: true, enumerable: false });
+      polluted = await settle(() => m.signGrant(grantInput("AAAA"), counted(noRole)));
+    } finally {
+      delete proto.role;
+    }
+    assert.deepEqual(polluted, { ok: false, error: "invalid_key_handle" }, "a polluted Object.prototype.role does not make a role-less snapshot an issuer");
+    assert.equal(calls.count, 0, "sign() is never called");
   });
 
   test(`m5 ${m.name}: an onEvent listener that throws never escapes; the call returns its result`, async () => {

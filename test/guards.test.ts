@@ -251,6 +251,15 @@ const WEBCRYPTO_PROBES: ReadonlyArray<readonly [string, string]> = [
   ["sign destructured", `const { sign } = ${S};\nexport const p = sign;`],
   ["sign through Reflect.get", `export const p = Reflect.get(${S}, "sign");`],
   ["subtle destructured", `const { subtle } = globalThis.crypto;\nexport const p = subtle;`],
+  // F6: names assembled at run time.
+  ["computed member with a concatenated name", `export const p = (o: Record<string, unknown>) => o["ex" + "portKey"];`],
+  ["computed member with a template that has expressions", `const a = "ex";\nexport const p = (o: Record<string, unknown>) => o[\`\${a}portKey\`];`],
+  ["String.fromCharCode", `export const p = String.fromCharCode(115, 105, 103, 110);`],
+  ["String.fromCodePoint", `export const p = String.fromCodePoint(115, 105, 103, 110);`],
+  // F3: method lookup by string and the captured exportKey called through Reflect.apply.
+  ["a key-material name as a string (getOwnPropertyDescriptor)", `export const p = (o: object) => Object.getOwnPropertyDescriptor(o, "generateKey");`],
+  ['captured exportKey through reflectApply with "pkcs8"', `declare const reflectApply: typeof Reflect.apply;\ndeclare const SUBTLE_EXPORT_KEY: () => unknown;\ndeclare const SUBTLE: object;\nexport const p = (k: unknown) => reflectApply(SUBTLE_EXPORT_KEY, SUBTLE, ["pkcs8", k]);`],
+  ["captured exportKey through reflectApply with a non-literal format", `declare const reflectApply: typeof Reflect.apply;\ndeclare const SUBTLE_EXPORT_KEY: () => unknown;\ndeclare const SUBTLE: object;\nexport const p = (f: string, k: unknown) => reflectApply(SUBTLE_EXPORT_KEY, SUBTLE, [f, k]);`],
 ];
 
 interface FlatBlock { files?: string[]; rules?: Record<string, unknown> }
@@ -289,6 +298,19 @@ for (const [label, code] of WEBCRYPTO_PROBES) {
   }
 }
 
+test("T14 lint (F3): capturing SubtleCrypto.prototype.sign and exportKey by descriptor, and the raw export through reflectApply, are allowed in src/webcrypto.ts only", async () => {
+  const code = [
+    "declare const reflectApply: typeof Reflect.apply;",
+    "const proto = Object.getPrototypeOf(globalThis.crypto.subtle) as object;",
+    'export const SUBTLE_SIGN = Object.getOwnPropertyDescriptor(proto, "sign")?.value as () => unknown;',
+    'export const SUBTLE_EXPORT_KEY = Object.getOwnPropertyDescriptor(proto, "exportKey")?.value as () => unknown;',
+    'export const raw = (k: unknown) => reflectApply(SUBTLE_EXPORT_KEY, proto, ["raw", k]);',
+  ].join("\n");
+  assert.deepEqual(await lintRules(code, WEBCRYPTO_FILE), []);
+  const outside = await lintMessages(code, "src/guard-probe.ts");
+  assert.ok(outside.filter((m) => /^the strings /.test(m.message)).length === 2, JSON.stringify(outside));
+});
+
 test("T14 lint: the two direct calls and the CryptoKey.prototype getter reads are allowed in src/webcrypto.ts", async () => {
   const code = [
     "const s = globalThis.crypto.subtle;",
@@ -305,12 +327,13 @@ test("T14 lint: the src/webcrypto.ts override is built from the shared arrays (e
   const base = config.find((b) => b.files?.includes("src/**/*.ts"))!.rules!;
   const override = config.find((b) => b.files?.includes(WEBCRYPTO_FILE))!.rules!;
   const messages = (rule: string, rules: Record<string, unknown>) => ((rules[rule] as { message?: string }[] | undefined) ?? []).slice(1).map((e) => e.message);
-  const allowed = (m: string | undefined) => /crypto\.subtle\) is forbidden|\.exportKey is a key-generation/.test(m ?? "");
+  const allowed = (m: string | undefined) => /crypto\.subtle\) is forbidden|\.exportKey is a key-generation|^the strings /.test(m ?? "");
   for (const rule of ["no-restricted-syntax", "no-restricted-properties"]) {
     const missing = messages(rule, base).filter((m) => !allowed(m) && !messages(rule, override).includes(m));
     assert.deepEqual(missing, [], `${rule}: base entries missing from the override`);
   }
-  assert.equal(messages("no-restricted-syntax", base).filter(allowed).length, 1, "exactly one base syntax entry (the subtle ban) is relaxed");
+  assert.equal(messages("no-restricted-syntax", base).filter(allowed).length, 2, "exactly two base syntax entries are relaxed: the subtle member ban, and the string ban (narrowed, not dropped)");
+  assert.ok(messages("no-restricted-syntax", override).some((m) => /^in src\/webcrypto\.ts the strings /.test(m ?? "")), "the narrowed string ban is present in the override");
   assert.equal(messages("no-restricted-properties", base).filter(allowed).length, 1, "exactly one base property entry (.exportKey) is relaxed");
 });
 

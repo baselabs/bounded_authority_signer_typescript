@@ -19,13 +19,12 @@ const LANES: Record<string, { expect: "node" | "portable"; wrong: "node" | "port
 };
 const SELECTED = (process.env.BAP_RUNTIMES ?? "node,node-portable,deno,bun").split(",").filter(Boolean);
 
-// Per-lane expectations for the WebCrypto key-handle battery (design §12.3 and §12.7, revisions R1 and R3).
-// T4b: a Proxy that flips every symbol-keyed true to false defeats the CryptoKey getter only on Deno,
-// whose internal slots are symbol properties read through the Proxy (and whose subtle.sign accepts the
-// Proxy), so there the factory accepts an extractable key: a recorded exception. The getter read is a
-// guard against accidents, never against the key's own holder. R3: KeyObject.from() exports a
-// non-extractable private key on Node and Bun; Deno refuses.
-const T4B: Record<string, string> = { node: "error:invalid_key_handle", "node-portable": "error:invalid_key_handle", deno: "ok", bun: "error:invalid_key_handle" };
+// Per-lane expectations for the WebCrypto key-handle battery (design §12.3 and §12.7, revisions R1 and R3,
+// and review finding F2). T4b: a Proxy that flips every symbol-keyed true to false defeats the CryptoKey
+// getter on Deno, whose internal slots are symbol properties read through the Proxy; since 0.6.0's F2
+// fix the factory structured-clones both keys, and a Proxy is never cloneable, so every lane refuses it.
+// R3: KeyObject.from() exports a non-extractable private key on Node and Bun; Deno refuses.
+const T4B: Record<string, string> = { node: "error:invalid_key_handle", "node-portable": "error:invalid_key_handle", deno: "error:invalid_key_handle", bun: "error:invalid_key_handle" };
 const KEY_OBJECT_EXPORT: Record<string, RegExp> = { node: /^exported$/, "node-portable": /^exported$/, deno: /^refused:/, bun: /^exported$/ };
 
 const runs = new Map<string, SpawnSyncReturns<string>>();

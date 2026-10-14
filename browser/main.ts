@@ -35,7 +35,7 @@ async function main(): Promise<void> {
   }
   const start = performance.now();
   const report = await runL2({ secure: true });
-  const webcrypto = await runWebCryptoLane({ foreignRealmPairs: iframePairs });
+  const webcrypto = await runWebCryptoLane({ foreignRealmPairs: iframePairs, workerPairs });
   publish({ ...base, report, webcrypto, ms: Math.round(performance.now() - start) });
 }
 
@@ -48,6 +48,19 @@ async function iframePairs(): Promise<{ ed: WebCryptoKeyPairLike; ec: WebCryptoK
   const ed = await subtle.generateKey({ name: "Ed25519" }, false, ["sign", "verify"]);
   const ec = await subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, false, ["sign", "verify"]);
   return { ed, ec };
+}
+
+// F9: real keys generated in a dedicated worker (served from the lane server) and posted to the page.
+function workerPairs(): Promise<{ ed: WebCryptoKeyPairLike; ec: WebCryptoKeyPairLike }> {
+  return new Promise((resolve, reject) => {
+    const worker = new Worker("/key-worker.js");
+    worker.onmessage = (e: MessageEvent<{ ed: WebCryptoKeyPairLike; ec: WebCryptoKeyPairLike; error?: string }>) => {
+      worker.terminate();
+      if (e.data.error !== undefined) reject(new Error(`worker: ${e.data.error}`));
+      else resolve(e.data);
+    };
+    worker.onerror = (e) => { worker.terminate(); reject(new Error(`worker error: ${e.message}`)); };
+  });
 }
 
 main().catch((e: unknown) => publish({ backend: BACKEND_ID, secure: isSecureContext, userAgent: navigator.userAgent, violations, error: String(e), report: null, ms: 0, webcrypto: null }));

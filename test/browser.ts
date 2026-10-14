@@ -22,9 +22,9 @@ export const CSP = "default-src 'none'; script-src 'self'; connect-src 'self'; b
 const ENGINES: Record<string, BrowserType> = { chromium, firefox, webkit };
 const SELECTED = (process.env.BAP_BROWSERS ?? "chromium").split(",").filter(Boolean);
 
-async function bundle(entry: string): Promise<string> {
+async function bundle(entry: string, format: "esm" | "iife" = "esm"): Promise<string> {
   const result = await build({
-    entryPoints: [join(REPO, entry)], absWorkingDir: REPO, bundle: true, write: false, format: "esm",
+    entryPoints: [join(REPO, entry)], absWorkingDir: REPO, bundle: true, write: false, format,
     platform: "browser", target: "es2022", logLevel: "silent",
   });
   return result.outputFiles[0]!.text;
@@ -45,6 +45,7 @@ const PAGES: Record<string, { title: string; entry: string }> = {
 async function serve(): Promise<Served> {
   const scripts = new Map<string, string>();
   for (const [name, page] of Object.entries(PAGES)) scripts.set(`/${name}.js`, await bundle(page.entry));
+  scripts.set("/key-worker.js", await bundle("browser/key-worker.ts", "iife")); // the F9 worker, a classic script
   const requests: string[] = [];
   const server = createServer((req, res) => {
     const url = new URL(req.url ?? "/", "http://127.0.0.1");
@@ -109,7 +110,8 @@ for (const name of SELECTED) {
       const wcFailed = Object.entries(result.webcrypto.checks).filter(([, v]) => !v).map(([k]) => k);
       assert.deepEqual(wcFailed, []);
       assert.ok(Object.keys(result.webcrypto.checks).length >= 93, `${Object.keys(result.webcrypto.checks).length} key-handle checks`);
-      assert.ok(Object.keys(result.webcrypto.checks).some((k) => k.startsWith("R10 ")), "the iframe-realm rows ran");
+      assert.ok(Object.keys(result.webcrypto.checks).some((k) => k.startsWith("R10 an iframe")), "the iframe-realm rows ran");
+      assert.ok(Object.keys(result.webcrypto.checks).some((k) => k.startsWith("R10 (F9) a worker-posted")), "the worker-posted rows ran");
       assert.equal(result.webcrypto.capability.ed25519Generate, true, "the engine generates Ed25519 keys (never skipped)");
       assert.equal(result.webcrypto.capability.ecdsaP256Generate, true);
       assert.equal(result.webcrypto.observed.proxySymbolFlip, "error:invalid_key_handle", "T4b: the engine's getter refuses a Proxy");
