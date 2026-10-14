@@ -45,6 +45,10 @@ stricter P-256 key resolution (one error code changes).
   refuses); keys kept in IndexedDB live in the browser profile on disk; the extractable refusal
   is a guard against accidents, not against the key's own holder.
 
+- **`V3OperationInput` and `V3SelectorInput` are exported from the package root.** `V3GrantInput`
+  names them, but 0.5.0 exported neither, so a caller could only name them through a deep import.
+  `test/exports.test.ts` now fails if any type that a public declaration reaches is not exported.
+
 ### Changed
 
 - **Identity snapshots are read from own data properties only.** For every caller handle, the

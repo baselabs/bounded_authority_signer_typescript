@@ -243,7 +243,8 @@ The package also exports the key-handle factories `ed25519KeyHandle` and `es256K
 (**0.6.0**, see [WebCrypto key handles](#webcrypto-key-handles)), and these types: `KeyHandle`,
 `Es256KeyHandle`, `KeyRole`, `AtomicKeyIdentity`, `AtomicSigningIdentity`, `SignerErrorCode`,
 `SignerResult`, the input and option types named in this section, `SignerEvent`, `V2SignerEvent`,
-`V3SignerEvent`, `V2OperationInput`, `V2SelectorInput`, the value types `Envelope`, `GrantCompact`,
+`V3SignerEvent`, `V2OperationInput`, `V2SelectorInput`, `V3OperationInput` and `V3SelectorInput`
+(**0.6.0**; see [Inputs](#inputs)), the value types `Envelope`, `GrantCompact`,
 `AnchorCompact` and `TransitionCompact`, and (**0.6.0**) `WebCryptoKeyLike`, `WebCryptoKeyPairLike` and
 `WebCryptoHandleOptions`.
 
@@ -264,6 +265,33 @@ A selector is `{ kind: "all" }` (or the string `"all"`), `{ kind: "equals", path
 `{ kind: "one_of", path, values }`, or on v2 and v3 `{ kind: "lte" | "gte", path, value }` with an
 `int`- or `float`-tagged bound. `path` names a member of the request's `castArguments`; every
 selector of an operation must match. The signer does not evaluate selectors; the verifier does.
+
+The operation and selector types: on v1 the verifier package's `OperationInput` and `SelectorInput`
+(import them from `@bounded-authority-protocol/verifier`); on v2 `V2OperationInput` and
+`V2SelectorInput`; on v3 `V3OperationInput` and `V3SelectorInput`, exported from the package root
+from **0.6.0** (0.5.0 reached them only through a deep import). The v2 and v3 shapes are the same:
+
+<!-- readme-sample: types -->
+```ts
+import type { Tagged } from "@bounded-authority-protocol/verifier";
+
+type V3SelectorInput =
+  | "all"
+  | { readonly kind: "all" }
+  | { readonly kind: "equals"; readonly path: readonly string[]; readonly value: Tagged }
+  | { readonly kind: "one_of"; readonly path: readonly string[]; readonly values: readonly Tagged[] }
+  | { readonly kind: "lte"; readonly path: readonly string[]; readonly value: Tagged }
+  | { readonly kind: "gte"; readonly path: readonly string[]; readonly value: Tagged };
+
+interface V3OperationInput {
+  readonly name: string;
+  readonly selectors: readonly V3SelectorInput[];
+}
+
+// The v2 types have the same shapes.
+type V2SelectorInput = V3SelectorInput;
+interface V2OperationInput extends V3OperationInput {}
+```
 
 `ReportInput` (and `V2ReportInput`, `V3ReportInput`):
 
@@ -898,6 +926,8 @@ measurement in [`tools/bundle-size-limits.json`](tools/bundle-size-limits.json).
   globals, dynamic code, `@noble` and WebCrypto outside `src/webcrypto.ts`), a scan of the browser
   bundle for unresolved globals, and a typecheck of the packed tarball as a consumer installs it,
   with `skipLibCheck: false`.
+- **Public types.** `test/exports.test.ts` fails if a public declaration names a type that the
+  package root does not export.
 - **The README.** Every TypeScript sample in this file is typechecked and run by
   `test/readme.test.ts`, and each printed result is compared with the output shown under it.
 

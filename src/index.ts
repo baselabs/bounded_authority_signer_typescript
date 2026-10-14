@@ -35,6 +35,9 @@ export type {
   V3ReportInput, V3AnchorInput, V3GrantInput, V3TransitionInput, V3SignOpts, V3SignerEvent,
   Es256KeyHandle,
 } from "./apiV3.js";
+// The operation and selector types of V3GrantInput (the v1 ones are the verifier package's OperationInput
+// and SelectorInput; the v2 ones are V2OperationInput and V2SelectorInput above).
+export type { V3OperationInput, V3SelectorInput } from "./v3.js";
 export type {
   KeyHandle, KeyRole, AtomicKeyIdentity, AtomicSigningIdentity,
   SignerErrorCode, SignerResult,
