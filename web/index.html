@@ -47,7 +47,7 @@
     <h1>Your OAuth proves <em>who</em> is calling.<br>BAP proves <em>what they may do</em>.</h1>
     <p class="lede">If you run an MCP server, an agent, or any API that authenticates callers with
     OAuth, you already have the <strong>who</strong>. BAP is the missing half: every request carries
-    a cryptographically signed capability — one operation, one target, one time window — and a fresh
+    a cryptographically signed capability — named operations, a named resource, a time window — and a fresh
     proof from the caller’s own key. The resource verifies the envelope and gets facts, never trust.
     Keys never leave your custody.</p>
     <div class="hero-actions">
@@ -83,7 +83,7 @@
       <p class="pain">A stolen or over-scoped token keeps every power it was granted, on every
       resource, until it expires. “read” means <em>all</em> reads, everywhere, for the token’s whole life.</p>
       <p class="answer"><svg class="ic"><use href="#i-check"/></svg> With BAP, each capability is a signed grant naming
-      <strong>one operation, one target, one window</strong> — and each request carries a fresh proof
+      <strong>its operations, its resource, its window</strong> — and each request carries a fresh proof
       bound to exactly that request.</p>
     </article>
     <article class="whycard">
@@ -168,7 +168,7 @@
       <header><svg class="ic"><use href="#i-seal"/></svg> Issuer <span class="role-badge">grants authority</span></header>
       <div class="keychip" id="chip-issuer"></div>
       <dl class="props">
-        <div><dt>may</dt><dd><code>transfer</code> · <code>{ kind: "all" }</code></dd></div>
+        <div><dt>may</dt><dd><code>read_record</code> · <code>{ kind: "all" }</code></dd></div>
         <div><dt>audience</dt><dd><code>resource.example.test</code></dd></div>
         <div><dt>window</dt><dd>t=1000 → 2000 <span class="dim">(evaluated at 1500)</span></dd></div>
       </dl>
@@ -180,7 +180,7 @@
       <header><svg class="ic"><use href="#i-person"/></svg> Holder <span class="role-badge">your agent</span></header>
       <div class="keychip" id="chip-holder"></div>
       <dl class="props">
-        <div><dt>request</dt><dd><code>POST /invoke</code> · <code>amount: 5000</code></dd></div>
+        <div><dt>request</dt><dd><code>POST /invoke</code> · <code>ticket: 90112</code></dd></div>
         <div><dt>invocation</dt><dd><code>550e8400-…440000</code></dd></div>
       </dl>
       <button id="btn-proof" class="btn actorbtn holder" disabled><svg class="ic"><use href="#i-key"/></svg> Prove the request</button>
@@ -204,7 +204,7 @@
   <div class="tamper">
     <div class="panel-head"><div class="panel-badge"><svg class="ic"><use href="#i-wire"/></svg></div><div class="panel-titles"><span class="panel-title">Tamper deck</span><span class="panel-sub">Every button below produces a real, closed INVALID.</span></div></div>
     <div class="tamper-btns">
-      <button class="btn danger" data-tamper="payload" disabled>Replay against a modified request → amount 9000</button>
+      <button class="btn danger" data-tamper="payload" disabled>Replay against a modified request → ticket 90113</button>
       <button class="btn danger" data-tamper="operation" disabled>Claim a different operation</button>
       <button class="btn danger" data-tamper="expiry" disabled>Evaluate after expiry</button>
       <button class="btn danger" data-tamper="impostor" disabled>Steal the grant with another key</button>
@@ -274,7 +274,7 @@
   publicKey(): Uint8Array | Promise&lt;Uint8Array&gt;;                       // 32 bytes
   thumbprint(): string | Promise&lt;string&gt;;                              // RFC 7638, base64url
   keyIdentity?(): { keyId, publicKey } | Promise&lt;…&gt;;                  // anchor + transition
-  signingIdentity?(): { role: "issuer" | "holder", keyId, publicKey }; // grants — the C1 gate
+  signingIdentity?(): { role, keyId, publicKey } | Promise&lt;…&gt;;       // grants: role "issuer" (the C1 gate)
 }</pre>
   <div class="install-row">
     <pre class="code slim">npm i @bounded-authority-protocol/signer    # Node >= 22, browsers, Deno, Bun; one runtime dep: the verifier</pre>

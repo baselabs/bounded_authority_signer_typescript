@@ -1,6 +1,6 @@
 // The envelope playground — the live page logic. Everything cryptographic runs
-// through the REAL packages: this repository's signer source (byte-identical
-// to what this repository's current tag publishes) and the published
+// through the REAL packages: this repository's signer source (the version on
+// main, which can be ahead of the latest npm release) and the published
 // @bounded-authority-protocol/verifier,
 // bundled by esbuild for the browser. Neither package uses a Node API, and the
 // verifier resolves its portable backend in the bundle, so no shim or polyfill
@@ -49,8 +49,9 @@ function fromBase64url(segment: string): Uint8Array {
 }
 const jwkThumb = (pub: Uint8Array): string => thumbprint({ kty: "OKP", crv: "Ed25519", x: b64(pub) });
 
-// The demo's fixed scenario (mirrors the package's own oracle test, so every
-// timestamp on screen is deterministic and inspectable).
+// The demo's fixed scenario: a support agent may read one ticket's record. The
+// timestamps match the package's own oracle test, so every value on screen is
+// deterministic and inspectable.
 const SCENE = {
   issuer: "https://issuer.example.test",
   audience: "https://resource.example.test",
@@ -61,7 +62,7 @@ const SCENE = {
   issuedAt: 1000, notBefore: 1000, expiresAt: 2000, evaluationTime: 1500, clockSkew: 60, proofMaxAge: 300,
 };
 const castArguments = (): { t: "object"; v: Map<string, { t: "int"; v: number }> } => ({
-  t: "object", v: new Map([["amount", { t: "int", v: 5000 }]]),
+  t: "object", v: new Map([["ticket", { t: "int", v: 90112 }]]),
 });
 
 interface Actor { key: CustodyKey; thumb: string; keyId: string }
@@ -161,7 +162,7 @@ async function doGrant(): Promise<void> {
     issuer: SCENE.issuer, grantId: SCENE.grantId, audiences: [SCENE.audience],
     issuedAt: SCENE.issuedAt, notBefore: SCENE.notBefore, expiresAt: SCENE.expiresAt,
     holderThumbprint: holder.thumb,
-    operations: [{ name: "transfer", selectors: [{ kind: "all" } as never] }],
+    operations: [{ name: "read_record", selectors: [{ kind: "all" } as never] }],
   }, handle(issuer, { signingIdentity: () => ({ role: "issuer", keyId: issuer.keyId, publicKey: issuer.key.pub }) }));
   if (!r.ok) { setVerdict("fail", `signGrant → ${r.error}`); return; }
   grantCompact = r.value.grant;
@@ -180,7 +181,7 @@ async function doGrant(): Promise<void> {
 async function doProof(): Promise<void> {
   if (!grantCompact) return;
   const r = await signReport({
-    grantCompact, operation: "transfer", method: "POST", targetUri: SCENE.targetUri,
+    grantCompact, operation: "read_record", method: "POST", targetUri: SCENE.targetUri,
     invocationId: SCENE.invocationId, castArguments: castArguments(),
   }, handle(holder), { issuedAt: SCENE.evaluationTime, proofId: SCENE.proofId });
   if (!r.ok) { setVerdict("fail", `signReport → ${r.error}`); return; }
@@ -188,7 +189,7 @@ async function doProof(): Promise<void> {
   tamperedProof = null;
   const slot = $("slot-proof");
   slot.textContent = "";
-  const card = artifactCard("proof", "dpop+jwt", "POST /invoke · amount 5000", () => { mark(card); showWire("proof", proofCompact!); });
+  const card = artifactCard("proof", "dpop+jwt", "POST /invoke · ticket 90112", () => { mark(card); showWire("proof", proofCompact!); });
   slot.appendChild(card);
   card.id = "proof-card";
   $("flow-proof").classList.add("arrived");
@@ -216,7 +217,7 @@ function expected(over: Record<string, unknown> = {}) {
     trustedIssuer: { keyId: issuer.keyId, publicKey: issuer.key.pub },
     issuer: SCENE.issuer, audience: SCENE.audience,
     method: "POST", targetUri: SCENE.targetUri, invocationId: SCENE.invocationId,
-    operation: "transfer", castArguments: castArguments(),
+    operation: "read_record", castArguments: castArguments(),
     evaluationTime: SCENE.evaluationTime, clockSkew: SCENE.clockSkew, proofMaxAge: SCENE.proofMaxAge,
     nonce: { kind: "not_required" as const },
     ...over,
@@ -365,16 +366,16 @@ async function tamper(kind: string): Promise<void> {
     case "payload": {
       // The replay attack: the proof commits to a DIGEST of the request, so the
       // attacker leaves the proof untouched and rewrites the REQUEST instead
-      // (amount 5000 → 9000). The verifier's request-digest binding must reject.
+      // (ticket 90112 → 90113). The verifier's request-digest binding must reject.
       tamperedProof = proofCompact;
       verifyWith(grantCompact, tamperedProof, expected({
-        castArguments: { t: "object", v: new Map([["amount", { t: "int", v: 9000 }]]) },
+        castArguments: { t: "object", v: new Map([["ticket", { t: "int", v: 90113 }]]) },
       }));
       showWire("proof (byte-identical — the REQUEST changed)", proofCompact);
       return;
     }
     case "operation":
-      verifyWith(grantCompact, proofCompact, expected({ operation: "withdraw" }));
+      verifyWith(grantCompact, proofCompact, expected({ operation: "delete_record" }));
       showWire("proof (unchanged)", proofCompact);
       return;
     case "expiry":
@@ -385,7 +386,7 @@ async function tamper(kind: string): Promise<void> {
       // A second holder key signs a perfectly valid proof over the stolen grant —
       // but the grant binds the ORIGINAL holder's thumbprint. Identity fails.
       const r = await signReport({
-        grantCompact, operation: "transfer", method: "POST", targetUri: SCENE.targetUri,
+        grantCompact, operation: "read_record", method: "POST", targetUri: SCENE.targetUri,
         invocationId: SCENE.invocationId, castArguments: castArguments(),
       }, handle(impostor), { issuedAt: SCENE.evaluationTime, proofId: "urn:demo:proof:stolen" });
       if (!r.ok) { setVerdict("fail", `signReport → ${r.error}`); return; }

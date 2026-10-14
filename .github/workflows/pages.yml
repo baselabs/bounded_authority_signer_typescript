@@ -36,13 +36,14 @@ jobs:
           cache: pnpm
 
       # The playground page's npm badge is a hand-maintained literal (the site
-      # build templates only the asset cache-buster), and it drifts silently on
-      # version-bumping deploys — the verifier repo's bench badge drifted exactly
-      # this way. Nothing else compares the two, so this lane does, before it can
-      # publish a stale version claim.
-      - name: Site badge must match package.json version
+      # build templates only the asset cache-buster), and nothing else checks it.
+      # It must name the latest version on the npm registry, not package.json:
+      # between a version bump and its release, package.json names a version that
+      # is not installable yet. A stale or premature badge fails the deploy.
+      - name: Site badge must name the latest npm release
         run: |
-          node --input-type=module -e "const { readFileSync } = await import('node:fs'); const pkg = JSON.parse(readFileSync('package.json', 'utf8')).version; const html = readFileSync('web/index.html', 'utf8'); if (!html.includes(\`npm \${pkg}</li>\`)) { console.error(\`web/index.html's badge does not carry the current version \${pkg}\`); process.exit(1); } console.log(\`site badge matches package.json \${pkg}\`);"
+          LATEST="$(npm view @bounded-authority-protocol/signer version)"
+          LATEST="$LATEST" node --input-type=module -e "const { readFileSync } = await import('node:fs'); const latest = process.env.LATEST ?? ''; const html = readFileSync('web/index.html', 'utf8'); if (!/^[0-9]+[.][0-9]+[.][0-9]+$/.test(latest) || !html.includes(\`npm \${latest}</li>\`)) { console.error(\`web/index.html's badge does not name the latest npm release '\${latest}'\`); process.exit(1); } console.log(\`site badge names the latest npm release \${latest}\`);"
 
       - name: Install (frozen lockfile)
         run: pnpm install --frozen-lockfile
