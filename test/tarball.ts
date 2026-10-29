@@ -1,7 +1,7 @@
 // The packed package as a consumer receives it (pnpm test:tarball, which builds first). It packs the
 // real signer tarball and the verifier exactly as installed here, installs both offline into a scratch
 // consumer outside the repository, and then:
-//   - typechecks a consumer of the whole public API plus one deep import with skipLibCheck false and
+//   - typechecks a consumer of the whole public API with skipLibCheck false and
 //     types [], under NodeNext and Bundler resolution, lib ES2022 alone and ES2022 + DOM, and each
 //     condition set a consumer can select (none, bap-portable, deno, bun): no public declaration may
 //     need a Node or DOM global type;
@@ -9,8 +9,8 @@
 //     node:crypto type;
 //   - runs the consumer: it signs a v1, a v2 and a v3 envelope through the installed signer with
 //     generated keys and verifies each through the installed verifier, on Node (the verifier's node
-//     backend), Node with --conditions=bap-portable, Deno and Bun (the portable backend), and the deep
-//     import through the "./*" passthrough resolves everywhere;
+//     backend), Node with --conditions=bap-portable, Deno and Bun (the portable backend);
+//   - probes the closed deep-import surface: every dist path refuses, on Node, Deno and Bun;
 //   - builds WebCrypto key handles from each runtime's own non-extractable keys through the installed
 //     package and verifies what they sign (and that an extractable pair is refused).
 import { test } from "node:test";
@@ -41,7 +41,6 @@ import {
   type V2GrantInput, type V2SelectorInput, type V3GrantInput, type SignerErrorCode,
   ed25519KeyHandle, es256KeyHandle, type WebCryptoKeyLike, type WebCryptoKeyPairLike, type WebCryptoHandleOptions,
 } from "${NAME}";
-import { normalizeLowS } from "${NAME}/dist/src/es256.js";
 const handle: KeyHandle = { sign: (m: Uint8Array) => m, publicKey: () => new Uint8Array(32), thumbprint: () => "" };
 const ecHandle: Es256KeyHandle = { sign: async (m: Uint8Array) => m, publicKey: async () => new Uint8Array(65), thumbprint: () => "" };
 const lte: V2SelectorInput = { kind: "lte", path: ["amount"], value: { t: "int", v: 1 } };
@@ -50,7 +49,7 @@ export async function uses(r: ReportInput, g: GrantInput, g2: V2GrantInput, g3: 
   await Promise.all([signLocalLoopbackReport(r, handle), signGrant(g, handle), signV2Grant(g2, handle), signV3Grant(g3, ecHandle), signV2Report(r, handle), signV3Report(r, ecHandle)]);
   return a.ok ? a.value : a.error;
 }
-export const all = [signAnchor, signKeyTransition, signV2Anchor, signV2KeyTransition, signV3Anchor, signV3KeyTransition, normalizeLowS, lte] as const;
+export const all = [signAnchor, signKeyTransition, signV2Anchor, signV2KeyTransition, signV3Anchor, signV3KeyTransition, lte] as const;
 // The key-handle factories take a structural pair: no DOM or Node global type is needed to call them.
 export async function keyHandles(pair: WebCryptoKeyPairLike, key: WebCryptoKeyLike, opts: WebCryptoHandleOptions) {
   const a: SignerResult<KeyHandle> = await ed25519KeyHandle(pair, opts);
@@ -66,7 +65,6 @@ import { ed25519 } from "@noble/curves/ed25519.js";
 import { p256 } from "@noble/curves/nist.js";
 import { BACKEND_ID, checkEnvelope, thumbprint, base64urlEncode, utf8Str, v2, v3 } from "${VERIFIER}";
 import { ed25519KeyHandle, es256KeyHandle, signGrant, signReport, signV2Grant, signV2Report, signV3Grant, signV3Report } from "${NAME}";
-import { normalizeLowS } from "${NAME}/dist/src/es256.js";
 const b64 = (b) => utf8Str(base64urlEncode(b));
 const edHandle = (role) => {
   const { secretKey, publicKey } = ed25519.keygen();
@@ -87,7 +85,7 @@ const grantInput = (jkt, selectors) => ({ issuer: ISS, grantId: "urn:example:gra
 const report = (grantCompact) => ({ grantCompact, operation: "transfer", method: "POST", targetUri: AUD + "/invoke", invocationId: INV, castArguments: args });
 const expected = (key) => ({ trustedIssuer: { keyId: "issuer-key", publicKey: key }, issuer: ISS, audience: AUD, method: "POST", targetUri: AUD + "/invoke", invocationId: INV, operation: "transfer", castArguments: args, evaluationTime: 1500, clockSkew: 60, proofMaxAge: 300, nonce: { kind: "not_required" } });
 const opts = { issuedAt: 1500, proofId: "urn:example:proof:t" };
-const out = { backend: BACKEND_ID, deep: typeof normalizeLowS };
+const out = { backend: BACKEND_ID };
 { const iss = edHandle("issuer"), hol = edHandle("holder");
   const g = await signGrant(grantInput(hol.handle.thumbprint(), [{ kind: "all" }]), iss.handle);
   const e = await signReport(report(g.value.grant), hol.handle, opts);
@@ -165,9 +163,28 @@ test("the manifest declares the exports map, no side effects, and the verifier ^
   assert.deepEqual(MANIFEST.exports, {
     ".": { types: "./dist/src/index.d.ts", default: "./dist/src/index.js" },
     "./package.json": "./package.json",
-    "./*": "./*",
   });
   assert.equal((MANIFEST.dependencies as Record<string, string>)[VERIFIER], "^1.0.0");
+});
+
+test("the exports map closes deep imports: every dist path refuses, on each runtime", () => {
+  // Node names the exports refusal itself; Deno and Bun surface it as a module-not-found error
+  // (Deno's message carries the underlying ERR_PACKAGE_PATH_NOT_EXPORTED).
+  const expected: Record<string, { cmd: string[]; code: string }> = {
+    node: { cmd: ["node", "probe.mjs"], code: "ERR_PACKAGE_PATH_NOT_EXPORTED" },
+    deno: { cmd: ["deno", "run", "--allow-read", "--allow-env", "probe.mjs"], code: "ERR_MODULE_NOT_FOUND" },
+    bun: { cmd: ["bun", "probe.mjs"], code: "ERR_MODULE_NOT_FOUND" },
+  };
+  const probe = (cmd: string[], specifier: string) => {
+    writeFileSync(join(consumer, "probe.mjs"), `import(${JSON.stringify(specifier)}).then((m) => console.log(typeof m.signReport), (e) => console.log(e.code));`);
+    const [c, ...rest] = cmd;
+    return run(c, rest, consumer).trim();
+  };
+  for (const [runtime, { cmd, code }] of Object.entries(expected)) {
+    for (const p of ["dist/src/index.js", "dist/src/es256.js", "dist/src/apiV2.js", "dist/src/webcrypto.js", "dist/src/es256"]) {
+      assert.equal(probe(cmd, `${NAME}/${p}`), code, `${runtime}: ${p}`);
+    }
+  }
 });
 
 test("the tarball ships the built package and no source, tests or tools", () => {
@@ -195,20 +212,24 @@ for (const [label, args, want] of [
   ["deno", ["deno", "run", "--allow-read", "--allow-env", "main.mjs"], "portable"],
   ["bun", ["bun", "main.mjs"], "portable"],
 ] as const) {
-  test(`consumer runtime: ${label}: the verifier resolves the ${want} backend; v1, v2 and v3 sign then verify; the deep import resolves`, () => {
+  test(`consumer runtime: ${label}: the verifier resolves the ${want} backend; v1, v2 and v3 sign then verify`, () => {
     const [cmd, ...rest] = args;
     const out = JSON.parse(run(cmd, [...rest], consumer).trim()) as Record<string, unknown>;
-    assert.deepEqual(out, { backend: want, deep: "function", v1: true, v2: true, v3: true, webcrypto: true });
+    assert.deepEqual(out, { backend: want, v1: true, v2: true, v3: true, webcrypto: true });
   });
 }
 
 test("red-proof: a node:crypto type leaked into one public declaration fails the ES2022-only typecheck", () => {
-  const installed = join(consumer, "node_modules", ...NAME.split("/"), "dist/src/es256.d.ts");
+  // The leak targets index.d.ts, which the root import always reaches. es256.d.ts is the one public
+  // declaration file that no root-reachable declaration imports, so it is not in the program; the
+  // rest below the root (api, apiV2, apiV3, v3, handle, webcrypto) still are, through index.d.ts's
+  // re-exports.
+  const installed = join(consumer, "node_modules", ...NAME.split("/"), "dist/src/index.d.ts");
   const original = readFileSync(installed, "utf8");
   try {
     appendFileSync(installed, '\nimport type { KeyObject } from "node:crypto";\nexport declare function leaked(): KeyObject;\n');
     const diagnostics = typecheck("NodeNext", ["ES2022"], []);
-    assert.ok(diagnostics.some((d) => d.includes("es256.d.ts") && d.includes("node:crypto")), diagnostics.join("\n"));
+    assert.ok(diagnostics.some((d) => d.includes("index.d.ts") && d.includes("node:crypto")), diagnostics.join("\n"));
   } finally {
     writeFileSync(installed, original);
   }

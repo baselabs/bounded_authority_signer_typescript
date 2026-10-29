@@ -44,11 +44,13 @@ It signs three wire contract-majors, each with its own functions:
 ## Install
 
 ```bash
-npm install @bounded-authority-protocol/signer@0.6.0 @bounded-authority-protocol/verifier@1.0.0
+npm install @bounded-authority-protocol/signer@1.0.0 @bounded-authority-protocol/verifier@1.0.0
 ```
 
-That is the latest release on npm. This README documents the source on `main`, version 0.6.0,
-which is not released yet; the parts only 0.6.0 has are marked **0.6.0**.
+This README documents the source on `main`, which is that release; between the release commit and
+its approval on npm the registry still serves the previous version for a short window. The one
+change 1.0.0 carries — deep imports closed — is described under
+[Versioning and compatibility](#versioning-and-compatibility).
 
 The signer's one runtime dependency is the verifier. Install the verifier yourself too when your
 code imports it, as every example here does (pnpm, for one, does not let you import a package you
@@ -64,7 +66,7 @@ module project (the examples use top-level `await`), install both packages, and 
 <!-- readme-sample: setup -->
 ```bash
 npm init -y && npm pkg set type=module
-npm install @bounded-authority-protocol/signer@0.6.0 @bounded-authority-protocol/verifier@1.0.0
+npm install @bounded-authority-protocol/signer@1.0.0 @bounded-authority-protocol/verifier@1.0.0
 npm install --save-dev tsx
 ```
 
@@ -722,7 +724,7 @@ loopback envelope verifies: true
 
 ## WebCrypto key handles
 
-**New in 0.6.0, which is on npm only once the [Install](#install) line names it.** The published
+**New in 0.6.0.** The published
 0.5.0 does not have these factories; with 0.5.0, write a handle over WebCrypto yourself, the way
 `key-handle.ts` in the [Quickstart](#quickstart) does over `node:crypto`.
 
@@ -964,9 +966,14 @@ for a person to approve; packages are published with npm provenance.
 
 ## Versioning and compatibility
 
-Package versions follow SemVer. Before 1.0 the minor position is the breaking boundary, so a caret
-range such as `^0.5.0` never selects `0.6.0`. Compatibility with other implementations is governed
-by the wire contract-majors this package signs (1, 2 and 3), not by package version numbers.
+Package versions follow SemVer. The package is 1.0: a breaking change costs a major version, and a
+caret range such as `^1.0.0` carries every later minor and patch. (Before 1.0 the minor position was
+the breaking boundary, so a caret range such as `^0.5.0` never selected `0.6.0`.) Compatibility with
+other implementations is governed by the wire contract-majors this package signs (1, 2 and 3), not
+by package version numbers.
+
+- **1.0.0** ([release status](#install)) closes deep imports — the exports map exposes the package
+  root and `./package.json` only — and declares the 1.0 SemVer contract above.
 
 - **0.6.0** ([release status](#install)) adds the WebCrypto key handles, reads identity
   snapshots from own data properties only, refuses a handle's off-curve P-256 key at resolution
@@ -980,9 +987,8 @@ by the wire contract-majors this package signs (1, 2 and 3), not by package vers
   identifiers with repeated fragment delimiters, raw brackets in userinfo or outside the authority,
   or malformed bracketed IPv6 hosts such as `http://[abc]/x` return `producer_error`.
 
-The `"exports"` map keeps deep imports such as `@bounded-authority-protocol/signer/dist/src/v3.js`
-resolving through a `"./*"` passthrough, but deep imports are not supported API and may close in a
-future 0.x minor: import from the package root. Release notes are in [CHANGELOG.md](CHANGELOG.md).
+Deep imports — any path under `dist/` — are closed as of 1.0.0: the exports map exposes the package
+root and `./package.json` only, so import from the package root. Release notes are in [CHANGELOG.md](CHANGELOG.md).
 
 ## Protocol family
 

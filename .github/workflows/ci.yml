@@ -126,8 +126,9 @@ jobs:
 
   package:
     # The packed tarball as a consumer receives it: typecheck with skipLibCheck false under each
-    # resolution, lib and condition set, the leaked-type red-proof, and the installed package run on
-    # Node (both verifier backends), Deno and Bun, including the "./*" deep-import passthrough.
+    # resolution, lib and condition set, the leaked-type red-proof, the installed package run on
+    # Node (both verifier backends), Deno and Bun, and the closed deep-import surface probed on
+    # each runtime (every dist path refuses).
     name: packed tarball (consumer typecheck and runtimes)
     runs-on: ubuntu-24.04
     steps:

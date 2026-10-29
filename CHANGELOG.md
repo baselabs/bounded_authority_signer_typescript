@@ -1,5 +1,25 @@
 # Changelog
 
+## [1.0.0] — 2026-10-29
+
+The stability release. The package is 1.0: a breaking change costs a major version, and a caret
+range such as `^1.0.0` carries every later minor and patch. Before 1.0 the minor position was the
+breaking boundary.
+
+### Changed
+
+- **Deep imports are closed** — the breaking change of this major, matching the verifier's 1.0.0.
+  The `"exports"` map exposes the package root and `./package.json` only; any path under `dist/`
+  refuses, with Node spelling it `ERR_PACKAGE_PATH_NOT_EXPORTED` and Deno and Bun reporting the
+  module as not found. Deep imports were never supported API: import from the package root.
+
+### Tests
+
+- The packed-tarball suite asserts the closed map and probes that every `dist` path refuses on
+  Node, Deno and Bun. Its consumer no longer imports `dist/src/es256.js`; the `node:crypto` leak
+  red-proof now targets `index.d.ts`, which the root import always reaches (`es256.d.ts` is the one
+  declaration no root-reachable declaration imports, so it left the program with the deep import).
+
 ## [0.6.0] — 2026-10-29
 
 WebCrypto key handles. Two factories build the existing handle types from a WebCrypto key pair
