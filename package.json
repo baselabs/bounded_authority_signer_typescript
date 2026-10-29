@@ -1,7 +1,7 @@
 {
   "name": "@bounded-authority-protocol/signer",
   "version": "0.6.0",
-  "description": "Holder/issuer companion signer for the Bounded Authority Protocol \u2014 signs proofs, grants, boundary anchors, and key transitions through a caller-owned key handle whose private key never enters the library.",
+  "description": "Holder/issuer companion signer for the Bounded Authority Protocol — signs proofs, grants, boundary anchors, and key transitions through a caller-owned key handle whose private key never enters the library.",
   "license": "Apache-2.0",
   "keywords": [
     "bounded-authority-protocol",
@@ -69,14 +69,14 @@
   },
   "devDependencies": {
     "@noble/curves": "^2.4.0",
-    "@types/node": "^26.6.5",
+    "@types/node": "^26.6.6",
     "esbuild": "^0.28.2",
-    "eslint": "^10.12.0",
+    "eslint": "^10.13.0",
     "globals": "^17.13.0",
-    "playwright": "^1.64.0",
+    "playwright": "^1.64.1",
     "semver": "^7.8.5",
     "tsx": "^4.23.15",
     "typescript": "6.0.3",
-    "typescript-eslint": "^8.71.2"
+    "typescript-eslint": "^8.72.1"
   }
 }
