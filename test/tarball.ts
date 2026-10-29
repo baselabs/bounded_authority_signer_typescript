@@ -170,12 +170,12 @@ test("the manifest declares the exports map, no side effects, and the verifier ^
 test("the exports map closes deep imports: every dist path refuses, on each runtime", () => {
   // Node names the exports refusal itself; Deno and Bun surface it as a module-not-found error
   // (Deno's message carries the underlying ERR_PACKAGE_PATH_NOT_EXPORTED).
-  const expected: Record<string, { cmd: string[]; code: string }> = {
+  const expected: Record<string, { cmd: readonly [string, ...string[]]; code: string }> = {
     node: { cmd: ["node", "probe.mjs"], code: "ERR_PACKAGE_PATH_NOT_EXPORTED" },
     deno: { cmd: ["deno", "run", "--allow-read", "--allow-env", "probe.mjs"], code: "ERR_MODULE_NOT_FOUND" },
     bun: { cmd: ["bun", "probe.mjs"], code: "ERR_MODULE_NOT_FOUND" },
   };
-  const probe = (cmd: string[], specifier: string) => {
+  const probe = (cmd: readonly [string, ...string[]], specifier: string) => {
     writeFileSync(join(consumer, "probe.mjs"), `import(${JSON.stringify(specifier)}).then((m) => console.log(typeof m.signReport), (e) => console.log(e.code));`);
     const [c, ...rest] = cmd;
     return run(c, rest, consumer).trim();
