@@ -969,9 +969,8 @@ range such as `^0.5.0` never selects `0.6.0`. Compatibility with other implement
 by the wire contract-majors this package signs (1, 2 and 3), not by package version numbers.
 
 - **0.6.0** ([release status](#install)) adds the WebCrypto key handles, reads identity
-  snapshots from own data properties only, and refuses a handle's off-curve P-256 key at resolution
-  (`invalid_key_handle`, before `sign()`). It keeps the verifier at `^0.7.0`.
-- **0.6.x** depends on the verifier `^1.0.0` and adds the WebCrypto key-handle factories.
+  snapshots from own data properties only, refuses a handle's off-curve P-256 key at resolution
+  (`invalid_key_handle`, before `sign()`), and moves the verifier dependency to `^1.0.0`.
 - **0.5.x** depends on the verifier `^0.7.0`, runs in browsers, Deno and Bun, adds the
   contract-major-2 signers, and checks every ES256 signature with the verifier's strict
   `es256VerifyStrict` after low-S normalization.
