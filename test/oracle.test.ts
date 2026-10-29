@@ -31,6 +31,17 @@ import {
 } from "../src/index.js";
 import { amountArgs, b64, ecHandleFor, ecRawKey, handleFor, rawKey } from "./helpers.js";
 
+// The verifier's facts values have no JSON encoding (REQ1-VERIFY-facts-redacted; verifier
+// 0.8.0+ throws), and an assert's message template evaluates even when the assert passes — so
+// every diagnostic here renders through a guard instead of JSON.stringify directly.
+const show = (r: unknown): string => {
+  try {
+    return JSON.stringify(r);
+  } catch {
+    return "ok (a facts value: fields readable, no JSON encoding)";
+  }
+};
+
 test("oracle: issuer grant → holder report → verifier checkEnvelope consumes both", async () => {
   const issuer = rawKey();
   const holder = rawKey();
@@ -45,7 +56,7 @@ test("oracle: issuer grant → holder report → verifier checkEnvelope consumes
     },
     handleFor(issuer, { keyId: "issuer-key", role: "issuer" }),
   );
-  assert.equal(grant.ok, true, `grant signing failed: ${JSON.stringify(grant)}`);
+  assert.equal(grant.ok, true, `grant signing failed: ${show(grant)}`);
 
   // The grant verifies standalone through the independent verifier.
   const verified = verifyGrant(grant.value.grant, { keyId: "issuer-key", publicKey: issuer.publicKey }, {
@@ -63,7 +74,7 @@ test("oracle: issuer grant → holder report → verifier checkEnvelope consumes
     handleFor(holder, { keyId: "holder-key" }),
     { issuedAt: 1500, proofId: "urn:example:proof:1" },
   );
-  assert.equal(envelope.ok, true, `report signing failed: ${JSON.stringify(envelope)}`);
+  assert.equal(envelope.ok, true, `report signing failed: ${show(envelope)}`);
   assert.deepEqual(envelope.value.grant, grant.value.grant, "the grant passes through untouched");
 
   const at = checkEnvelope(envelope.value.grant, envelope.value.proof, {
@@ -74,7 +85,7 @@ test("oracle: issuer grant → holder report → verifier checkEnvelope consumes
     castArguments: amountArgs(), evaluationTime: 1500, clockSkew: 60, proofMaxAge: 300,
     nonce: { kind: "not_required" },
   });
-  assert.equal(at.ok, true, `the envelope must verify through checkEnvelope: ${JSON.stringify(at)}`);
+  assert.equal(at.ok, true, `the envelope must verify through checkEnvelope: ${show(at)}`);
 });
 
 test("oracle: local-loopback proof verifies through the profile's checkEnvelope", async () => {
@@ -101,7 +112,7 @@ test("oracle: local-loopback proof verifies through the profile's checkEnvelope"
     handleFor(holder, { keyId: "holder-key" }),
     { issuedAt: 1500, proofId: "urn:example:proof:lb-1" },
   );
-  assert.equal(envelope.ok, true, `loopback signing failed: ${JSON.stringify(envelope)}`);
+  assert.equal(envelope.ok, true, `loopback signing failed: ${show(envelope)}`);
 
   const at = checkLocalLoopbackHttpEnvelope(envelope.value.grant, envelope.value.proof, {
     trustedIssuer: { keyId: "issuer-key", publicKey: issuer.publicKey },
@@ -111,7 +122,7 @@ test("oracle: local-loopback proof verifies through the profile's checkEnvelope"
     castArguments: amountArgs(), evaluationTime: 1500, clockSkew: 60, proofMaxAge: 300,
     nonce: { kind: "required", value: "challenge-7f3a" },
   });
-  assert.equal(at.ok, true, `the loopback envelope must verify through the profile verifier: ${JSON.stringify(at)}`);
+  assert.equal(at.ok, true, `the loopback envelope must verify through the profile verifier: ${show(at)}`);
 });
 
 test("oracle: anchor and key-transition compacts verify through the historical surfaces", async () => {
@@ -124,7 +135,7 @@ test("oracle: anchor and key-transition compacts verify through the historical s
     handleFor(signer, { keyId: "chain-key" }),
     { anchoredAt: 1200 },
   );
-  assert.equal(anchor.ok, true, `anchor signing failed: ${JSON.stringify(anchor)}`);
+  assert.equal(anchor.ok, true, `anchor signing failed: ${show(anchor)}`);
 
   const anchorOk = verifyHistoricalAnchor(anchor.value.anchor, {
     keyId: "chain-key", publicKey: signer.publicKey, validFrom: 0, validBefore: null,
@@ -133,7 +144,7 @@ test("oracle: anchor and key-transition compacts verify through the historical s
     sequence: 0, anchoredAt: 1200, chainHash,
     keyFingerprint: publicKeyThumbprintRaw(signer.publicKey),
   });
-  assert.equal(anchorOk.ok, true, `the anchor must verify: ${JSON.stringify(anchorOk)}`);
+  assert.equal(anchorOk.ok, true, `the anchor must verify: ${show(anchorOk)}`);
 
   const transition = await signKeyTransition(
     {
@@ -142,7 +153,7 @@ test("oracle: anchor and key-transition compacts verify through the historical s
     },
     handleFor(signer, { keyId: "chain-key" }),
   );
-  assert.equal(transition.ok, true, `transition signing failed: ${JSON.stringify(transition)}`);
+  assert.equal(transition.ok, true, `transition signing failed: ${show(transition)}`);
 
   const trOk = verifyKeyTransition(transition.value.keyTransition,
     { keyId: "chain-key", publicKey: signer.publicKey, validFrom: 0, validBefore: null },
@@ -153,7 +164,7 @@ test("oracle: anchor and key-transition compacts verify through the historical s
       nextKeyFingerprint: publicKeyThumbprintRaw(successor.publicKey),
       currentKeyId: "chain-key", nextKeyId: "chain-key-2",
     });
-  assert.equal(trOk.ok, true, `the transition must verify: ${JSON.stringify(trOk)}`);
+  assert.equal(trOk.ok, true, `the transition must verify: ${show(trOk)}`);
 });
 
 test("v3 oracle: issuer grant → holder report → verifier v3.checkEnvelope consumes both", async () => {
@@ -170,13 +181,13 @@ test("v3 oracle: issuer grant → holder report → verifier v3.checkEnvelope co
     },
     ecHandleFor(issuer, { keyId: "issuer-key", role: "issuer" }),
   );
-  assert.equal(grant.ok, true, `v3 grant signing failed: ${JSON.stringify(grant)}`);
+  assert.equal(grant.ok, true, `v3 grant signing failed: ${show(grant)}`);
 
   const verified = v3.verifyGrant(grant.value.grant, { keyId: "issuer-key", publicKey: issuer.publicKey }, {
     issuer: "https://issuer.example.test", audience: "https://resource.example.test",
     evaluationTime: 1500, clockSkew: 60,
   });
-  assert.equal(verified.ok, true, `the signed v3 grant must verify through the verifier package: ${JSON.stringify(verified)}`);
+  assert.equal(verified.ok, true, `the signed v3 grant must verify through the verifier package: ${show(verified)}`);
 
   const envelope = await signV3Report(
     {
@@ -187,7 +198,7 @@ test("v3 oracle: issuer grant → holder report → verifier v3.checkEnvelope co
     ecHandleFor(holder, { keyId: "holder-key" }),
     { issuedAt: 1500, proofId: "urn:example:proof:v3-1" },
   );
-  assert.equal(envelope.ok, true, `v3 report signing failed: ${JSON.stringify(envelope)}`);
+  assert.equal(envelope.ok, true, `v3 report signing failed: ${show(envelope)}`);
 
   const at = v3.checkEnvelope(envelope.value.grant, envelope.value.proof, {
     trustedIssuer: { keyId: "issuer-key", publicKey: issuer.publicKey },
@@ -197,7 +208,7 @@ test("v3 oracle: issuer grant → holder report → verifier v3.checkEnvelope co
     castArguments: amountArgs(), evaluationTime: 1500, clockSkew: 60, proofMaxAge: 300,
     nonce: { kind: "not_required" },
   });
-  assert.equal(at.ok, true, `the v3 envelope must verify through v3.checkEnvelope: ${JSON.stringify(at)}`);
+  assert.equal(at.ok, true, `the v3 envelope must verify through v3.checkEnvelope: ${show(at)}`);
 });
 
 test("v3 oracle: anchor and key-transition compacts verify through the v3 historical surfaces", async () => {
@@ -210,7 +221,7 @@ test("v3 oracle: anchor and key-transition compacts verify through the v3 histor
     ecHandleFor(signer, { keyId: "chain-key" }),
     { anchoredAt: 1200 },
   );
-  assert.equal(anchor.ok, true, `v3 anchor signing failed: ${JSON.stringify(anchor)}`);
+  assert.equal(anchor.ok, true, `v3 anchor signing failed: ${show(anchor)}`);
 
   const anchorOk = v3.verifyHistoricalAnchor(anchor.value.anchor, {
     keyId: "chain-key", publicKey: signer.publicKey, validFrom: 0, validBefore: null,
@@ -219,7 +230,7 @@ test("v3 oracle: anchor and key-transition compacts verify through the v3 histor
     sequence: 0, anchoredAt: 1200, chainHash,
     keyFingerprint: base64urlDecode(strUtf8(signer.thumbprint)),
   });
-  assert.equal(anchorOk.ok, true, `the v3 anchor must verify: ${JSON.stringify(anchorOk)}`);
+  assert.equal(anchorOk.ok, true, `the v3 anchor must verify: ${show(anchorOk)}`);
 
   const transition = await signV3KeyTransition(
     {
@@ -228,7 +239,7 @@ test("v3 oracle: anchor and key-transition compacts verify through the v3 histor
     },
     ecHandleFor(signer, { keyId: "chain-key" }),
   );
-  assert.equal(transition.ok, true, `v3 transition signing failed: ${JSON.stringify(transition)}`);
+  assert.equal(transition.ok, true, `v3 transition signing failed: ${show(transition)}`);
 
   const trOk = v3.verifyKeyTransition(transition.value.keyTransition,
     { keyId: "chain-key", publicKey: signer.publicKey, validFrom: 0, validBefore: null },
@@ -239,5 +250,5 @@ test("v3 oracle: anchor and key-transition compacts verify through the v3 histor
       nextKeyFingerprint: base64urlDecode(strUtf8(successor.thumbprint)),
       currentKeyId: "chain-key", nextKeyId: "chain-key-2",
     });
-  assert.equal(trOk.ok, true, `the v3 transition must verify: ${JSON.stringify(trOk)}`);
+  assert.equal(trOk.ok, true, `the v3 transition must verify: ${show(trOk)}`);
 });

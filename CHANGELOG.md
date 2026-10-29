@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.6.0] — unreleased
+## [0.6.0] — 2026-10-29
 
 WebCrypto key handles. Two factories build the existing handle types from a WebCrypto key pair
 whose private key is non-extractable, so a browser page (or Deno, Bun or Node) can sign with a key
@@ -9,6 +9,13 @@ key: the caller creates the pair and owns its lifetime. Everything below is addi
 stricter handle checks under Changed: identity snapshots are read from own data properties only
 (0.5.0 also read inherited ones, so an inherited `role: "issuer"` could sign a grant), and P-256 key
 resolution (one error code changes).
+
+### Changed
+
+- The verifier dependency moves to `^1.0.0` (the stability release; deep imports into the
+  verifier are closed and the signer uses none). The resolved verifier carries erratum 3's
+  producer-canonicality refusals; the signer already normalizes every signature to low-S before
+  assembly, so nothing changes for its own output.
 
 ### Added
 

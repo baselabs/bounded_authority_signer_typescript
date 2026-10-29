@@ -44,7 +44,7 @@ It signs three wire contract-majors, each with its own functions:
 ## Install
 
 ```bash
-npm install @bounded-authority-protocol/signer@0.5.0 @bounded-authority-protocol/verifier@0.7.0
+npm install @bounded-authority-protocol/signer@0.6.0 @bounded-authority-protocol/verifier@1.0.0
 ```
 
 That is the latest release on npm. This README documents the source on `main`, version 0.6.0,
@@ -64,7 +64,7 @@ module project (the examples use top-level `await`), install both packages, and 
 <!-- readme-sample: setup -->
 ```bash
 npm init -y && npm pkg set type=module
-npm install @bounded-authority-protocol/signer@0.5.0 @bounded-authority-protocol/verifier@0.7.0
+npm install @bounded-authority-protocol/signer@0.6.0 @bounded-authority-protocol/verifier@1.0.0
 npm install --save-dev tsx
 ```
 
@@ -971,6 +971,7 @@ by the wire contract-majors this package signs (1, 2 and 3), not by package vers
 - **0.6.0** ([release status](#install)) adds the WebCrypto key handles, reads identity
   snapshots from own data properties only, and refuses a handle's off-curve P-256 key at resolution
   (`invalid_key_handle`, before `sign()`). It keeps the verifier at `^0.7.0`.
+- **0.6.x** depends on the verifier `^1.0.0` and adds the WebCrypto key-handle factories.
 - **0.5.x** depends on the verifier `^0.7.0`, runs in browsers, Deno and Bun, adds the
   contract-major-2 signers, and checks every ES256 signature with the verifier's strict
   `es256VerifyStrict` after low-S normalization.

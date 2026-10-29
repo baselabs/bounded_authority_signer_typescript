@@ -43,13 +43,23 @@ const expected = (issuer: RawKey) => ({
 
 async function v2Envelope(issuer: RawKey, holder: RawKey) {
   const grant = await signV2Grant(lteGrant(holder.thumbprint), handleFor(issuer, { keyId: "issuer-key", role: "issuer" }));
-  assert.equal(grant.ok, true, `v2 grant signing failed: ${JSON.stringify(grant)}`);
+  assert.equal(grant.ok, true, `v2 grant signing failed: ${show(grant)}`);
   if (!grant.ok) throw new Error("unreachable");
   const envelope = await signV2Report(report(grant.value.grant), handleFor(holder, { keyId: "holder-key" }), { issuedAt: 1500, proofId: "urn:example:proof:v2-1" });
-  assert.equal(envelope.ok, true, `v2 report signing failed: ${JSON.stringify(envelope)}`);
+  assert.equal(envelope.ok, true, `v2 report signing failed: ${show(envelope)}`);
   if (!envelope.ok) throw new Error("unreachable");
   return { grant: grant.value.grant, envelope: envelope.value };
 }
+
+// The verifier's facts values have no JSON encoding (verifier 0.8.0+), and an assert's message
+// template evaluates even when the assert passes — render diagnostics through a guard.
+const show = (r: unknown): string => {
+  try {
+    return JSON.stringify(r);
+  } catch {
+    return "ok (a facts value: fields readable, no JSON encoding)";
+  }
+};
 
 test("v2 oracle: issuer grant (lte selector) -> holder report -> v2.verifyGrant and v2.checkEnvelope accept both", async () => {
   const issuer = rawKey();
@@ -58,9 +68,9 @@ test("v2 oracle: issuer grant (lte selector) -> holder report -> v2.verifyGrant 
   assert.deepEqual(envelope.grant, grant, "the grant passes through untouched");
 
   const g = v2.verifyGrant(grant, { keyId: "issuer-key", publicKey: issuer.publicKey }, { issuer: ISSUER, audience: AUDIENCE, evaluationTime: 1500, clockSkew: 60 });
-  assert.equal(g.ok, true, `the v2 grant must verify: ${JSON.stringify(g)}`);
+  assert.equal(g.ok, true, `the v2 grant must verify: ${show(g)}`);
   const at = v2.checkEnvelope(envelope.grant, envelope.proof, expected(issuer));
-  assert.equal(at.ok, true, `the v2 envelope must verify through v2.checkEnvelope: ${JSON.stringify(at)}`);
+  assert.equal(at.ok, true, `the v2 envelope must verify through v2.checkEnvelope: ${show(at)}`);
 });
 
 test("v2 oracle: the lte bound is in the signed grant (an amount above it is refused by v2.checkEnvelope)", async () => {
@@ -100,19 +110,19 @@ test("v2 oracle: anchor and key-transition compacts verify through the v2 histor
     { anchorId: "urn:example:anchor:v2-start", chainId: "urn:example:chain", sequence: 0, chainHash },
     handleFor(signer, { keyId: "chain-key" }), { anchoredAt: 1200 },
   );
-  assert.equal(anchor.ok, true, `v2 anchor signing failed: ${JSON.stringify(anchor)}`);
+  assert.equal(anchor.ok, true, `v2 anchor signing failed: ${show(anchor)}`);
   if (!anchor.ok) return;
   const anchorOk = v2.verifyHistoricalAnchor(anchor.value.anchor, { keyId: "chain-key", publicKey: signer.publicKey, validFrom: 0, validBefore: null }, {
     anchorId: "urn:example:anchor:v2-start", chainId: "urn:example:chain", keyId: "chain-key",
     sequence: 0, anchoredAt: 1200, chainHash, keyFingerprint: publicKeyThumbprintRaw(signer.publicKey),
   });
-  assert.equal(anchorOk.ok, true, `the v2 anchor must verify: ${JSON.stringify(anchorOk)}`);
+  assert.equal(anchorOk.ok, true, `the v2 anchor must verify: ${show(anchorOk)}`);
 
   const transition = await signV2KeyTransition(
     { transitionId: "urn:example:transition:v2-1", chainId: "urn:example:chain", effectiveAt: 1500, nextKeyId: "chain-key-2", nextPublicKey: successor.publicKey },
     handleFor(signer, { keyId: "chain-key" }),
   );
-  assert.equal(transition.ok, true, `v2 transition signing failed: ${JSON.stringify(transition)}`);
+  assert.equal(transition.ok, true, `v2 transition signing failed: ${show(transition)}`);
   if (!transition.ok) return;
   const trOk = v2.verifyKeyTransition(transition.value.keyTransition,
     { keyId: "chain-key", publicKey: signer.publicKey, validFrom: 0, validBefore: null },
@@ -122,7 +132,7 @@ test("v2 oracle: anchor and key-transition compacts verify through the v2 histor
       currentKeyFingerprint: publicKeyThumbprintRaw(signer.publicKey), nextKeyFingerprint: publicKeyThumbprintRaw(successor.publicKey),
       currentKeyId: "chain-key", nextKeyId: "chain-key-2",
     });
-  assert.equal(trOk.ok, true, `the v2 transition must verify: ${JSON.stringify(trOk)}`);
+  assert.equal(trOk.ok, true, `the v2 transition must verify: ${show(trOk)}`);
 });
 
 test("v2 gates: C1, a holder-role handle (or one without signingIdentity) cannot sign a grant, and sign() is never called", async () => {

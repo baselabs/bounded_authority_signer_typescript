@@ -160,14 +160,14 @@ function typecheck(moduleResolution: "NodeNext" | "Bundler", lib: string[], cust
   return ts.getPreEmitDiagnostics(program).map((d) => `${d.file?.fileName.replace(consumer, "") ?? ""} TS${d.code}: ${ts.flattenDiagnosticMessageText(d.messageText, " ")}`);
 }
 
-test("the manifest declares the exports map, no side effects, and the verifier ^0.7.0", () => {
+test("the manifest declares the exports map, no side effects, and the verifier ^1.0.0", () => {
   assert.equal(MANIFEST.sideEffects, false);
   assert.deepEqual(MANIFEST.exports, {
     ".": { types: "./dist/src/index.d.ts", default: "./dist/src/index.js" },
     "./package.json": "./package.json",
     "./*": "./*",
   });
-  assert.equal((MANIFEST.dependencies as Record<string, string>)[VERIFIER], "^0.7.0");
+  assert.equal((MANIFEST.dependencies as Record<string, string>)[VERIFIER], "^1.0.0");
 });
 
 test("the tarball ships the built package and no source, tests or tools", () => {
