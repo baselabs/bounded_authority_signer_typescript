@@ -1,6 +1,7 @@
-// The packed package as a consumer receives it (pnpm test:tarball, which builds first). It packs the
-// real signer tarball and the verifier exactly as installed here, installs both offline into a scratch
-// consumer outside the repository, and then:
+// The packed package as a consumer receives it (pnpm test:tarball, which builds first). It takes the
+// release tarball (packed by tools/pack.mjs, or BAP_TARBALL when the release workflow packed it) and
+// the verifier exactly as installed here, installs both offline into a scratch consumer outside the
+// repository, and then:
 //   - typechecks a consumer of the whole public API with skipLibCheck false and
 //     types [], under NodeNext and Bundler resolution, lib ES2022 alone and ES2022 + DOM, and each
 //     condition set a consumer can select (none, bap-portable, deno, bun): no public declaration may
@@ -21,6 +22,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
+import { pack } from "../tools/pack.mjs";
 
 const REPO = fileURLToPath(new URL("..", import.meta.url));
 const MANIFEST = JSON.parse(readFileSync(join(REPO, "package.json"), "utf8")) as Record<string, unknown>;
@@ -120,8 +122,9 @@ console.log(JSON.stringify(out));
 `;
 
 test.before(() => {
-  run("pnpm", ["pack", "--pack-destination", scratch], REPO);
-  tarball = join(scratch, readdirSync(scratch).find((f) => f.startsWith("bounded-authority-protocol-signer-") && f.endsWith(".tgz"))!);
+  // The tarball the release publishes: BAP_TARBALL when the release workflow packed it already,
+  // otherwise packed here by the same script (tools/pack.mjs).
+  tarball = process.env.BAP_TARBALL ?? pack(join(scratch, "packed")).file;
   // The verifier exactly as this repository resolves it (the registry copy, or a local build).
   const verifierDir = realpathSync(join(REPO, "node_modules", ...VERIFIER.split("/")));
   const verifierOut = join(scratch, "verifier");

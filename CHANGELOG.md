@@ -14,6 +14,15 @@
   and its integral floats came back from the verifier as integers. The v3 producer refuses it
   itself; for v1 and v2 the signer checks after the verifier 1.0.0 producer, which does not.
 
+### Release
+
+- **The release publishes the tarball it verified.** The release workflow's verify job packs the
+  tarball once (`tools/pack.mjs`, also `pnpm pack:release`: `npm pack` with scripts ignored, never
+  writing the working tree) and records its SHA-256; the tarball and reader lanes check that file.
+  The publish job repacks the tagged tree, refuses unless the SHA-256 matches, and stages exactly
+  that file (`npm stage publish <file> --provenance`), where it used to stage from the working
+  directory. Trusted publishing, provenance and the human approval are unchanged.
+
 ### Tests
 
 - `test/integral-float-selector.test.ts`, on each major: every float-tagged integral value, top

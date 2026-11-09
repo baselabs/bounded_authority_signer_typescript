@@ -1,5 +1,6 @@
 node_modules/
 dist/
+build-pack/
 
 # Kimosabe local process state (family convention: never tracked)
 .kimosabe/

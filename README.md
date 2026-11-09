@@ -964,8 +964,10 @@ measurement in [`tools/bundle-size-limits.json`](tools/bundle-size-limits.json).
   pinned packages from npm and `npx tsx`, and checks that the pinned versions are npm's latest.
 
 CI runs on Linux (`ubuntu-24.04`). Linux WebKit is evidence for this code on that WebKit build,
-not for Safari. The release workflow repeats every lane on Node 24.19.0, then stages the publish
-for a person to approve; packages are published with npm provenance.
+not for Safari. The release workflow packs the release tarball once and records its SHA-256, runs
+every lane on Node 24.19.0 against that tarball, then repacks the tagged tree in the publish job and
+stages that tarball only if its SHA-256 matches, for a person to approve; packages are published
+with npm provenance.
 
 ## Versioning and compatibility
 
@@ -1028,6 +1030,7 @@ The CI scripts:
 | `test:tarball` | the packed package as a consumer installs it (needs Deno and Bun); the Quickstart as a reader runs it, the README's version pins, and the playground badge rules (these need the npm registry) |
 | `test:browser` | Playwright lanes; `BAP_BROWSERS` selects from `chromium,firefox,webkit` (default `chromium`); install the engines with `pnpm exec playwright install` |
 | `check:currency` | every dependency at its latest version, or pinned with a recorded reason |
+| `pack:release` | the release tarball, as the release workflow packs and publishes it (after `build`); prints its path and SHA-256 |
 | `build:site`, `guard:site` | the playground bundle, and its scan |
 
 ## License

@@ -2,17 +2,19 @@
 // commands run verbatim with npm, the README's key-handle.ts and quickstart.ts written as shown, then
 // `npx tsx quickstart.ts`, whose output must match the README. The packages come from the npm registry at
 // the versions the README pins; only when the README pins this repository's own (not yet published)
-// version is the signer replaced by this repository's packed tarball (the release commit, before the
-// publish). A second test checks the pins: the signer version is npm's latest (or package.json's version
-// with a v<version> tag at HEAD), the verifier version is npm's latest and inside this package's
-// dependency range, and every mention agrees. Needs the network (pnpm test:tarball runs it, after a build).
+// version is the signer replaced by the release tarball (tools/pack.mjs, or BAP_TARBALL from the release
+// workflow: the release commit, before the publish). A second test checks the pins: the signer version
+// is npm's latest (or package.json's version with a v<version> tag at HEAD), the verifier version is
+// npm's latest and inside this package's dependency range, and every mention agrees. Needs the network
+// (pnpm test:tarball runs it, after a build).
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { pack } from "../tools/pack.mjs";
 import { npmLatest, tagAtHead } from "../tools/release-state.mjs";
 import { parse } from "./readme-samples.js";
 
@@ -70,11 +72,10 @@ test("README Quickstart: an empty directory, the setup commands, the two files, 
     let commands = setup[0]!.code;
     const pinned = pins(SIGNER)[0];
     if (pinned === MANIFEST.version) {
-      // The README pins this source's version: install the packed tarball (pnpm test:tarball builds first).
-      execFileSync("pnpm", ["pack", "--pack-destination", dir], { cwd: REPO, stdio: "pipe" });
-      const tarball = readdirSync(dir).find((f) => f.endsWith(".tgz"));
-      assert.ok(tarball);
-      commands = commands.replaceAll(`${SIGNER}@${pinned}`, join(dir, tarball));
+      // The README pins this source's version: install the release tarball (BAP_TARBALL in the release
+      // workflow, otherwise packed by tools/pack.mjs; pnpm test:tarball builds first).
+      const tarball = process.env.BAP_TARBALL ?? pack(join(dir, "packed")).file;
+      commands = commands.replaceAll(`${SIGNER}@${pinned}`, tarball);
     }
     const project = join(dir, "reader");
     execFileSync("mkdir", [project]);
