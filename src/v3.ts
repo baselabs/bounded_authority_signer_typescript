@@ -1,4 +1,4 @@
-// The contract-major 3 producing profile (`BAP3-ES256-SHA256`, ADR 0035 /
+// The contract-major 3 producing profile (`BAP3-ES256-SHA256`, the protocol's
 // spec/bap-v3.md): the deterministic signing-input composers for the ES256
 // suite. The producing side lives in this module — composed to mirror the
 // verifier package's v2 producer structure with exactly the v3 deltas the spec

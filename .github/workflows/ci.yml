@@ -225,7 +225,7 @@ jobs:
         run: npm audit signatures
 
   dependency-currency:
-    # Latest-first dependency currency (BAP ADR 0032 shape). A property of the
+    # Latest-first dependency currency (the protocol family's shape). A property of the
     # manifest + lockfile, so it is proven once per run, not once per OS lane.
     name: dependency currency (latest-first)
     runs-on: ubuntu-24.04

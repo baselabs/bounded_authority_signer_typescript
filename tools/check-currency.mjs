@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Dependency-currency gate (latest-first) — the pnpm analogue of the Elixir family's
-// dependency-currency gate (BAP ADR 0032), written in the repo's managed language.
+// dependency-currency gate, written in the repo's managed language.
 // Classification is on data from real resolvers, never on a tool's
 // exit status alone: `pnpm outdated --format json` for the drift table (it exits
 // nonzero both on drift and on lookup failure, and exits 0 with `{}` when everything

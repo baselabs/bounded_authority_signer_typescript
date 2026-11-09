@@ -155,3 +155,20 @@ test("README: every anchor linked from the README and from src/ doc comments exi
   assert.ok(wanted.size > 5);
   for (const [anchor, from] of wanted) assert.ok(known.has(anchor), `${from} links to #${anchor}, which is not a README heading`);
 });
+
+// Hygiene. The protocol's design records (ADRs) are not published, so no shipped or public text may
+// cite one; and release history belongs in CHANGELOG.md, not in the README's version notes.
+test("hygiene: no README, CHANGELOG, SECURITY, source, tool, page or workflow text cites a design record (ADR)", () => {
+  const files = ["README.md", "CHANGELOG.md", "SECURITY.md", "web/index.html",
+    ...readdirSync(join(REPO, "src")).filter((f) => f.endsWith(".ts")).map((f) => `src/${f}`),
+    ...readdirSync(join(REPO, "tools")).filter((f) => /\.m?js$/.test(f)).map((f) => `tools/${f}`),
+    ...readdirSync(join(REPO, ".github/workflows")).map((f) => `.github/workflows/${f}`)];
+  const cited = files.filter((f) => /\bADRs?\b|\/adr\//.test(readFileSync(join(REPO, f), "utf8")));
+  assert.deepEqual(cited, []);
+});
+
+test("hygiene: the README carries no pre-1.0 version notes (release history is in CHANGELOG.md)", () => {
+  const notes = README.split("\n").map((line, i) => ({ line: i + 1, text: line }))
+    .filter(({ text }) => /(?<![\d.])0\.\d+\.\d+(?![\d.])|\bNew in\b/.test(text));
+  assert.deepEqual(notes, []);
+});

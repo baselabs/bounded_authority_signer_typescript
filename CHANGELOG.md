@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+A major release, 2.0.0. The protocol's erratum 6 makes the grant signers refuse inputs that 1.0.0
+signed, which is breaking under the 1.0 contract. It depends on the verifier `^2.0.0`, the verifier
+release that carries the same erratum. From 2.x on, a release that carries a protocol soundness
+repair is a minor (README, "Versioning and compatibility"). Under the protocol's governance the
+erratum is signer-bound, so it has no advisory: its errata entry is the disclosure, and 1.0.0 stays
+installable and is not deprecated.
+
 ### Changed
 
 - **Grant signers refuse a float-tagged integral selector value** (protocol erratum 6,
@@ -14,6 +21,24 @@
   and its integral floats came back from the verifier as integers. The v3 producer refuses it
   itself; for v1 and v2 the signer checks after the verifier 1.0.0 producer, which does not.
 
+### Documentation
+
+- `SECURITY.md`: private reporting through this repository's Security tab, the supported release
+  line, the earlier releases (before 0.4.0 deprecated with an advisory; before 2.0.0 installable,
+  disclosed by the errata entry), and what the package does and does not do. The README links it
+  from a new Security section.
+- README: the versioning text for 2.0.0 and the family rule from 2.x on (a soundness repair is a
+  minor; a package major is not a contract-major); a "Float-tagged integral selector values"
+  section with an executable sample of the erratum-6 refusal on all three grant signers; a "Keys in
+  a KMS or HSM" recipe (a cloud KMS's DER ECDSA signature to the raw `r || s` an ES256 handle
+  returns, the public key from its DER `SubjectPublicKeyInfo`), executed by the README harness with
+  a real P-256 key that returns DER. The Install section no longer says `main` is the release;
+  unreleased behavior is marked **unreleased**. The per-release notes (0.3.x to 0.6.0) left the
+  README; their content is in the entries below. The bundle-size figures are remeasured.
+- No document cites the protocol's design records, which are not published: the 0.2.0 entry below
+  links `spec/bap-v3.md` instead, and the source, tool, workflow and playground comments say the
+  same thing in their own words.
+
 ### Release
 
 - **The release publishes the tarball it verified.** The release workflow's verify job packs the
@@ -25,6 +50,8 @@
 
 ### Tests
 
+- Hygiene (`test/readme.test.ts`): no README, CHANGELOG, SECURITY, source, tool, playground or
+  workflow text cites a design record, and the README carries no 0.x version notes.
 - `test/integral-float-selector.test.ts`, on each major: every float-tagged integral value, top
   level and nested, in `equals`, `one_of` and (v2, v3) `lte`/`gte`, is `producer_error` with
   `sign()` never called; integers and non-integral floats sign, verify, and decode back from the
@@ -346,9 +373,9 @@ Documentation patch; no code or dependency change.
 
 ## [0.2.0] — 2026-09-22
 
-- **Contract-major 3 (`BAP3-ES256-SHA256`) producing-side adoption** (protocol
-  [ADR 0035](https://github.com/baselabs/bounded_authority_protocol/blob/main/docs/adr/0035-es256-contract-major-activation.md),
-  `spec/bap-v3.md`). Four new signers — `signV3Grant`,
+- **Contract-major 3 (`BAP3-ES256-SHA256`) producing-side adoption** (the protocol's
+  [`spec/bap-v3.md`](https://github.com/baselabs/bounded_authority_protocol/blob/main/spec/bap-v3.md)).
+  Four new signers — `signV3Grant`,
   `signV3Report`, `signV3Anchor`, `signV3KeyTransition` — mirror the v1 functions under the
   ES256 suite: `alg: "ES256"` protected headers, payload `v: 3`, the `BAP3-REQUEST\0` digest
   prefix, the EC proof JWK `{crv, kty, x, y}` with the RFC 7638 EC thumbprint as `cnf.jkt`,
@@ -400,8 +427,8 @@ flow, closed error set, and five-span telemetry) with zero signing-behavior delt
   deliberately holds the caret `^0.2.0` — an exact pin in a published package's dependencies
   would force every consumer's resolution and block dedupe, and reproducibility is already
   provided by the tracked lockfile plus CI's `--frozen-lockfile` installs.
-- Dependency-currency gate (latest-first, the family ADR 0032 shape): `tools/check-currency.mjs`
-  ported byte-identical from the verifier package's repository — `pnpm outdated` data
+- Dependency-currency gate (latest-first, the shape every package in the protocol family uses):
+  `tools/check-currency.mjs` ported byte-identical from the verifier package's repository — `pnpm outdated` data
   classified through the canonical `semver` resolver: in-range resolvable drift fails (never
   pinnable), deliberate pins cover only out-of-range latests and carry inline reasons
   (typescript stays on 6.x pending the 7.x native-compiler review), and an unverifiable
@@ -417,7 +444,7 @@ flow, closed error set, and five-span telemetry) with zero signing-behavior delt
   the CI `node-version` move lockstep. `engines.node` stays the consumer floor `>= 22`; the
   release lane stays on Node 24 for the npm >= 11.5 that trusted publishing requires.
 - README: the protocol-family cross-links land (verifier package by npm and repository, the
-  protocol monorepo with its specs and ADRs, and the Elixir reference this package ports),
+  protocol monorepo with its specs, and the Elixir reference this package ports),
   and the contract-major statement is now explicit: this 0.1.x line signs **v1 only** (the
   verifier package's v2 surface is verify-side and unreachable from this library).
 

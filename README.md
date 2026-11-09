@@ -28,10 +28,10 @@ Contents: [Install](#install) · [Quickstart](#quickstart) ·
 [Contract-major 3](#contract-major-3-es256) ·
 [Anchors and key rotation](#anchor-a-chain-and-rotate-its-key) ·
 [Loopback](#sign-for-a-local-app-loopback) · [Testing](#test-your-integration) ·
-[WebCrypto key handles](#webcrypto-key-handles) ·
+[Keys in a KMS or HSM](#keys-in-a-kms-or-hsm) · [WebCrypto key handles](#webcrypto-key-handles) ·
 [Browsers, Deno, Bun](#browsers-deno-bun-and-workers) · [How it is tested](#how-this-package-is-tested) ·
 [Versioning](#versioning-and-compatibility) · [Protocol family](#protocol-family) ·
-[Development](#development)
+[Security](#security) · [Development](#development)
 
 It signs three wire contract-majors, each with its own functions:
 
@@ -47,10 +47,10 @@ It signs three wire contract-majors, each with its own functions:
 npm install @bounded-authority-protocol/signer@1.0.0 @bounded-authority-protocol/verifier@1.0.0
 ```
 
-This README documents the source on `main`, which is that release; between the release commit and
-its approval on npm the registry still serves the previous version for a short window. The one
-change 1.0.0 carries — deep imports closed — is described under
-[Versioning and compatibility](#versioning-and-compatibility).
+This README documents the source on `main`. Anything `main` carries beyond the release installed
+above is marked **unreleased** here and listed under
+[Versioning and compatibility](#versioning-and-compatibility). Between a release commit and its
+approval on npm, the registry still serves the previous version for a short window.
 
 The signer's one runtime dependency is the verifier. Install the verifier yourself too when your
 code imports it, as every example here does (pnpm, for one, does not let you import a package you
@@ -219,12 +219,10 @@ What the library does with a handle:
 - **The issuer-role gate.** A grant signer reads `signingIdentity()` once and fails closed with
   `invalid_key_handle`, before `sign()` is ever called, unless the snapshot's own `role` is
   `"issuer"`. A holder handle can never mint its own grant. `role`, `keyId` and `publicKey` count
-  only as the snapshot's own data properties, never inherited ones or getters (**0.6.0**; 0.5.0 also
-  read inherited ones).
+  only as the snapshot's own data properties, never inherited ones or getters.
 - **Key checks before signing.** An Ed25519 key must be 32 bytes, canonical and not small-order; a
-  P-256 key must be the 65-byte uncompressed point on the curve (checked here from **0.6.0**; 0.5.0
-  refused an off-curve key later, as `producer_error`). Anything else is `invalid_key_handle`, and
-  `sign()` is not called.
+  P-256 key must be the 65-byte uncompressed point on the curve. Anything else is
+  `invalid_key_handle`, and `sign()` is not called.
 - **The wrong-key guard.** Every signature is verified against the resolved public key before
   assembly, with the verifier's strict checks (`verifyStrict` for Ed25519; for ES256 the library
   first normalizes `s` to low-S, then `es256VerifyStrict` checks it). A handle whose `sign()` used a
@@ -239,7 +237,8 @@ What the library does with a handle:
 
 An ES256 custodian may return a high `s`: the library replaces it with `n − s`, so every emitted
 signature has `0 < s ≤ (n−1)/2` and cannot be re-spelled into a second valid encoding. An `r` or
-`s` outside `(0, n)` is `signing_failed`.
+`s` outside `(0, n)` is `signing_failed`. For a key in a KMS or HSM, see
+[Keys in a KMS or HSM](#keys-in-a-kms-or-hsm).
 
 ## API reference
 
@@ -267,12 +266,12 @@ Every value field is a compact JWS as ASCII bytes (`Uint8Array`). A report signe
 `grantCompact` you passed, unchanged.
 
 The package also exports the key-handle factories `ed25519KeyHandle` and `es256KeyHandle`
-(**0.6.0**, see [WebCrypto key handles](#webcrypto-key-handles)), and these types: `KeyHandle`,
+(see [WebCrypto key handles](#webcrypto-key-handles)), and these types: `KeyHandle`,
 `Es256KeyHandle`, `KeyRole`, `AtomicKeyIdentity`, `AtomicSigningIdentity`, `SignerErrorCode`,
 `SignerResult`, the input and option types named in this section, `SignerEvent`, `V2SignerEvent`,
-`V3SignerEvent`, `V2OperationInput`, `V2SelectorInput`, from **0.6.0** `V3OperationInput` and
+`V3SignerEvent`, `V2OperationInput`, `V2SelectorInput`, `V3OperationInput` and
 `V3SelectorInput` (see [Inputs](#inputs)), the value types `Envelope`, `GrantCompact`,
-`AnchorCompact` and `TransitionCompact`, and (**0.6.0**) `WebCryptoKeyLike`, `WebCryptoKeyPairLike` and
+`AnchorCompact` and `TransitionCompact`, and `WebCryptoKeyLike`, `WebCryptoKeyPairLike` and
 `WebCryptoHandleOptions`.
 
 ### Inputs
@@ -291,12 +290,14 @@ The package also exports the key-handle factories `ed25519KeyHandle` and `es256K
 A selector is `{ kind: "all" }` (or the string `"all"`), `{ kind: "equals", path, value }`,
 `{ kind: "one_of", path, values }`, or on v2 and v3 `{ kind: "lte" | "gte", path, value }` with an
 `int`- or `float`-tagged bound. `path` names a member of the request's `castArguments`; every
-selector of an operation must match. The signer does not evaluate selectors; the verifier does.
+selector of an operation must match. The signer does not evaluate selectors; the verifier does. A
+float-tagged selector value must have a fractional part (see
+[Float-tagged integral selector values](#float-tagged-integral-selector-values)).
 
 The operation and selector types: on v1 the verifier package's `OperationInput` and `SelectorInput`
 (import them from `@bounded-authority-protocol/verifier`); on v2 `V2OperationInput` and
-`V2SelectorInput`; on v3 `V3OperationInput` and `V3SelectorInput`, exported from the package root
-from **0.6.0** (0.5.0 reached them only through a deep import):
+`V2SelectorInput`; on v3 `V3OperationInput` and `V3SelectorInput`, all exported from the package
+root:
 
 <!-- readme-sample: types -->
 ```ts
@@ -365,7 +366,7 @@ report content.
 | `invalid_transition` | key-transition signers | an empty id, a non-integer `effectiveAt`, or a `nextPublicKey` of the wrong width | pass every `TransitionInput` field |
 | `invalid_key_handle` | every signer, both factories | the handle is unusable: a method or getter threw; a key of the wrong width, or one the suite refuses (non-canonical or small-order Ed25519, a P-256 key off the curve); no `keyIdentity()` for an anchor or transition; no `signingIdentity()`, or a role other than `"issuer"`, for a grant; a factory check failed | fix the handle; a holder handle cannot sign grants |
 | `signing_failed` | every signer | `sign()` threw, returned something other than a 64-byte `Uint8Array`, or returned a signature that does not verify against the handle's public key | make `sign()` use the key that `publicKey()` reports |
-| `producer_error` | every signer | the protocol refused an input: a non-UUID `invocationId`, a malformed identifier or URI, no audiences or operations, `expiresAt` not after `notBefore`, a negative `sequence`, an exceeded bound, a selector value holding a float-tagged integral number (`0.0`, `-0.0`, `10.0`), a loopback target other than `127.0.0.1` or `[::1]` over `http`; or no `proofId` could be generated | correct the value (an integral selector value is an `int`); pass `proofId` on a plain-HTTP page |
+| `producer_error` | every signer | the protocol refused an input: a non-UUID `invocationId`, a malformed identifier or URI, no audiences or operations, `expiresAt` not after `notBefore`, a negative `sequence`, an exceeded bound, a selector value holding a float-tagged integral number (`0.0`, `-0.0`, `10.0`; unreleased, see [below](#float-tagged-integral-selector-values)), a loopback target other than `127.0.0.1` or `[::1]` over `http`; or no `proofId` could be generated | correct the value (an integral selector value is an `int`); pass `proofId` on a plain-HTTP page |
 
 The type is closed, so a `switch` over it is checked for exhaustiveness. Here a holder handle
 tries to sign a grant:
@@ -407,6 +408,56 @@ if (!result.ok) console.log(`${result.error}: ${advice(result.error)}`);
 invalid_key_handle: the key handle cannot be used for this operation
 ```
 
+### Float-tagged integral selector values
+
+**Unreleased (2.0.0).** The grant signers `signGrant`, `signV2Grant` and `signV3Grant` return
+`producer_error`, before `sign()` is called, when a selector value holds a float-tagged number with
+no fractional part (`{ t: "float", v: 30 }`, which is how `30.0`, `-0.0` and an underflowing
+`1e-400` arrive), at any depth: an `equals` value, a `one_of` member, or an `lte` or `gte` bound.
+Canonical JSON (RFC 8785) writes such a number as integer text, which decodes integer-tagged, so the
+signed grant would not carry the value it was given. Write an integral value as an `int`; a float
+with a fractional part signs as before. This is the producer side of the protocol's
+[erratum 6](https://github.com/baselabs/bounded_authority_protocol/blob/main/docs/errata.md); the
+report, anchor and key-transition signers are unchanged. 1.0.0 signed these grants, and the verifier read their values back as integers.
+
+Here a backup agent may keep snapshots for at most 30 days:
+
+<!-- readme-sample: run -->
+```ts
+import { signGrant, signV2Grant, signV3Grant } from "@bounded-authority-protocol/signer";
+import type { Tagged } from "@bounded-authority-protocol/verifier";
+import { testEs256KeyHandle, testKeyHandle } from "./key-handle.js";
+
+const issuer = testKeyHandle("backup-issuer-1", "issuer");
+const es256Issuer = testEs256KeyHandle("backup-issuer-2", "issuer");
+const agent = testKeyHandle("backup-agent-1");
+
+const base = {
+  issuer: "https://backup.example", grantId: "urn:example:grant:retention",
+  audiences: ["https://snapshots.example"],
+  issuedAt: 1_767_225_600, notBefore: 1_767_225_600, expiresAt: 1_767_312_000,
+  holderThumbprint: await agent.thumbprint(),
+};
+const days = (value: Tagged) => ({ path: ["days"], value });
+const results = {
+  "signGrant, equals 30.0": await signGrant({ ...base, operations: [{ name: "set_retention", selectors: [{ kind: "equals", ...days({ t: "float", v: 30.0 }) }] }] }, issuer),
+  "signV2Grant, lte 30.0": await signV2Grant({ ...base, operations: [{ name: "set_retention", selectors: [{ kind: "lte", ...days({ t: "float", v: 30.0 }) }] }] }, issuer),
+  "signV3Grant, lte 30.0": await signV3Grant({ ...base, operations: [{ name: "set_retention", selectors: [{ kind: "lte", ...days({ t: "float", v: 30.0 }) }] }] }, es256Issuer),
+  "signV3Grant, lte 30 (int)": await signV3Grant({ ...base, operations: [{ name: "set_retention", selectors: [{ kind: "lte", ...days({ t: "int", v: 30 }) }] }] }, es256Issuer),
+  "signV3Grant, lte 30.5": await signV3Grant({ ...base, operations: [{ name: "set_retention", selectors: [{ kind: "lte", ...days({ t: "float", v: 30.5 }) }] }] }, es256Issuer),
+};
+for (const [label, result] of Object.entries(results)) console.log(`${label}: ${result.ok ? "signed" : result.error}`);
+```
+
+<!-- readme-output -->
+```text
+signGrant, equals 30.0: producer_error
+signV2Grant, lte 30.0: producer_error
+signV3Grant, lte 30.0: producer_error
+signV3Grant, lte 30 (int): signed
+signV3Grant, lte 30.5: signed
+```
+
 ## Contract-major 2: Ed25519 with range selectors
 
 The v2 signers take the same `KeyHandle` and emit the verifier's v2 format: `v: 2` payloads, the
@@ -415,7 +466,9 @@ They compose through the verifier's own v2 signing inputs and `v2.assembleCompac
 verifies only its own bytes: `checkEnvelope` refuses a v2 envelope and `v2.checkEnvelope` refuses a
 v1 one. A `float` bound must be non-integral: canonical JSON writes `10.0` as `10`, which decodes as
 an `int`, so every grant signer (all three majors) refuses a float-tagged integral number (`0.0`,
-`-0.0`, `10.0`) anywhere in a selector value with `producer_error`; write it as an `int`. Here a
+`-0.0`, `10.0`) anywhere in a selector value with `producer_error` (unreleased; see
+[Float-tagged integral selector values](#float-tagged-integral-selector-values)); write it as an
+`int`. Here a
 home assistant may set a thermostat between 18.5 and 24.5 °C:
 
 <!-- readme-sample: run -->
@@ -725,11 +778,121 @@ loopback envelope verifies: true
 - If your handle reaches a remote custodian, test a `sign()` that rejects and one that signs with
   another key: both must give `signing_failed`.
 
-## WebCrypto key handles
+## Keys in a KMS or HSM
 
-**New in 0.6.0.** The published
-0.5.0 does not have these factories; with 0.5.0, write a handle over WebCrypto yourself, the way
-`key-handle.ts` in the [Quickstart](#quickstart) does over `node:crypto`.
+A handle whose key lives in a KMS or HSM calls the custodian from `sign()`. The library never sees
+the private key; it needs only the signature in the form the suite uses and the public key.
+
+- **Ed25519** (contract-majors 1 and 2): an Ed25519 signature is already the 64 bytes the handle
+  returns; pass it through.
+- **ES256** (contract-major 3): a cloud KMS returns an ECDSA signature as ASN.1 DER
+  (`SEQUENCE { INTEGER r, INTEGER s }`, usually 70 to 72 bytes), and the handle returns the 64-byte raw
+  `r || s`. Convert it as below. You do not need to normalize `s`: the library replaces a high `s`
+  with `n − s` and verifies the result strictly against the handle's public key. A PKCS#11 HSM's
+  `CKM_ECDSA` mechanism already returns raw `r || s`.
+- **The public key**: AWS KMS `GetPublicKey` returns the DER `SubjectPublicKeyInfo`; Google Cloud
+  KMS `getPublicKey` returns the same structure as PEM (its base64 body is the DER). The handle
+  reports the 65-byte uncompressed point; WebCrypto converts it.
+
+The call to the KMS is yours: the handle below takes it as a function that signs a message and
+returns DER. For an AWS KMS key of spec `ECC_NIST_P256`, hash the message with SHA-256 and call
+`Sign` with `MessageType: "DIGEST"` and `SigningAlgorithm: "ECDSA_SHA_256"`; for a Google Cloud KMS
+key of algorithm `EC_SIGN_P256_SHA256`, call `asymmetricSign` with `digest: { sha256 }`. Both return
+the DER signature. In the sample, that function is a real P-256 key generated in the process, which
+returns DER the same way, so the conversion runs on real signatures; in production the private key
+stays in the KMS:
+
+<!-- readme-sample: run -->
+```ts
+import { generateKeyPairSync, randomUUID, sign } from "node:crypto";
+import { signV3Grant, signV3Report, type Es256KeyHandle, type KeyRole } from "@bounded-authority-protocol/signer";
+import { base64urlEncode, strUtf8, utf8Str, v3, type Tagged } from "@bounded-authority-protocol/verifier";
+import { testEs256KeyHandle } from "./key-handle.js";
+
+/** ASN.1 DER `SEQUENCE { INTEGER r, INTEGER s }` to the 64-byte raw `r || s` of a P-256 signature. */
+export function derToRawP256(der: Uint8Array): Uint8Array {
+  const malformed = () => new Error("not a DER-encoded P-256 ECDSA signature");
+  if (der[0] !== 0x30 || der[1] !== der.length - 2) throw malformed();
+  const raw = new Uint8Array(64);
+  let at = 2;
+  for (const offset of [0, 32]) {
+    const length = der[at + 1] ?? 0;
+    if (der[at] !== 0x02 || length < 1 || length > 33 || at + 2 + length > der.length) throw malformed();
+    let value = der.subarray(at + 2, at + 2 + length);
+    if (value.length === 33) {
+      if (value[0] !== 0x00) throw malformed();
+      value = value.subarray(1); // the sign byte DER adds when the top bit is set
+    }
+    raw.set(value, offset + 32 - value.length); // DER drops leading zero bytes; restore them
+    at += 2 + length;
+  }
+  if (at !== der.length) throw malformed();
+  return raw;
+}
+
+/** An ES256 handle over a custodian that signs with ECDSA P-256 SHA-256 and returns DER. */
+export async function kmsEs256KeyHandle(
+  signDer: (message: Uint8Array) => Promise<Uint8Array>, // your KMS call
+  spki: Uint8Array,                                      // the key's DER SubjectPublicKeyInfo
+  keyId: string,
+  role: KeyRole,
+): Promise<Es256KeyHandle> {
+  const key = await crypto.subtle.importKey("spki", new Uint8Array(spki), { name: "ECDSA", namedCurve: "P-256" }, true, ["verify"]);
+  const publicKey = new Uint8Array(await crypto.subtle.exportKey("raw", key)); // 0x04 || x || y
+  const b64 = (bytes: Uint8Array) => utf8Str(base64urlEncode(bytes));
+  const jkt = v3.thumbprint({ crv: "P-256", kty: "EC", x: b64(publicKey.subarray(1, 33)), y: b64(publicKey.subarray(33)) });
+  return {
+    sign: async (message) => derToRawP256(await signDer(message)),
+    publicKey: () => publicKey,
+    thumbprint: () => jkt,
+    keyIdentity: () => ({ keyId, publicKey }),
+    signingIdentity: () => ({ role, keyId, publicKey }),
+  };
+}
+
+// The stand-in for the KMS: a real P-256 key, whose signatures node:crypto returns as DER.
+const custodian = generateKeyPairSync("ec", { namedCurve: "P-256" });
+const signDer = async (message: Uint8Array) => new Uint8Array(sign("sha256", message, custodian.privateKey));
+const spki = new Uint8Array(custodian.publicKey.export({ type: "spki", format: "der" }));
+
+const issuer = await kmsEs256KeyHandle(signDer, spki, "backup-issuer-kms-1", "issuer");
+const agent = testEs256KeyHandle("backup-agent-1");
+let verified = 0;
+for (let i = 0; i < 16; i++) { // about half of the custodian's signatures have a high s
+  const grant = await signV3Grant({
+    issuer: "https://backup.example", grantId: `urn:example:grant:snapshot-${i}`,
+    audiences: ["https://snapshots.example"],
+    issuedAt: 1_767_225_600, notBefore: 1_767_225_600, expiresAt: 1_767_229_200,
+    holderThumbprint: await agent.thumbprint(),
+    operations: [{ name: "create_snapshot", selectors: [{ kind: "equals", path: ["volume"], value: { t: "string", v: strUtf8("data-1") } }] }],
+  }, issuer);
+  if (!grant.ok) throw new Error(`signV3Grant: ${grant.error}`);
+  const request = {
+    method: "POST", targetUri: "https://snapshots.example/snapshots", invocationId: randomUUID(), operation: "create_snapshot",
+    castArguments: { t: "object", v: new Map<string, Tagged>([["volume", { t: "string", v: strUtf8("data-1") }]]) } satisfies Tagged,
+  };
+  const envelope = await signV3Report({ grantCompact: grant.value.grant, ...request }, agent, { issuedAt: 1_767_225_660 });
+  if (!envelope.ok) throw new Error(`signV3Report: ${envelope.error}`);
+  const facts = v3.checkEnvelope(envelope.value.grant, envelope.value.proof, {
+    ...request,
+    trustedIssuer: { keyId: "backup-issuer-kms-1", publicKey: await issuer.publicKey() },
+    issuer: "https://backup.example", audience: "https://snapshots.example",
+    evaluationTime: 1_767_225_700, clockSkew: 60, proofMaxAge: 300, nonce: { kind: "not_required" },
+  });
+  if (facts.ok) verified++;
+}
+console.log(`${verified} of 16 envelopes verify under the custodian's key`);
+```
+
+<!-- readme-output -->
+```text
+16 of 16 envelopes verify under the custodian's key
+```
+
+Test such a handle the way [Test your integration](#test-your-integration) describes: a `sign()`
+that rejects, and one that signs with another key, must both give `signing_failed`.
+
+## WebCrypto key handles
 
 Two factories build the handles above from a WebCrypto key pair whose private key is
 **non-extractable**, so a page (or Deno, Bun or Node) signs with a key it cannot export.
@@ -905,7 +1068,7 @@ console.log(BACKEND_ID);
 
 The signer never touches private-key bytes: signing is always a handle's `sign()`, wherever and
 however that handle is implemented. The only WebCrypto it uses is in the
-[WebCrypto key handles](#webcrypto-key-handles) (**0.6.0**): `crypto.subtle.sign` with your
+[WebCrypto key handles](#webcrypto-key-handles): `crypto.subtle.sign` with your
 non-extractable `CryptoKey`, and `exportKey("raw")` of the public key.
 
 **In-page verification is display-only, never a trust decision.** If a page signs and then
@@ -921,9 +1084,9 @@ and no dynamic `import()`. The default `proofId` comes from `crypto.randomUUID()
 browsers provide only in a secure context (HTTPS or `localhost`). On a plain-HTTP page, pass
 `proofId` explicitly; without it the report signers return the closed `producer_error`.
 
-Bundle size of the 0.6.0 source (esbuild, minified, browser target, tree-shaken from the package
-entry, verifier included): every export 187 KB (51 KB gzip); `{ signReport }` 114 KB (31 KB gzip);
-`{ signV2Report }` 111 KB (30 KB gzip); `{ signV3Report }` 69 KB (25 KB gzip). `pnpm size` prints
+Bundle size (esbuild, minified, browser target, tree-shaken from the package entry, verifier
+included): every export 189 KB (51 KB gzip); `{ signReport }` 115 KB (31 KB gzip);
+`{ signV2Report }` 112 KB (31 KB gzip); `{ signV3Report }` 69 KB (25 KB gzip). `pnpm size` prints
 the current figures, and CI fails a change that takes any of them more than 10% past the first
 measurement in [`tools/bundle-size-limits.json`](tools/bundle-size-limits.json).
 
@@ -945,7 +1108,7 @@ measurement in [`tools/bundle-size-limits.json`](tools/bundle-size-limits.json).
   under the strict CSP. Every lane first asserts the verifier `BACKEND_ID` it expects. A lane on a
   non-secure origin, in each browser, checks the closed `producer_error` for a missing default
   `proofId` and that both key-handle factories refuse without touching their arguments.
-- **WebCrypto key handles (0.6.0).** A key-handle battery runs in every one of those lanes with the
+- **WebCrypto key handles.** A key-handle battery runs in every one of those lanes with the
   engine's own keys: sign then verify on v1, v2 and v3, the extractable, type, algorithm, weak-key,
   mismatched-pair and relabeled-algorithm refusals, roles, the JWS-shape restriction, inherited and
   polluted options, `SubtleCrypto` methods patched after load, every signer with factory handles,
@@ -971,29 +1134,31 @@ with npm provenance.
 
 ## Versioning and compatibility
 
-Package versions follow SemVer. The package is 1.0: a breaking change costs a major version, and a
-caret range such as `^1.0.0` carries every later minor and patch. (Before 1.0 the minor position was
-the breaking boundary, so a caret range such as `^0.5.0` never selected `0.6.0`.) Compatibility with
-other implementations is governed by the wire contract-majors this package signs (1, 2 and 3), not
-by package version numbers.
+Package versions follow SemVer: a breaking change costs a major version, and a caret range such as
+`^2.0.0` carries every later minor and patch. Compatibility with other implementations is governed
+by the wire contract-majors this package signs (1, 2 and 3), not by package version numbers. A
+package major is not a contract-major: no wire format changes with one, and every artifact names its
+own contract-major (payload `v`, the `BAP<n>-…` suite, the major-bound domain separators).
 
-- **1.0.0** ([release status](#install)) closes deep imports — the exports map exposes the package
-  root and `./package.json` only — and declares the 1.0 SemVer contract above.
+- **2.0.0** (unreleased) carries the protocol's erratum 6: `signGrant`, `signV2Grant` and
+  `signV3Grant` refuse a float-tagged integral selector value that 1.0.0 signed (see
+  [Float-tagged integral selector values](#float-tagged-integral-selector-values)). Refusing an
+  input that 1.0.0 accepted is breaking under the 1.0 contract, so it is a major. It depends on the
+  verifier `^2.0.0`, the verifier release that carries the same erratum. 1.0.0 stays installable
+  and keeps signing such grants.
+- **From 2.x on, a soundness repair is a minor.** A soundness repair is the protocol's narrow
+  verdict correction under
+  [its governance](https://github.com/baselabs/bounded_authority_protocol/blob/main/docs/governance.md#soundness-repairs):
+  it only turns accepts into rejects, only for inputs no conforming producer emits, and changes no
+  verdict of any certified conformance corpus; the protocol's
+  [errata](https://github.com/baselabs/bounded_authority_protocol/blob/main/docs/errata.md) record
+  each one. The release that carries one is a minor, so a caret range receives it. Every other
+  breaking change still costs a major.
+- **1.0.0** closed deep imports: the exports map exposes the package root and `./package.json`
+  only, so import from the package root.
 
-- **0.6.0** ([release status](#install)) adds the WebCrypto key handles, reads identity
-  snapshots from own data properties only, refuses a handle's off-curve P-256 key at resolution
-  (`invalid_key_handle`, before `sign()`), and moves the verifier dependency to `^1.0.0`.
-- **0.5.x** depends on the verifier `^0.7.0`, runs in browsers, Deno and Bun, adds the
-  contract-major-2 signers, and checks every ES256 signature with the verifier's strict
-  `es256VerifyStrict` after low-S normalization.
-- **0.4.x** depends on the verifier `^0.6.0` and refuses small-order and non-canonical Ed25519
-  handles.
-- **0.3.x** depends on the verifier `^0.5.0` and inherits its stricter identifier admission:
-  identifiers with repeated fragment delimiters, raw brackets in userinfo or outside the authority,
-  or malformed bracketed IPv6 hosts such as `http://[abc]/x` return `producer_error`.
-
-Deep imports — any path under `dist/` — are closed as of 1.0.0: the exports map exposes the package
-root and `./package.json` only, so import from the package root. Release notes are in [CHANGELOG.md](CHANGELOG.md).
+Before 1.0 the minor position was the breaking boundary. Every release's changes are in
+[CHANGELOG.md](CHANGELOG.md).
 
 ## Protocol family
 
@@ -1003,10 +1168,18 @@ root and `./package.json` only, so import from the package root. Release notes a
   shows the issuer, holder and resource roles with `signGrant`, `signReport` and `checkEnvelope`.
 - [`baselabs/bounded_authority_protocol`](https://github.com/baselabs/bounded_authority_protocol):
   the protocol, with the wire specifications this package signs (`spec/bap-v1.md`,
-  `spec/bap-local-loopback-http-v1.md`, `spec/bap-v2.md`, `spec/bap-v3.md`) and their design records.
+  `spec/bap-local-loopback-http-v1.md`, `spec/bap-v2.md`, `spec/bap-v3.md`), its
+  [governance](https://github.com/baselabs/bounded_authority_protocol/blob/main/docs/governance.md)
+  and its [errata](https://github.com/baselabs/bounded_authority_protocol/blob/main/docs/errata.md).
 - [`bounded_authority_report_adapter`](https://hex.pm/packages/bounded_authority_report_adapter)
   ([GitHub](https://github.com/baselabs/bounded_authority_report_adapter)): the Elixir signer this
   package ports.
+
+## Security
+
+Report a vulnerability privately through this repository's **Security** tab ("Report a
+vulnerability"), never in a public issue. [SECURITY.md](SECURITY.md) says what to include, which
+releases are supported, and what this package does and does not do.
 
 ## Development
 
