@@ -23,6 +23,7 @@ import {
   type SignerResult,
 } from "./handle.js";
 import { defaultProofId } from "./proof-id.js";
+import { selectorsHoldIntegralFloat } from "./selector-value.js";
 
 /** A telemetry event from a v2 signer, passed to {@link V2SignOpts.onEvent}. */
 export interface V2SignerEvent {
@@ -218,7 +219,7 @@ export async function signV2Grant(input: V2GrantInput, handle: KeyHandle, opts: 
     issuedAt: input.issuedAt, notBefore: input.notBefore, expiresAt: input.expiresAt,
     holderThumbprint: input.holderThumbprint, operations,
   }, opts.bounds);
-  if (!produced.ok) { emit("error"); return err("producer_error"); }
+  if (!produced.ok || selectorsHoldIntegralFloat(operations)) { emit("error"); return err("producer_error"); }
 
   const assembled = await signAndAssemble((m) => handle.sign(m), produced.value, identity.publicKey, opts.bounds, assemblers.v2);
   if (!assembled.ok) { emit("error"); return assembled; }

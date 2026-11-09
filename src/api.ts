@@ -19,6 +19,7 @@ import {
 } from "@bounded-authority-protocol/verifier";
 import { assemblers, signAndAssemble } from "./sign.js";
 import { defaultProofId } from "./proof-id.js";
+import { selectorsHoldIntegralFloat } from "./selector-value.js";
 import {
   emitter,
   err,
@@ -268,7 +269,7 @@ export async function signGrant(input: GrantInput, handle: KeyHandle, opts: Sign
     holderThumbprint: input.holderThumbprint, operations: [...input.operations],
   };
   const produced = grantSigningInput(grant, opts.bounds);
-  if (!produced.ok) { emit("error"); return err("producer_error"); }
+  if (!produced.ok || selectorsHoldIntegralFloat(input.operations)) { emit("error"); return err("producer_error"); }
 
   const assembled = await signAndAssemble((m) => handle.sign(m), produced.value, identity.publicKey, opts.bounds, assemblers.standard);
   if (!assembled.ok) { emit("error"); return assembled; }

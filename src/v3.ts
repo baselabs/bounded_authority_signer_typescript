@@ -395,6 +395,9 @@ function checkNode(v: Tagged, depth: number, b: Bounds): void {
       return;
     case "float":
       if (Math.abs(v.v) > resolveBound(b, "float_magnitude")) fail("v3 selector: float magnitude");
+      // Erratum 6 (REQ3-SIGNING-integral-float-selector): JCS writes an integral float (0.0, -0.0,
+      // 10.0) as integer text, which decodes integer-tagged; refuse it rather than sign another value.
+      if (Number.isInteger(v.v)) fail("v3 selector: integral float");
       return;
     case "array": {
       if (v.v.length > resolveBound(b, "array_items")) fail("v3 selector: array items");

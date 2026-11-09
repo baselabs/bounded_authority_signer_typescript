@@ -1,5 +1,26 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- **Grant signers refuse a float-tagged integral selector value** (protocol erratum 6,
+  `REQ1/REQ2/REQ3-SIGNING-integral-float-selector`). RFC 8785 writes an integral float (`0.0`,
+  `-0.0`, `10.0`, an underflowing `1e-400`) as integer text, which decodes integer-tagged, so the
+  signed grant would not carry the value it was given. `signGrant`, `signV2Grant` and `signV3Grant`
+  now return the closed `producer_error`, before `sign()` is called, when an `equals` value, a
+  `one_of` member, or an `lte`/`gte` bound holds one at any depth. Integers (zero included) and
+  non-integral floats sign as before. Before this change the three signers signed such a grant,
+  and its integral floats came back from the verifier as integers. The v3 producer refuses it
+  itself; for v1 and v2 the signer checks after the verifier 1.0.0 producer, which does not.
+
+### Tests
+
+- `test/integral-float-selector.test.ts`, on each major: every float-tagged integral value, top
+  level and nested, in `equals`, `one_of` and (v2, v3) `lte`/`gte`, is `producer_error` with
+  `sign()` never called; integers and non-integral floats sign, verify, and decode back from the
+  signed payload with exactly the tag and value given.
+
 ## [1.0.0] — 2026-10-29
 
 The stability release. The package is 1.0: a breaking change costs a major version, and a caret

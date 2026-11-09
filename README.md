@@ -365,7 +365,7 @@ report content.
 | `invalid_transition` | key-transition signers | an empty id, a non-integer `effectiveAt`, or a `nextPublicKey` of the wrong width | pass every `TransitionInput` field |
 | `invalid_key_handle` | every signer, both factories | the handle is unusable: a method or getter threw; a key of the wrong width, or one the suite refuses (non-canonical or small-order Ed25519, a P-256 key off the curve); no `keyIdentity()` for an anchor or transition; no `signingIdentity()`, or a role other than `"issuer"`, for a grant; a factory check failed | fix the handle; a holder handle cannot sign grants |
 | `signing_failed` | every signer | `sign()` threw, returned something other than a 64-byte `Uint8Array`, or returned a signature that does not verify against the handle's public key | make `sign()` use the key that `publicKey()` reports |
-| `producer_error` | every signer | the protocol refused an input: a non-UUID `invocationId`, a malformed identifier or URI, no audiences or operations, `expiresAt` not after `notBefore`, a negative `sequence`, an exceeded bound, a loopback target other than `127.0.0.1` or `[::1]` over `http`; or no `proofId` could be generated | correct the value; pass `proofId` on a plain-HTTP page |
+| `producer_error` | every signer | the protocol refused an input: a non-UUID `invocationId`, a malformed identifier or URI, no audiences or operations, `expiresAt` not after `notBefore`, a negative `sequence`, an exceeded bound, a selector value holding a float-tagged integral number (`0.0`, `-0.0`, `10.0`), a loopback target other than `127.0.0.1` or `[::1]` over `http`; or no `proofId` could be generated | correct the value (an integral selector value is an `int`); pass `proofId` on a plain-HTTP page |
 
 The type is closed, so a `switch` over it is checked for exhaustiveness. Here a holder handle
 tries to sign a grant:
@@ -413,7 +413,10 @@ The v2 signers take the same `KeyHandle` and emit the verifier's v2 format: `v: 
 `BAP2-*` domain separators, and the `lte` and `gte` selectors with an `int`- or `float`-tagged bound.
 They compose through the verifier's own v2 signing inputs and `v2.assembleCompact`. Each major
 verifies only its own bytes: `checkEnvelope` refuses a v2 envelope and `v2.checkEnvelope` refuses a
-v1 one. Here a home assistant may set a thermostat between 18.5 and 24.5 °C:
+v1 one. A `float` bound must be non-integral: canonical JSON writes `10.0` as `10`, which decodes as
+an `int`, so every grant signer (all three majors) refuses a float-tagged integral number (`0.0`,
+`-0.0`, `10.0`) anywhere in a selector value with `producer_error`; write it as an `int`. Here a
+home assistant may set a thermostat between 18.5 and 24.5 °C:
 
 <!-- readme-sample: run -->
 ```ts
