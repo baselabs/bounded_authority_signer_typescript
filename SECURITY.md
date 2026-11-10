@@ -30,7 +30,7 @@ Earlier releases fall into two groups:
 - Releases before 0.4.0 accept small-order and non-canonical Ed25519 key handles. They are
   deprecated on npm with a pointer to the advisory
   [GHSA-wxxg-7cx6-m8qj](https://github.com/baselabs/bounded_authority_signer_typescript/security/advisories/GHSA-wxxg-7cx6-m8qj).
-- Releases before 2.0.0 (unreleased) predate the selector float-zero repair (the protocol's
+- Releases before 2.0.0 predate the selector float-zero repair (the protocol's
   erratum 6): they sign a grant whose selector value holds a float-tagged integral number, which
   the verifier reads back integer-tagged. Every affected value sits inside issuer-signed bytes, so
   under the protocol's governance (§ Soundness repairs) the repair has no advisory: the

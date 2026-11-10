@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [2.0.0] — 2026-11-10
 
 A major release, 2.0.0. The protocol's erratum 6 makes the grant signers refuse inputs that 1.0.0
 signed, which is breaking under the 1.0 contract. It depends on the verifier `^2.0.0`, the verifier
@@ -19,7 +19,8 @@ installable and is not deprecated.
   `one_of` member, or an `lte`/`gte` bound holds one at any depth. Integers (zero included) and
   non-integral floats sign as before. Before this change the three signers signed such a grant,
   and its integral floats came back from the verifier as integers. The v3 producer refuses it
-  itself; for v1 and v2 the signer checks after the verifier 1.0.0 producer, which does not.
+  itself; for v1 and v2 the signer checks it, and the verifier 2.0.0 producer it calls refuses it
+  too.
 
 ### Documentation
 

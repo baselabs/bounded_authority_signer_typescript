@@ -44,7 +44,7 @@ It signs three wire contract-majors, each with its own functions:
 ## Install
 
 ```bash
-npm install @bounded-authority-protocol/signer@1.0.0 @bounded-authority-protocol/verifier@1.0.0
+npm install @bounded-authority-protocol/signer@2.0.0 @bounded-authority-protocol/verifier@2.0.0
 ```
 
 This README documents the source on `main`. Anything `main` carries beyond the release installed
@@ -66,7 +66,7 @@ module project (the examples use top-level `await`), install both packages, and 
 <!-- readme-sample: setup -->
 ```bash
 npm init -y && npm pkg set type=module
-npm install @bounded-authority-protocol/signer@1.0.0 @bounded-authority-protocol/verifier@1.0.0
+npm install @bounded-authority-protocol/signer@2.0.0 @bounded-authority-protocol/verifier@2.0.0
 npm install --save-dev tsx
 ```
 
@@ -366,7 +366,7 @@ report content.
 | `invalid_transition` | key-transition signers | an empty id, a non-integer `effectiveAt`, or a `nextPublicKey` of the wrong width | pass every `TransitionInput` field |
 | `invalid_key_handle` | every signer, both factories | the handle is unusable: a method or getter threw; a key of the wrong width, or one the suite refuses (non-canonical or small-order Ed25519, a P-256 key off the curve); no `keyIdentity()` for an anchor or transition; no `signingIdentity()`, or a role other than `"issuer"`, for a grant; a factory check failed | fix the handle; a holder handle cannot sign grants |
 | `signing_failed` | every signer | `sign()` threw, returned something other than a 64-byte `Uint8Array`, or returned a signature that does not verify against the handle's public key | make `sign()` use the key that `publicKey()` reports |
-| `producer_error` | every signer | the protocol refused an input: a non-UUID `invocationId`, a malformed identifier or URI, no audiences or operations, `expiresAt` not after `notBefore`, a negative `sequence`, an exceeded bound, a selector value holding a float-tagged integral number (`0.0`, `-0.0`, `10.0`; unreleased, see [below](#float-tagged-integral-selector-values)), a loopback target other than `127.0.0.1` or `[::1]` over `http`; or no `proofId` could be generated | correct the value (an integral selector value is an `int`); pass `proofId` on a plain-HTTP page |
+| `producer_error` | every signer | the protocol refused an input: a non-UUID `invocationId`, a malformed identifier or URI, no audiences or operations, `expiresAt` not after `notBefore`, a negative `sequence`, an exceeded bound, a selector value holding a float-tagged integral number (`0.0`, `-0.0`, `10.0`; see [below](#float-tagged-integral-selector-values)), a loopback target other than `127.0.0.1` or `[::1]` over `http`; or no `proofId` could be generated | correct the value (an integral selector value is an `int`); pass `proofId` on a plain-HTTP page |
 
 The type is closed, so a `switch` over it is checked for exhaustiveness. Here a holder handle
 tries to sign a grant:
@@ -410,7 +410,7 @@ invalid_key_handle: the key handle cannot be used for this operation
 
 ### Float-tagged integral selector values
 
-**Unreleased (2.0.0).** The grant signers `signGrant`, `signV2Grant` and `signV3Grant` return
+The grant signers `signGrant`, `signV2Grant` and `signV3Grant` return
 `producer_error`, before `sign()` is called, when a selector value holds a float-tagged number with
 no fractional part (`{ t: "float", v: 30 }`, which is how `30.0`, `-0.0` and an underflowing
 `1e-400` arrive), at any depth: an `equals` value, a `one_of` member, or an `lte` or `gte` bound.
@@ -466,7 +466,7 @@ They compose through the verifier's own v2 signing inputs and `v2.assembleCompac
 verifies only its own bytes: `checkEnvelope` refuses a v2 envelope and `v2.checkEnvelope` refuses a
 v1 one. A `float` bound must be non-integral: canonical JSON writes `10.0` as `10`, which decodes as
 an `int`, so every grant signer (all three majors) refuses a float-tagged integral number (`0.0`,
-`-0.0`, `10.0`) anywhere in a selector value with `producer_error` (unreleased; see
+`-0.0`, `10.0`) anywhere in a selector value with `producer_error` (see
 [Float-tagged integral selector values](#float-tagged-integral-selector-values)); write it as an
 `int`. Here a
 home assistant may set a thermostat between 18.5 and 24.5 °C:
@@ -1140,7 +1140,7 @@ by the wire contract-majors this package signs (1, 2 and 3), not by package vers
 package major is not a contract-major: no wire format changes with one, and every artifact names its
 own contract-major (payload `v`, the `BAP<n>-…` suite, the major-bound domain separators).
 
-- **2.0.0** (unreleased) carries the protocol's erratum 6: `signGrant`, `signV2Grant` and
+- **2.0.0** carries the protocol's erratum 6: `signGrant`, `signV2Grant` and
   `signV3Grant` refuse a float-tagged integral selector value that 1.0.0 signed (see
   [Float-tagged integral selector values](#float-tagged-integral-selector-values)). Refusing an
   input that 1.0.0 accepted is breaking under the 1.0 contract, so it is a major. It depends on the

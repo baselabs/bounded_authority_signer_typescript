@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@bounded-authority-protocol/verifier':
-        specifier: ^1.0.0
-        version: 1.0.0
+        specifier: ^2.0.0
+        version: 2.0.0
     devDependencies:
       '@noble/curves':
         specifier: ^2.4.0
@@ -45,8 +45,8 @@ importers:
 
 packages:
 
-  '@bounded-authority-protocol/verifier@1.0.0':
-    resolution: {integrity: sha512-eekKL5XTtS7fcHPXOhw3K5fHbjFUFfqgR/daVGh/qchgT65QPOdOAiuYad2lacbAgsnpjihZelCc8wtEdSCjVQ==}
+  '@bounded-authority-protocol/verifier@2.0.0':
+    resolution: {integrity: sha512-1nyR9qCwFvBDf+Fv/u7fig2HtOEcWXagIrxFDltSAlzE50ZDosHrTbgLb2H23uuCfy/SkX0QiCAjUHzlvIDBXQ==}
     engines: {node: '>=22'}
 
   '@cacheable/memory@2.2.0':
@@ -662,7 +662,7 @@ packages:
 
 snapshots:
 
-  '@bounded-authority-protocol/verifier@1.0.0':
+  '@bounded-authority-protocol/verifier@2.0.0':
     dependencies:
       '@noble/curves': 2.4.0
       '@noble/ed25519': 3.2.0
