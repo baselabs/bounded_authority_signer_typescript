@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, 'kci/**']
     paths-ignore:
       - "LICENSE*"
       - ".github/ISSUE_TEMPLATE/**"
