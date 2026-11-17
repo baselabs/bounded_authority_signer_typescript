@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BAP — prove what a caller may do, not just who they are</title>
-<meta name="description" content="The Bounded Authority Protocol: the per-request authority layer for MCP servers, agents, and APIs that authenticate with OAuth. Signed capabilities, holder proofs, independent verification — keys never leave your custody.">
+<title>BAP: bind agent authority to each request</title>
+<meta name="description" content="The Bounded Authority Protocol complements OAuth's delegated, scoped access with signed grants and holder proofs bound to exact request bytes. Verification returns facts; your host applies authorization policy.">
 <link rel="stylesheet" href="./styles.css">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Crect width='48' height='48' rx='10' fill='%230f172a'/%3E%3Ctext x='24' y='32' font-family='Arial,sans-serif' font-size='19' font-weight='800' text-anchor='middle' fill='%232dd4bf'%3E[BAP]%3C/text%3E%3C/svg%3E">
 </head>
@@ -35,6 +35,7 @@
       <a href="https://baselabs.github.io/bounded_authority_protocol/" title="The protocol monorepo: specifications, governance and errata">Protocol</a>
       <a href="https://baselabs.github.io/bounded_authority_protocol_typescript/" title="The verifier package">Verifier</a>
       <a href="#" class="here" title="You are here">Signer</a>
+      <a href="./api/">API reference</a>
       <a href="https://baselabs.github.io/bounded_authority_report_adapter/" title="The Elixir reference implementation">Elixir&nbsp;reference</a>
     </span>
     <a class="gh" href="https://github.com/baselabs/bounded_authority_signer_typescript">GitHub&nbsp;↗</a>
@@ -44,14 +45,15 @@
 <section class="hero">
   <div class="wrap">
     <p class="kicker"><span class="wordmark hero-mark"><i>[</i>BAP<i>]</i></span> Bounded Authority Protocol</p>
-    <h1>Your OAuth proves <em>who</em> is calling.<br>BAP proves <em>what they may do</em>.</h1>
-    <p class="lede">If you run an MCP server, an agent, or any API that authenticates callers with
-    OAuth, you already have the <strong>who</strong>. BAP is the missing half: every request carries
-    a cryptographically signed capability — named operations, named resources, a time window — and a fresh
-    proof from the caller’s own key. The resource verifies the envelope and gets facts, never trust.
-    Keys never leave your custody.</p>
+    <h1>Bound authority.<br>Prove the <em>exact request</em>.</h1>
+    <p class="lede">OAuth 2.0 is an authorization framework for delegated, scoped access.
+    BAP complements it by binding a holder’s authority to the exact request bytes: a signed grant
+    names operations, resources, and a time window, and a fresh holder proof commits to the request.
+    Verification returns cryptographic facts against caller-supplied trust and context.
+    Your host runtime separately applies authorization policy, revocation, and replay checks.
+    Keys stay in your custody.</p>
     <div class="hero-actions">
-      <a class="btn primary" href="#playground"><svg class="ic"><use href="#i-terminal"/></svg> See it work — 60 seconds</a>
+      <a class="btn primary" href="#playground"><svg class="ic"><use href="#i-terminal"/></svg> Try the signing flow</a>
       <a class="btn ghost" href="#install">npm i @bounded-authority-protocol/signer</a>
     </div>
     <div class="flow" aria-label="The envelope flow">
@@ -61,7 +63,7 @@
       <div class="artifact" id="flow-proof"><svg class="ic"><use href="#i-doc"/></svg><span>proof</span></div>
       <div class="actor verifier"><svg class="ic"><use href="#i-shield"/></svg><span>Verifier</span><small>checks the envelope</small></div>
     </div>
-    <p class="custody-note"><svg class="ic"><use href="#i-lock"/></svg> Private keys never enter the library — <strong>not even in the demo below.</strong>
+    <p class="custody-note"><svg class="ic"><use href="#i-lock"/></svg> Private keys stay in their custody backend. <strong>The demo follows the same handle contract.</strong>
     <span id="custody-mode" class="pill"></span></p>
     <ul class="badges">
       <li>npm 2.0.0</li><li>CI: green on Linux</li><li>Apache-2.0</li>
@@ -72,85 +74,84 @@
 <main>
 <section id="why" class="wrap why">
   <div class="why-head">
-    <h2>The piece OAuth leaves out</h2>
-    <p>OAuth and MCP authentication answer <strong>“which client is this?”</strong> — and stop there.
-    What that client may <em>do</em> is left to scopes, hope, and your resource server’s restraint.
-    BAP closes that gap, alongside the OAuth you already run.</p>
+    <h2>Delegated access with request binding</h2>
+    <p>OAuth scopes express delegated permissions; resource servers enforce them.
+    BAP adds signed grants and holder proofs that bind those bounds to exact request bytes.
+    These mechanisms have overlapping authorization concerns. BAP supplies a specific,
+    independently verifiable request contract alongside your OAuth deployment.</p>
   </div>
   <div class="grid3">
     <article class="whycard">
-      <h3>A token says <s>who</s> — not what.</h3>
-      <p class="pain">A stolen or over-scoped token keeps every power it was granted, on every
-      resource, until it expires. “read” means <em>all</em> reads, everywhere, for the token’s whole life.</p>
-      <p class="answer"><svg class="ic"><use href="#i-check"/></svg> With BAP, each capability is a signed grant naming
-      <strong>its operations, its resources, its window</strong> — and each request carries a fresh proof
-      bound to exactly that request.</p>
+      <h3>Make the request explicit.</h3>
+      <p class="pain">A scope such as “read” can cover many requests. The permissions and
+      token protections depend on your OAuth profile and resource policy.</p>
+      <p class="answer"><svg class="ic"><use href="#i-check"/></svg> A BAP grant names operations,
+      resources, and a validity window. Each holder proof binds one request’s method, URI,
+      invocation ID, operation, and typed arguments to that grant.</p>
     </article>
     <article class="whycard">
-      <h3>Trust moves to facts.</h3>
-      <p class="pain">Today your resource trusts the transport, the introspection endpoint, and the
-      caller’s good behavior. Nothing cryptographic ties this particular request to this particular
-      permission.</p>
-      <p class="answer"><svg class="ic"><use href="#i-check"/></svg> The verifier checks the envelope itself — issuer
-      signature, holder binding, operation match, time window — and returns <strong>cryptographic
-      facts</strong>, with no reason codes for attackers to probe.</p>
+      <h3>Verify bytes; apply policy.</h3>
+      <p class="pain">A valid signature alone cannot select trusted issuers, determine live
+      revocation, or prevent an invocation from executing twice.</p>
+      <p class="answer"><svg class="ic"><use href="#i-check"/></svg> The pure verifier checks
+      signatures, holder binding, request matching, and validity windows against explicit inputs.
+      It returns cryptographic facts. Your host runtime makes the authorization decision and
+      atomically reserves each invocation before any side effect.</p>
     </article>
     <article class="whycard">
       <h3>Your keys stay yours.</h3>
-      <p class="pain">Authority systems usually want your private key, or a vendor to hold it for
-      you. That’s a new blast radius most teams won’t accept.</p>
-      <p class="answer"><svg class="ic"><use href="#i-check"/></svg> BAP never takes key material — issuers and holders
-      sign through their own custody (HSM, KMS, or a browser key store — the demo below uses one).
-      <strong>Nothing to hand over, nothing to leak.</strong></p>
+      <p class="pain">An integration needs to sign without moving private-key bytes into the
+      protocol library.</p>
+      <p class="answer"><svg class="ic"><use href="#i-check"/></svg> Issuers and holders sign
+      through handles backed by their own custody, such as an HSM, KMS, or browser key store.
+      The signer receives public keys and signatures; private keys never enter the library.</p>
     </article>
   </div>
 </section>
 
 <section id="cases" class="wrap cases">
   <div class="why-head">
-    <h2>Where it pays off</h2>
-    <p>Four places teams already feel the gap between <strong>who</strong> and <strong>what</strong> —
-    every one works with the OAuth you already run.</p>
+    <h2>Where request bounds help</h2>
+    <p>Agent authority spans domains. These are examples of request bounds a host can enforce
+    alongside OAuth permissions and its own authorization policy.</p>
   </div>
   <div class="grid4 cases-grid">
     <article class="casecard">
-      <h3>A third-party tool you didn’t write</h3>
-      <p class="ctx">your workspace · someone else’s MCP server</p>
-      <p class="pain">Connecting a tool today often means blanket, long-lived scopes over your files
-      or mail — to code you’ve never audited.</p>
-      <p class="grantline">grant: read · attachments/ only · this session</p>
-      <p class="answer"><svg class="ic"><use href="#i-check"/></svg> Every tool call carries a fresh
-      proof against a narrow grant — the tool, or whoever compromises it, can’t browse an inch past
-      the bound.</p>
+      <h3>A third-party tool</h3>
+      <p class="ctx">workspace files · MCP server</p>
+      <p class="pain">A tool needs selected attachments for one session, while its integration
+      may have broader delegated access.</p>
+      <p class="grantline">grant: read · selected attachments · this session</p>
+      <p class="answer"><svg class="ic"><use href="#i-check"/></svg> The resource checks each
+      request against the signed grant’s selectors and applies its host policy before serving files.</p>
     </article>
     <article class="casecard">
       <h3>Just-in-time elevation</h3>
-      <p class="ctx">on-call engineer or automation · production</p>
-      <p class="pain">Standing admin rights “just in case,” and break-glass tokens nobody remembers
-      to revoke.</p>
+      <p class="ctx">on-call engineer or automation · service deployment</p>
+      <p class="pain">A deployment needs temporary permission for a specific environment.</p>
       <p class="grantline">grant: deploy + rollback · staging · 30 min</p>
-      <p class="answer"><svg class="ic"><use href="#i-check"/></svg> The window closes itself —
-      yesterday’s grant fails verification today. Withdrawing a grant before it expires is your
-      authority runtime’s revocation; key rotation rides the same rails (signKeyTransition).</p>
+      <p class="answer"><svg class="ic"><use href="#i-check"/></svg> The verifier checks the
+      grant’s time window using the host’s evaluation time and clock skew. Early revocation
+      remains the host runtime’s responsibility.</p>
     </article>
     <article class="casecard">
-      <h3>Support reading one customer</h3>
+      <h3>Scoped support access</h3>
       <p class="ctx">support agent · multi-tenant SaaS</p>
-      <p class="pain">A “support” role token typically reads every tenant’s records — access decided
-      by policy files, not cryptography.</p>
-      <p class="grantline">grant: read · tenant #4821 · ticket #90112</p>
-      <p class="answer"><svg class="ic"><use href="#i-check"/></svg> Curiosity can’t cross tenants:
-      each read is proven against a grant that names one tenant and one ticket’s lifetime.</p>
+      <p class="pain">A support workflow needs one record for one ticket, with the same isolation
+      policy applied to every tenant.</p>
+      <p class="grantline">grant: read · selected record · ticket lifetime</p>
+      <p class="answer"><svg class="ic"><use href="#i-check"/></svg> Selectors bind the record
+      arguments. The resource derives those arguments from the actual request and enforces tenant
+      isolation through its authorization policy.</p>
     </article>
     <article class="casecard">
       <h3>An agent that can spend money</h3>
-      <p class="ctx">MCP agent · payments API</p>
-      <p class="pain">Hand the agent a token and whatever it decides — or gets injected to decide —
-      the token allows, until it expires.</p>
-      <p class="grantline">grant: transfer · acct acme-77 · until 14:15</p>
-      <p class="answer"><svg class="ic"><use href="#i-check"/></svg> No proof, no transfer: a hijacked
-      prompt can’t move funds at 14:40, or to a different account — the API enforces the envelope,
-      not the agent’s good behavior.</p>
+      <p class="ctx">agent · payments API</p>
+      <p class="pain">A transfer needs a bounded account, amount, and validity window.</p>
+      <p class="grantline">grant: transfer · selected account · until 14:15</p>
+      <p class="answer"><svg class="ic"><use href="#i-check"/></svg> The API checks the exact
+      request against the grant, applies live authorization policy, and reserves the invocation
+      before transferring funds.</p>
     </article>
   </div>
 </section>
@@ -159,7 +160,8 @@
   <div class="sec-head">
     <h2>The envelope playground</h2>
     <p>Everything below is live: this page bundles the real <code>signer</code> and <code>verifier</code>
-    packages and signs with a key generated in your browser. No server, no simulation, no mocks.</p>
+    packages and signs with a key generated in your browser. No server, no simulation, no mocks. Verification here is display-only: this page has no
+    authorization policy, revocation check, or replay reservation. Verifying again does not execute a request.</p>
     <button id="reset" class="btn subtle"><svg class="ic"><use href="#i-key"/></svg> New keys · reset</button>
   </div>
 
@@ -204,13 +206,13 @@
   <div class="tamper">
     <div class="panel-head"><div class="panel-badge"><svg class="ic"><use href="#i-wire"/></svg></div><div class="panel-titles"><span class="panel-title">Tamper deck</span><span class="panel-sub">Every button below produces a real, closed INVALID.</span></div></div>
     <div class="tamper-btns">
-      <button class="btn danger" data-tamper="payload" disabled>Replay against a modified request → ticket 90113</button>
+      <button class="btn danger" data-tamper="payload" disabled>Change the request → ticket 90113</button>
       <button class="btn danger" data-tamper="operation" disabled>Claim a different operation</button>
       <button class="btn danger" data-tamper="expiry" disabled>Evaluate after expiry</button>
       <button class="btn danger" data-tamper="impostor" disabled>Steal the grant with another key</button>
       <button class="btn danger" data-tamper="issuer" disabled>Wrong issuer trusted</button>
     </div>
-    <p class="hint" id="tamper-hint">Sign and prove first — then break it on purpose.</p>
+    <p class="hint" id="tamper-hint">Sign and prove first. Then try changing the inputs.</p>
   </div>
 
   <div class="wireviewer">
@@ -223,22 +225,22 @@
 <section id="lifecycle" class="wrap">
   <div class="why-head"><h2>The family lifecycle</h2><p>Three protocols, one chain of evidence: what the agent is, what was agreed, what this call may do.</p></div>
   <div class="lifecycle">
-<a class="lstep" href="https://baselabs.github.io/agent_blueprint_protocol/"><span class="lmark"><i>[</i>ABP<i>]</i></span><div><b>Define the agent</b><small>Blueprint Core + Deployment Manifest — identity, bounds that only narrow, evidence commitments, pinned to one release digest</small></div></a>
+<a class="lstep" href="https://baselabs.github.io/agent_blueprint_protocol/"><span class="lmark"><i>[</i>ABP<i>]</i></span><div><b>Define the agent</b><small>Blueprint Core + Deployment Manifest bind identity, narrowing bounds, and evidence commitments to one release digest</small></div></a>
     <div class="larrow">→</div>
-<a class="lstep" href="https://baselabs.github.io/charter_agreement_protocol/"><span class="lmark"><i>[</i>CAP<i>]</i></span><div><b>Agree the terms</b><small>Charter revisions bind ABP release digests (abp_bindings); every receipt records the action’s deployment digest — signed by both parties</small></div></a>
+<a class="lstep" href="https://baselabs.github.io/charter_agreement_protocol/"><span class="lmark"><i>[</i>CAP<i>]</i></span><div><b>Agree the terms</b><small>Charter revisions bind ABP release digests (abp_bindings); every receipt records the action’s deployment digest and is signed by both parties</small></div></a>
     <div class="larrow">→</div>
-<span class="lstep now"><span class="lmark"><i>[</i>BAP<i>]</i></span><div><b>Authorize each request</b><small>Issuer-signed grants + holder proofs govern every call, per request — the authority layer over OAuth</small></div></span>
+<span class="lstep now"><span class="lmark"><i>[</i>BAP<i>]</i></span><div><b>Bind each request</b><small>Issuer-signed grants and holder proofs bind request bytes to authority bounds; the host applies authorization policy</small></div></span>
   </div>
 </section>
 
 <section class="props-band">
   <div class="wrap grid4">
     <article><svg class="ic big"><use href="#i-lock"/></svg><h3>Custody boundary</h3>
-      <p>Keys stay in your custody — an HSM, a KMS, or the browser key store this page just used. The library only ever sees a handle.</p></article>
+      <p>Keys stay in your HSM, KMS, or browser key store. The library signs through a handle and checks the returned signature against its public key.</p></article>
     <article><svg class="ic big"><use href="#i-ban"/></svg><h3>Issuer-role gate</h3>
       <p>A holder handle can never mint its own capability: grants require an issuer-role identity resolved atomically, before <code>sign()</code> is even called.</p></article>
     <article><svg class="ic big"><use href="#i-alert"/></svg><h3>Wrong-key guard</h3>
-      <p>Every signature is verified against the resolved public key before assembly. A misconfigured custodian fails loudly as <code>signing_failed</code> — never a silent false success.</p></article>
+      <p>Every signature is verified against the resolved public key before assembly. A misconfigured custodian returns <code>signing_failed</code>. No compact is emitted.</p></article>
     <article><svg class="ic big"><use href="#i-x"/></svg><h3>Closed errors</h3>
       <p>A closed error-code set; no key material, nonce values, or report content ever appears in an error.</p></article>
   </div>
@@ -249,16 +251,16 @@
   <table class="signers">
     <thead><tr><th>Function</th><th>Object</th><th>Role</th></tr></thead>
     <tbody>
-      <tr><td><code>signReport</code></td><td>holder proof — the grant passes through untouched</td><td><span class="role-badge holder">holder</span></td></tr>
+      <tr><td><code>signReport</code></td><td>holder proof; the grant passes through untouched</td><td><span class="role-badge holder">holder</span></td></tr>
       <tr><td><code>signLocalLoopbackReport</code></td><td>local-loopback application proof (<code>ba+loopback-proof</code>)</td><td><span class="role-badge holder">holder</span></td></tr>
       <tr><td><code>signAnchor</code></td><td>boundary anchor</td><td><span class="role-badge">role-agnostic</span></td></tr>
       <tr><td><code>signKeyTransition</code></td><td>key transition</td><td><span class="role-badge">role-agnostic</span></td></tr>
       <tr><td><code>signGrant</code></td><td>capability grant</td><td><span class="role-badge issuer">issuer-only</span></td></tr>
-      <tr><td><code>signV2Report</code></td><td>v2 holder proof — the v2 grant passes through untouched</td><td><span class="role-badge holder">holder</span></td></tr>
+      <tr><td><code>signV2Report</code></td><td>v2 holder proof; the v2 grant passes through untouched</td><td><span class="role-badge holder">holder</span></td></tr>
       <tr><td><code>signV2Anchor</code></td><td>v2 boundary anchor</td><td><span class="role-badge">role-agnostic</span></td></tr>
       <tr><td><code>signV2KeyTransition</code></td><td>v2 key transition</td><td><span class="role-badge">role-agnostic</span></td></tr>
       <tr><td><code>signV2Grant</code></td><td>v2 capability grant</td><td><span class="role-badge issuer">issuer-only</span></td></tr>
-      <tr><td><code>signV3Report</code></td><td>v3 holder proof — the v3 grant passes through untouched</td><td><span class="role-badge holder">holder</span></td></tr>
+      <tr><td><code>signV3Report</code></td><td>v3 holder proof; the v3 grant passes through untouched</td><td><span class="role-badge holder">holder</span></td></tr>
       <tr><td><code>signV3Anchor</code></td><td>v3 boundary anchor</td><td><span class="role-badge">role-agnostic</span></td></tr>
       <tr><td><code>signV3KeyTransition</code></td><td>v3 key transition</td><td><span class="role-badge">role-agnostic</span></td></tr>
       <tr><td><code>signV3Grant</code></td><td>v3 capability grant</td><td><span class="role-badge issuer">issuer-only</span></td></tr>
@@ -268,7 +270,7 @@
 
 <section class="wrap" id="install">
   <div class="sec-head"><h2>The key-handle contract</h2>
-  <p>One interface, every operation. Every method may be async — remote custodians are first-class.</p></div>
+  <p>One interface, every operation. Every method may be async, so remote custodians use the same interface.</p></div>
   <pre class="code">interface KeyHandle {
   sign(message: Uint8Array): Uint8Array | Promise&lt;Uint8Array&gt;;        // 64-byte Ed25519
   publicKey(): Uint8Array | Promise&lt;Uint8Array&gt;;                       // 32 bytes
@@ -289,6 +291,7 @@
       <a href="https://baselabs.github.io/bounded_authority_protocol/">Protocol</a>
       <a href="https://www.npmjs.com/package/@bounded-authority-protocol/verifier">Verifier</a>
       <a href="https://www.npmjs.com/package/@bounded-authority-protocol/signer">Signer</a>
+      <a href="./api/">API reference</a>
       <a href="https://baselabs.github.io/bounded_authority_report_adapter/">Elixir&nbsp;reference</a>
     </span>
     <span class="fine">Apache-2.0 · bundled from this repository's source with the published verifier package</span>

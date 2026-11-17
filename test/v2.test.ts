@@ -52,7 +52,7 @@ async function v2Envelope(issuer: RawKey, holder: RawKey) {
 }
 
 // The verifier's facts values have no JSON encoding (verifier 0.8.0+), and an assert's message
-// template evaluates even when the assert passes — render diagnostics through a guard.
+// template evaluates even when the assertion passes. Render diagnostics through a guard.
 const show = (r: unknown): string => {
   try {
     return JSON.stringify(r);

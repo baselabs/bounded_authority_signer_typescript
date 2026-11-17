@@ -1,4 +1,4 @@
-// The shared signing tail — the port of the Elixir adapter's companion primitive:
+// The shared signing tail mirrors the Elixir adapter's companion primitive:
 // sign via the handle → VERIFY the signature against the resolved public key →
 // assemble through the verifier package. Every object this library signs flows
 // through here.
@@ -36,8 +36,8 @@ export async function signViaHandle(
 }
 
 // The self-verify is the verifier package's strict Ed25519 check (rule S1: canonical A and R, no
-// small-order A or R, S < L, then the cofactorless equation), never a lenient backend verify — a
-// backend that accepts R = identity, S = 0 under a weak key must not pass here.
+// small-order A or R, S < L, then the cofactorless equation). A lenient backend could accept
+// R = identity, S = 0 under a weak key; those signatures must not pass here.
 export function signatureVerifies(message: Uint8Array, signature: Uint8Array, publicKey: Uint8Array): boolean {
   try {
     return verifyStrict(message, signature, publicKey);

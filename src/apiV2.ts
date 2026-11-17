@@ -27,7 +27,9 @@ import { selectorsHoldIntegralFloat } from "./selector-value.js";
 
 /** A telemetry event from a v2 signer, passed to {@link V2SignOpts.onEvent}. */
 export interface V2SignerEvent {
+  /** The signing operation that emitted this event. */
   readonly kind: "v2_report" | "v2_anchor" | "v2_grant" | "v2_key_transition";
+  /** One start event, followed by one stop on success or error on failure. */
   readonly phase: "start" | "stop" | "error";
 }
 
@@ -47,56 +49,113 @@ export interface V2SignOpts {
 
 /** The request a v2 holder proof binds (`signV2Report`); the fields mean what they mean in `ReportInput`. */
 export interface V2ReportInput {
+  /** The signed grant as ASCII compact JWS bytes; included unchanged in the returned envelope. */
   readonly grantCompact: Uint8Array;
+  /** The operation name to bind; the resource must match it against a permitted grant operation. */
   readonly operation: string;
+  /** The HTTP request method, such as "POST". */
   readonly method: string;
+  /** The absolute HTTPS request URI; URI normalization follows the wire profile. */
   readonly targetUri: string;
+  /** A lowercase RFC 4122 UUID identifying one logical invocation; the host runtime reserves it for single use. */
   readonly invocationId: string;
+  /** Typed request arguments whose canonical projection is committed to by the proof digest. */
   readonly castArguments: Tagged;
+  /** Optional server-issued nonce to bind into the proof. */
   readonly nonce?: string;
 }
 
 /** A v2 boundary anchor (`signV2Anchor`); the fields mean what they mean in `AnchorInput`. */
 export interface V2AnchorInput {
+  /** A non-empty identifier for this boundary anchor. */
   readonly anchorId: string;
+  /** A non-empty identifier for the consumption chain. */
   readonly chainId: string;
+  /** The covered chain sequence number, a non-negative integer. */
   readonly sequence: number;
+  /** The chain hash at the covered sequence, exactly 32 bytes. */
   readonly chainHash: Uint8Array; // 32 bytes
 }
 
 /** A v2 selector: the v1 kinds plus `lte` / `gte` with an integer- or float-tagged bound. */
 export type V2SelectorInput =
   | "all"
-  | { readonly kind: "all" }
-  | { readonly kind: "equals"; readonly path: readonly string[]; readonly value: Tagged }
-  | { readonly kind: "one_of"; readonly path: readonly string[]; readonly values: readonly Tagged[] }
-  | { readonly kind: "lte"; readonly path: readonly string[]; readonly value: Tagged }
-  | { readonly kind: "gte"; readonly path: readonly string[]; readonly value: Tagged };
+  | {
+    /** Match all arguments without a value constraint. */
+    readonly kind: "all"
+  }
+  | {
+    /** Require typed equality at the path. */
+    readonly kind: "equals";
+    /** Member names locating the value within the typed request arguments. */
+    readonly path: readonly string[];
+    /** Required typed value; float-tagged integral numbers are refused at any depth. */
+    readonly value: Tagged
+  }
+  | {
+    /** Require membership in the typed values at the path. */
+    readonly kind: "one_of";
+    /** Member names locating the value within the typed request arguments. */
+    readonly path: readonly string[];
+    /** Allowed typed values; float-tagged integral numbers are refused at any depth. */
+    readonly values: readonly Tagged[]
+  }
+  | {
+    /** Require the numeric value at the path to be at most the bound. */
+    readonly kind: "lte";
+    /** Member names locating the value within the typed request arguments. */
+    readonly path: readonly string[];
+    /** Numeric int- or float-tagged bound; a float-tagged integral value is refused. */
+    readonly value: Tagged
+  }
+  | {
+    /** Require the numeric value at the path to be at least the bound. */
+    readonly kind: "gte";
+    /** Member names locating the value within the typed request arguments. */
+    readonly path: readonly string[];
+    /** Numeric int- or float-tagged bound; a float-tagged integral value is refused. */
+    readonly value: Tagged
+  };
 
 /** One operation a v2 grant allows, with its selectors. */
 export interface V2OperationInput {
+  /** A non-empty operation name. */
   readonly name: string;
+  /** The argument constraints for this operation; every selector must match at verification. */
   readonly selectors: readonly V2SelectorInput[];
 }
 
 /** A v2 capability grant (`signV2Grant`); the fields mean what they mean in `GrantInput`, with v2 selectors. */
 export interface V2GrantInput {
+  /** The issuer identifier as a StringOrURI, for example https://issuer.example. */
   readonly issuer: string;
+  /** A non-empty identifier for the grant. */
   readonly grantId: string;
+  /** The intended resource audiences; at least one. */
   readonly audiences: readonly string[];
+  /** The issuance time (`iat`) in integer Unix seconds. */
   readonly issuedAt: number;
+  /** The start of the grant validity window (`nbf`) in integer Unix seconds. */
   readonly notBefore: number;
+  /** The end of the grant validity window (`exp`) in integer Unix seconds; after `notBefore`. */
   readonly expiresAt: number;
+  /** The holder’s RFC 7638 OKP JWK thumbprint as unpadded base64url. */
   readonly holderThumbprint: string; // RFC 7638 OKP thumbprint, base64url
+  /** At least one operation and its argument selectors; granting these bounds does not replace host authorization policy. */
   readonly operations: readonly V2OperationInput[];
 }
 
 /** A v2 key transition (`signV2KeyTransition`); the fields mean what they mean in `TransitionInput`. */
 export interface V2TransitionInput {
+  /** A non-empty identifier for the key transition. */
   readonly transitionId: string;
+  /** A non-empty identifier for the consumption chain. */
   readonly chainId: string;
+  /** The next key activation time in integer Unix seconds. */
   readonly effectiveAt: number;
+  /** The next key’s non-empty identifier. */
   readonly nextKeyId: string;
+  /** The next key’s 32-byte raw Ed25519 public key. */
   readonly nextPublicKey: Uint8Array; // 32 bytes
 }
 
@@ -201,7 +260,7 @@ export async function signV2Grant(input: V2GrantInput, handle: KeyHandle, opts: 
     emit("error");
     return err("invalid_grant");
   }
-  // The issuer-role gate: only an issuer-role identity (resolved atomically) may sign a grant — a holder handle
+  // Only an issuer-role identity, resolved atomically, may sign a grant. A holder handle
   // (or one without signingIdentity) fails closed BEFORE sign() is called.
   const identity = await resolveIssuerIdentity(handle);
   if (identity === undefined) { emit("error"); return err("invalid_key_handle"); }

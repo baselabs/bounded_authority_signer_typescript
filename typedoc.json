@@ -1,0 +1,16 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "tsconfig": "tsconfig.build.json",
+  "out": "site-dist/api",
+  "readme": "none",
+  "includeVersion": true,
+  "navigationLinks": {
+    "Playground": "https://baselabs.github.io/bounded_authority_signer_typescript/",
+    "Guide": "https://github.com/baselabs/bounded_authority_signer_typescript#readme"
+  },
+  "validation": {
+    "notDocumented": true
+  },
+  "treatWarningsAsErrors": true,
+  "sourceLinkTemplate": "https://github.com/baselabs/bounded_authority_signer_typescript/blob/{gitRevision}/{path}#L{line}"
+}

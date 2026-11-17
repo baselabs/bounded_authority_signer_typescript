@@ -2,9 +2,9 @@
 // the low-S normalization (unit + property), and the four ES256 signers'
 // closure gates. The no-self-round-trip ORACLE for the produced compacts runs
 // in oracle.test.ts through the verifier package's v3 namespace (its 0.3.0
-// release); the byte-level signature pinning here — each compact verified over
+// release). Byte-level signature pinning verifies each compact over
 // the exact RFC 7515 signing input under node:crypto twice, in the raw
-// ieee-p1363 (r||s) form and re-encoded as DER — stays as composition
+// ieee-p1363 (r||s) form and re-encoded as DER, providing composition
 // evidence under the oracle, not in place of it.
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -32,7 +32,7 @@ const bytesToBigInt = (bytes: Uint8Array): bigint => BigInt("0x" + Buffer.from(b
 const bigIntTo32 = (v: bigint): Uint8Array =>
   new Uint8Array(Buffer.from(v.toString(16).padStart(64, "0"), "hex"));
 
-// DER ECDSA-Sig-Value from the raw (r, s) pair — the independent re-encoding
+// Independently re-encode the raw (r, s) pair as a DER ECDSA-Sig-Value for the
 // every emitted signature must verify under.
 function derFromRaw(raw: Uint8Array): Uint8Array {
   const int = (v: bigint): Buffer => {
@@ -80,7 +80,7 @@ const grantFixture = (holderThumbprint: string) => ({
 });
 
 // ---------------------------------------------------------------------------
-// Producers — byte-level composition.
+// Check producer composition at the byte level.
 
 test("v3 producer: the raw EC fixture key is 65 bytes starting 0x04, and the JWK is exactly {crv, kty, x, y}", () => {
   const key = ecRawKey();
@@ -112,7 +112,7 @@ test("v3 producer: grant signing input — ES256 header, v:3 payload, typed sele
   });
   assert.equal(produced.ok, true);
 
-  // BYTE-LEVEL: the protected header is exactly the JCS form — member set AND order.
+  // Check the protected header’s exact JCS member set and order.
   assert.equal(
     Buffer.from(segText(produced.value.protectedSegment), "base64url").toString("utf8"),
     `{"alg":"ES256","kid":"issuer-key","typ":"ba+cap"}`,
@@ -150,7 +150,7 @@ test("v3 producer: proof signing input — byte-level header, BAP3 digest, ath, 
   });
   assert.equal(produced.ok, true);
 
-  // BYTE-LEVEL: member set AND order of the proof header — alg, jwk{crv,kty,x,y}, typ.
+  // Check the proof header’s exact member set and order: alg, jwk{crv,kty,x,y}, typ.
   assert.equal(
     Buffer.from(segText(produced.value.protectedSegment), "base64url").toString("utf8"),
     `{"alg":"ES256","jwk":{"crv":"P-256","kty":"EC","x":"${holder.jwk.x}","y":"${holder.jwk.y}"},"typ":"dpop+jwt"}`,
@@ -161,7 +161,7 @@ test("v3 producer: proof signing input — byte-level header, BAP3 digest, ath, 
   assert.equal(payload.v, 3, "the v claim is exactly integer 3 (cross-major pin)");
   // ath: SHA-256 of the exact grant compact bytes, unpadded base64url.
   assert.equal(payload.ath, b64(sha256Of(grantCompact)));
-  // ba_req: SHA-256("BAP3-REQUEST\0" || JCS([operation, typed(args)])) — the
+  // ba_req is SHA-256("BAP3-REQUEST\0" || JCS([operation, typed(args)])); the
   // JCS expectation here is the HAND-DERIVED literal for the fixture args,
   // not a library call.
   const handDerivedJcs = `["transfer",["object",{"amount":["integer",5000]}]]`;
@@ -261,7 +261,7 @@ test("v3 producer: closed-set input rejections fail value-free", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Low-S normalization — unit and property.
+// Check low-S normalization with unit and property tests.
 
 test("v3 low-S: the normalizer is one conditional subtraction (forced high-S maps back)", () => {
   const key = ecRawKey();
@@ -327,7 +327,7 @@ test("v3 low-S property: fresh keys, every emitted s <= (n-1)/2, every signature
     assert.ok(r > 0n && r < P256_N, `iteration ${i}: emitted r must satisfy 0 < r < n`);
 
     // The emitted encoding is exactly the handle's raw signature, or its
-    // low-S counterpart — the normalizer is the only difference.
+    // low-S counterpart. Only the normalizer differs.
     const rawSig = rawSignatures[0];
     assert.ok(rawSig !== undefined, "the handle signed exactly once");
     const rawS = bytesToBigInt(rawSig.subarray(32));
@@ -358,7 +358,7 @@ test("v3 low-S: malleability is live on the backend — and excluded from the em
 
   const counterpart = new Uint8Array(low);
   counterpart.set(bigIntTo32(P256_N - bytesToBigInt(low.subarray(32))), 32);
-  // The backend ACCEPTS the counterpart (ECDSA malleability, OBSERVED) — the
+  // The backend accepts the counterpart, demonstrating ECDSA malleability. The
   // reason the profile needs low-S at all.
   assert.equal(ecVerify("SHA256", message, { key: ecPublic(key), dsaEncoding: "ieee-p1363" }, counterpart), true);
   // The library's post-sign check is strict (es256VerifyStrict) and refuses it,
@@ -369,7 +369,7 @@ test("v3 low-S: malleability is live on the backend — and excluded from the em
 });
 
 // ---------------------------------------------------------------------------
-// The four signers — API shape, gates, and the byte-level signature pinning.
+// Check the four signers’ API shape, gates, and byte-level signatures.
 
 test("v3 signers: issuer grant -> holder report; every compact's signature pinned at the byte level", async () => {
   const issuer = ecRawKey();

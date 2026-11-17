@@ -1,17 +1,16 @@
 // The contract-major 3 producing profile (`BAP3-ES256-SHA256`, the protocol's
 // spec/bap-v3.md): the deterministic signing-input composers for the ES256
-// suite. The producing side lives in this module — composed to mirror the
-// verifier package's v2 producer structure with exactly the v3 deltas the spec
+// suite. This module composes signing inputs using the
+// verifier package's v2 producer structure with the v3 differences the spec
 // names: `alg: "ES256"` in every protected header, payload `v: 3`, the
 // `BAP3-REQUEST\0` digest prefix, the EC proof JWK `{crv, kty, x, y}`, the RFC
 // 7638 EC thumbprint, and 65-byte uncompressed-SEC1 raw public keys. The
-// verifier package's 0.3.0 release ships its own v3 verify surface; delegating
-// composition to the verifier's v3 producers is not adopted yet.
+// verifier package verifies these compacts through its independent v3 surface.
 //
 // Version-neutral algebra (JCS, JSON, base64url, SHA-256, typed projection,
 // URI normalization, Bounds) single-sources from the verifier package's
-// exported primitives — the same source the v1 flow composes through — so the
-// only bytes authored here are the v3-specific ones. Pure and deterministic:
+// exported primitives, as the v1 flow does. The
+// only bytes authored here are v3-specific. These producers are pure and deterministic:
 // no clock, no randomness, no network (times and keys are inputs).
 import {
   base64urlDecode,
@@ -39,16 +38,16 @@ const ANCHOR_TYP = "ba+chain-anchor";
 const TRANSITION_TYP = "ba+key-transition";
 const VERSION = 3;
 
-// `BAP3-REQUEST\0` — the v3 request-digest domain separator (spec/bap-v3.md §2;
+// The v3 request-digest domain separator is `BAP3-REQUEST\0` (spec/bap-v3.md §2;
 // REQ3-SIGNING-digest-prefix). Exact ASCII including the final zero byte.
 export const V3_REQUEST_PREFIX = new Uint8Array([
   0x42, 0x41, 0x50, 0x33, 0x2d, 0x52, 0x45, 0x51, 0x55, 0x45, 0x53, 0x54, 0x00, // "BAP3-REQUEST\0"
 ]);
 
-// The suite fixed widths (spec/bap-v3.md §5; REQ3-BOUNDS-fixed-widths) —
-// immutable cryptographic constants of `BAP3-ES256-SHA256`, deliberately NOT
+// Suite widths are immutable cryptographic constants of `BAP3-ES256-SHA256`
+// (spec/bap-v3.md §5; REQ3-BOUNDS-fixed-widths). They are not
 // read from the shared Bounds row (whose `public_key_bytes: 32` stays inert
-// for v3 — no v3 code reads it as a width).
+// for v3 and is never read as a v3 width).
 export const P256_COORDINATE_BYTES = 32;
 export const RAW_PUBLIC_KEY_BYTES = 65;   // 0x04 || x || y (uncompressed SEC1)
 export const RAW_SIGNATURE_BYTES = 64;    // r || s, fixed-width 32 each
@@ -139,7 +138,7 @@ export interface EcPublicJwk {
   readonly y: string;
 }
 
-// NIST P-256 domain parameters (SEC 2) — pure arithmetic, no backend.
+// The NIST P-256 domain parameters (SEC 2) use pure arithmetic without a backend.
 const P256_PRIME = 0xffffffff00000001000000000000000000000000ffffffffffffffffffffffffn;
 const P256_B = 0x5ac635d8aa3a93e7b3ebbd55769886bc651d06b0cc53b0f63bce3c3e27d2604bn;
 
@@ -189,7 +188,7 @@ export function ecThumbprintRaw(raw: Uint8Array): Uint8Array {
   return sha256(ecThumbprintPreimage(raw));
 }
 
-/** RFC 7638 EC thumbprint, unpadded base64url — the `cnf.jkt` spelling. */
+/** Return the RFC 7638 EC thumbprint as unpadded base64url for `cnf.jkt`. */
 export function ecThumbprint(raw: Uint8Array): string {
   return utf8Str(base64urlEncode(ecThumbprintRaw(raw)));
 }
@@ -254,15 +253,48 @@ export function v3RequestDigest(operation: string, castArguments: Tagged, bounds
  */
 export type V3SelectorInput =
   | "all"
-  | { readonly kind: "all" }
-  | { readonly kind: "equals"; readonly path: readonly string[]; readonly value: Tagged }
-  | { readonly kind: "one_of"; readonly path: readonly string[]; readonly values: readonly Tagged[] }
-  | { readonly kind: "lte"; readonly path: readonly string[]; readonly value: Tagged }
-  | { readonly kind: "gte"; readonly path: readonly string[]; readonly value: Tagged };
+  | {
+    /** Match all arguments without a value constraint. */
+    readonly kind: "all"
+  }
+  | {
+    /** Require typed equality at the path. */
+    readonly kind: "equals";
+    /** Member names locating the value within the typed request arguments. */
+    readonly path: readonly string[];
+    /** Required typed value; float-tagged integral numbers are refused at any depth. */
+    readonly value: Tagged
+  }
+  | {
+    /** Require membership in the typed values at the path. */
+    readonly kind: "one_of";
+    /** Member names locating the value within the typed request arguments. */
+    readonly path: readonly string[];
+    /** Allowed typed values; float-tagged integral numbers are refused at any depth. */
+    readonly values: readonly Tagged[]
+  }
+  | {
+    /** Require the numeric value at the path to be at most the bound. */
+    readonly kind: "lte";
+    /** Member names locating the value within the typed request arguments. */
+    readonly path: readonly string[];
+    /** Numeric int- or float-tagged bound; a float-tagged integral value is refused. */
+    readonly value: Tagged
+  }
+  | {
+    /** Require the numeric value at the path to be at least the bound. */
+    readonly kind: "gte";
+    /** Member names locating the value within the typed request arguments. */
+    readonly path: readonly string[];
+    /** Numeric int- or float-tagged bound; a float-tagged integral value is refused. */
+    readonly value: Tagged
+  };
 
 /** One operation a v3 grant allows (`V3GrantInput.operations`): its name and its selectors, all of which must match. */
 export interface V3OperationInput {
+  /** A non-empty operation name. */
   readonly name: string;
+  /** All argument constraints that must match for this operation. */
   readonly selectors: readonly V3SelectorInput[];
 }
 
@@ -327,7 +359,7 @@ function taggedHeader(members: ReadonlyMap<string, Tagged>, b: Bounds): Uint8Arr
 }
 
 // ---------------------------------------------------------------------------
-// Selectors (the five-kind v2/v3 algebra: all, equals, one_of, lte, gte — the
+// Selectors use the five-kind v2/v3 algebra (all, equals, one_of, lte, gte; the
 // range bounds must be numeric-tagged before they can be minted).
 
 function selectorToTagged(s: V3SelectorInput, b: Bounds): Tagged {
@@ -488,7 +520,7 @@ function buildGrantPayload(grant: GrantProducerV3, b: Bounds): Map<string, Tagge
 }
 
 // ---------------------------------------------------------------------------
-// 2. proof_signing_input (the standard profile only — the local-loopback
+// 2. proof_signing_input (standard profile only; the local-loopback
 // application proof profile is contract-major-1-bound and exposes no v3 form).
 
 export function proofSigningInput(proof: ProofProducerV3, bounds?: Bounds): Result<V3SigningInput> {
@@ -560,7 +592,7 @@ export function proofSigningInput(proof: ProofProducerV3, bounds?: Bounds): Resu
 
 // The shape+size scan over a candidate compact (the v1 CompactJws.scan port):
 // exactly three non-empty dot-separated segments within bounds; canonicity is
-// the verifier's job — this gate only refuses to hash obvious non-compacts.
+// the verifier's job. This gate refuses to hash obvious non-compacts.
 function scanCompactShape(input: Uint8Array, b: Bounds): void {
   if (input.length > resolveBound(b, "compact_bytes")) fail("v3 scan_compact: byte bound");
   if (input.length === 0) fail("v3 scan_compact: empty");
@@ -672,7 +704,7 @@ export function keyTransitionSigningInput(t: KeyTransitionProducerV3, bounds?: B
 }
 
 // ---------------------------------------------------------------------------
-// 5. assemble_compact — the RFC 7515 compact form
+// 5. assemble_compact produces the RFC 7515 compact form
 //    `BASE64URL(protected) || "." || BASE64URL(payload) || "." || BASE64URL(signature)`,
 //    then a self-check re-parse of the composed bytes (segments decode, the
 //    header is the closed v3 member set with alg ES256 and the kind's typ, the

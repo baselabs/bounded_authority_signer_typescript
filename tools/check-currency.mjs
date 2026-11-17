@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-// Dependency-currency gate (latest-first) — the pnpm analogue of the Elixir family's
+// The latest-first dependency-currency gate follows the Elixir family's
 // dependency-currency gate, written in the repo's managed language.
 // Classification is on data from real resolvers, never on a tool's
 // exit status alone: `pnpm outdated --format json` for the drift table (it exits
 // nonzero both on drift and on lookup failure, and exits 0 with `{}` when everything
-// is current — that empty exit-0 table is a VERIFIED all-current state), plus
+// is current, a verified all-current state), plus
 // `npm view <name> versions --json` resolved through the canonical `semver` package
 // for the in-range maximum. npm returns versions in publish order, not semver
 // order, so the max must be computed (semver.maxSatisfying), not picked off the end;
@@ -14,13 +14,13 @@
 // updated in the change that discovers it; anything deliberately not at latest
 // carries its reason in DELIBERATE_PINS below (package.json cannot hold comments).
 // A pin is major-jump-shaped only: it exempts a package from updates OUTSIDE its
-// declared range (the range itself — package.json — is where "stay on this major"
-// lives, mirroring the Elixir gate's `~>` requirement cap); it NEVER exempts drift
+// declared range (package.json records the "stay on this major" requirement, which
+// mirrors the Elixir gate's `~>` cap); it never exempts drift
 // the declared range already allows.
 //
 // Documented departures from the Elixir shape:
 // - pnpm renders DIRECT dependencies only (no --all table), so transitive currency
-//   is not classified here — transitive moves ride deliberate `pnpm update` commits
+//   is not classified here. Transitive moves use deliberate `pnpm update` commits
 //   behind the CI-frozen lockfile.
 // - The npm-side max can diverge from pnpm's resolver when a dist-tag rollback
 //   leaves a stable in-range version above the `latest` tag: the gate then demands
@@ -31,10 +31,10 @@
 //
 // Classification, per outdated package:
 //   isDeprecated                   -> exit 1, named
-//   current !== in-range max       -> exit 1, named — in-range resolvable drift; never pinnable
-//   in-range max below latest      -> exit 1, named — newer release outside the declared range
+//   current !== in-range max       -> exit 1 for in-range resolvable drift; never pinnable
+//   in-range max below latest      -> exit 1 for a newer release outside the declared range
 //   in-range max below latest, pinned -> reported with the pin's reason
-//   pinned but not listed by pnpm  -> reported (at latest or absent — drop a stale pin)
+//   pinned but not listed by pnpm  -> report at latest or absent; drop a stale pin
 //   non-registry spec (file:, git, link, shorthand) -> exit 1: unverified, never passes
 //   pnpm exit 0 + empty table      -> PASS (verified all-current), stale pins still reported
 //   unparseable output, empty-but-nonzero table, npm-view failure/timeout, spawn error
@@ -67,7 +67,7 @@ const declared = Object.keys(ranges);
 
 // Registry ranges start with a version or a range operator; anything else (file:,
 // git+…, link:, workspace:, URL, user/repo shorthand, local paths) is a spec this
-// gate cannot verify — it fails closed rather than silently passing.
+// gate cannot verify. It fails closed.
 const REGISTRY_RANGE = /^[0-9^~><=*\s-]/;
 
 // pnpm/npm are spawned directly, never through a shell. Each resolver call is

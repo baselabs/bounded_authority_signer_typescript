@@ -1,4 +1,4 @@
-// The key-handle contract — the port of the Elixir adapter's {module(), term()}
+// The key-handle contract mirrors the Elixir adapter's {module(), term()}
 // callbacks (the protocol's invariant: the private key NEVER enters this library).
 //
 // The caller supplies an object whose methods reach their own custody (an HSM
@@ -17,7 +17,7 @@
 //                                              required by grant signing: role
 //                                              AND kid AND public key as ONE
 //                                              atomic snapshot. A holder-role
-//                                              handle can never sign a grant —
+//                                              handle cannot sign a grant because of
 //                                              the issuer-role gate.
 
 import { acceptablePublicKey } from "@bounded-authority-protocol/verifier";
@@ -27,12 +27,15 @@ export type KeyRole = "issuer" | "holder";
 
 /** A key id and public key returned together by `keyIdentity()`, so a rotating handle cannot split them. Read from own data properties only. */
 export interface AtomicKeyIdentity {
+  /** A non-empty key identifier, resolved atomically with the public key. */
   readonly keyId: string;
+  /** The raw public key in the selected suite’s format: 32-byte Ed25519 or 65-byte uncompressed SEC1 P-256. */
   readonly publicKey: Uint8Array;
 }
 
 /** `AtomicKeyIdentity` plus the role, returned together by `signingIdentity()` (grants). */
 export interface AtomicSigningIdentity extends AtomicKeyIdentity {
+  /** The claimed key role; grant signing requires "issuer". The host selects which issuer identities to trust. */
   readonly role: KeyRole;
 }
 
@@ -50,10 +53,15 @@ export interface AtomicSigningIdentity extends AtomicKeyIdentity {
  * @see https://github.com/baselabs/bounded_authority_signer_typescript#the-key-handle-contract
  */
 export interface KeyHandle {
+  /** Sign a copy of the standard JWS signing input using caller-owned custody. Return a 64-byte raw Ed25519 signature. */
   sign(message: Uint8Array): Uint8Array | Promise<Uint8Array>;
+  /** Return the 32-byte canonical, non-small-order raw Ed25519 public key. */
   publicKey(): Uint8Array | Promise<Uint8Array>;
+  /** Return the RFC 7638 OKP JWK thumbprint as unpadded base64url. */
   thumbprint(): string | Promise<string>;
+  /** Return a key identifier and public key in one atomic snapshot; required for anchors and key transitions. */
   keyIdentity?(): AtomicKeyIdentity | Promise<AtomicKeyIdentity>;
+  /** Return role, key identifier, and public key atomically; grant signing requires the issuer role. */
   signingIdentity?(): AtomicSigningIdentity | Promise<AtomicSigningIdentity>;
 }
 
@@ -72,7 +80,17 @@ export type SignerErrorCode =
   | "producer_error";
 
 /** Every signer and factory result: check `ok` before reading `value`. */
-export type SignerResult<T> = { readonly ok: true; readonly value: T } | { readonly ok: false; readonly error: SignerErrorCode };
+export type SignerResult<T> = {
+  /** True when signing or handle construction succeeded. */
+  readonly ok: true;
+  /** The signed artifact or constructed handle; available only on success. */
+  readonly value: T
+} | {
+  /** False when the operation failed; no partial artifact is returned. */
+  readonly ok: false;
+  /** A closed error code without key material or request content. */
+  readonly error: SignerErrorCode
+};
 
 export const ok = <T>(value: T): SignerResult<T> => ({ ok: true, value });
 export const err = <T = never>(error: SignerErrorCode): SignerResult<T> => ({ ok: false, error });
@@ -92,7 +110,7 @@ export type KeyCheck = (key: Uint8Array) => boolean;
 
 // A handle's Ed25519 public key must be 32 bytes AND acceptable to the verifier: canonical, not one of
 // the eight small-order points (identity included), and on the curve. A weak key is refused here, at
-// resolution, before sign() is ever called — a handle that reports one is an invalid_key_handle.
+// resolution, before sign() is called. Such a handle returns invalid_key_handle.
 export const ed25519Key: KeyCheck = (key) => key.length === 32 && acceptablePublicKey(key);
 
 /** Copy a handle-supplied key; throws for a Proxy or other non-typed-array (callers are inside a try). */

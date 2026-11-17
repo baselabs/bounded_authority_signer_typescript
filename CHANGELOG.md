@@ -1,6 +1,17 @@
 # Changelog
 
-## [2.0.0] — 2026-11-10
+## [Unreleased]
+
+- Add a version-stamped TypeDoc API reference from the package exports at `/api/`.
+  CI rejects undocumented public declarations and documentation warnings.
+- Correct the OAuth comparison and distinguish request verification from host authorization,
+  revocation, and invocation replay reservation across the site and README.
+- Expand public-text hygiene coverage to nested documentation and all site source files.
+  Rewrite public prose and API comments in plain US English.
+- Allow only esbuild to run dependency install scripts, so clean pnpm installs prepare the
+  native binary used by browser and site bundles.
+
+## [2.0.0] (2026-11-10)
 
 A major release, 2.0.0. The protocol's erratum 6 makes the grant signers refuse inputs that 1.0.0
 signed, which is breaking under the 1.0 contract. It depends on the verifier `^2.0.0`, the verifier
@@ -58,7 +69,7 @@ installable and is not deprecated.
   `sign()` never called; integers and non-integral floats sign, verify, and decode back from the
   signed payload with exactly the tag and value given.
 
-## [1.0.0] — 2026-10-29
+## [1.0.0] (2026-10-29)
 
 The stability release. The package is 1.0: a breaking change costs a major version, and a caret
 range such as `^1.0.0` carries every later minor and patch. Before 1.0 the minor position was the
@@ -66,7 +77,7 @@ breaking boundary.
 
 ### Changed
 
-- **Deep imports are closed** — the breaking change of this major, matching the verifier's 1.0.0.
+- **Deep imports are closed.** This major matches the verifier's 1.0.0 public import boundary.
   The `"exports"` map exposes the package root and `./package.json` only; any path under `dist/`
   refuses, with Node spelling it `ERR_PACKAGE_PATH_NOT_EXPORTED` and Deno and Bun reporting the
   module as not found. Deep imports were never supported API: import from the package root.
@@ -78,7 +89,7 @@ breaking boundary.
   red-proof now targets `index.d.ts`, which the root import always reaches (`es256.d.ts` is the one
   declaration no root-reachable declaration imports, so it left the program with the deep import).
 
-## [0.6.0] — 2026-10-29
+## [0.6.0] (2026-10-29)
 
 WebCrypto key handles. Two factories build the existing handle types from a WebCrypto key pair
 whose private key is non-extractable, so a browser page (or Deno, Bun or Node) can sign with a key
@@ -227,7 +238,7 @@ resolution (one error code changes).
   real git repositories and the real and an unreachable registry.
 - Source comments no longer use internal shorthand.
 
-## [0.5.0] — 2026-10-13
+## [0.5.0] (2026-10-13)
 
 Browser-safe builds and the contract-major-2 signers. The package now loads and runs in browsers,
 Deno, Bun and workers with no `node:crypto`, no `Buffer` and no other Node API. The key-handle API
@@ -310,7 +321,7 @@ is the strict check, so it returns `false` for a high-`s` signature.
   compiler API that 7.x no longer ships. Emitted JavaScript and declarations are identical apart
   from whitespace. The currency gate records the reason.
 
-## [0.4.0] — 2026-10-13
+## [0.4.0] (2026-10-13)
 
 Security advisory: [GHSA-wxxg-7cx6-m8qj](https://github.com/baselabs/bounded_authority_signer_typescript/security/advisories/GHSA-wxxg-7cx6-m8qj).
 
@@ -325,7 +336,7 @@ Security advisory: [GHSA-wxxg-7cx6-m8qj](https://github.com/baselabs/bounded_aut
   boundary).
 - CI runs the verify job on Node 22.23.1 and 24.19.0.
 
-## [0.3.1] — 2026-09-28
+## [0.3.1] (2026-09-28)
 
 Documentation patch; no code or dependency change.
 
@@ -339,7 +350,7 @@ Documentation patch; no code or dependency change.
 - Playground: the signer table lists the four v3 signers; the grant card shows the wire
   `typ` `ba+cap` (it showed `ba+grant`).
 
-## [0.3.0] — 2026-09-28
+## [0.3.0] (2026-09-28)
 
 - **Verifier lockstep 0.4.1 → 0.5.0**: the runtime dependency moves to
   `@bounded-authority-protocol/verifier` `^0.5.0`. Before 1.0 the minor is the breaking
@@ -357,11 +368,11 @@ Documentation patch; no code or dependency change.
 - CI runs on Linux only; macOS and Windows jobs are removed. Developer portability is
   unchanged. The playground badge now says so.
 
-## [0.2.1] — 2026-09-24
+## [0.2.1] (2026-09-24)
 
 - **Verifier lockstep 0.3.0 → 0.4.1** (the latest-first move): the dependency moves to
   `@bounded-authority-protocol/verifier` `^0.4.1`. The 0.4.x line is additive for this
-  package — 0.4.0's `roleAttestation` namespace (the TS analog of the protocol's
+  package. It adds 0.4.0's `roleAttestation` namespace (the TS analog of the protocol's
   role-attestation release; this signer's attestation-gated grant signing is future work)
   and 0.4.1's producer/consumer bounds-agreement fix on `attestationSigningInput`
   (transferred from the protocol repository's 0.6.1 repair; no signer path emits through
@@ -369,15 +380,15 @@ Documentation patch; no code or dependency change.
   battery (every produced compact cross-verified through the verifier package's
   independent implementations), and the dependency-currency gate are green at 0.4.1, and
   the lockfile moves with the manifest. A fresh `npm install` of this package now resolves
-  the verifier at 0.4.x — 0.2.0's `^0.3.0` caret excluded the 0.4 line entirely, the
-  same-day-releases resolution-split class, live for two days.
+  the verifier at 0.4.x. The prior `^0.3.0` range excluded the 0.4 line, creating a
+  resolution split that lasted two days.
 
-## [0.2.0] — 2026-09-22
+## [0.2.0] (2026-09-22)
 
 - **Contract-major 3 (`BAP3-ES256-SHA256`) producing-side adoption** (the protocol's
   [`spec/bap-v3.md`](https://github.com/baselabs/bounded_authority_protocol/blob/main/spec/bap-v3.md)).
-  Four new signers — `signV3Grant`,
-  `signV3Report`, `signV3Anchor`, `signV3KeyTransition` — mirror the v1 functions under the
+  Four new signers (`signV3Grant`,
+  `signV3Report`, `signV3Anchor`, `signV3KeyTransition`) mirror the v1 functions under the
   ES256 suite: `alg: "ES256"` protected headers, payload `v: 3`, the `BAP3-REQUEST\0` digest
   prefix, the EC proof JWK `{crv, kty, x, y}` with the RFC 7638 EC thumbprint as `cnf.jkt`,
   the five-kind selector algebra (`all`, `equals`, `one_of`, `lte`, `gte`), 65-byte
@@ -385,8 +396,8 @@ Documentation patch; no code or dependency change.
   contract (`Es256KeyHandle`) keeps the same custody boundary with the suite's widths; the
   local-loopback profile stays contract-major-1-bound (no v3 form exists).
 - **Low-S normalization is load-bearing** (spec/bap-v3.md §3.2; `REQ3-SIGNING-low-s`): the
-  shared v3 signing tail normalizes every handle signature before emission — `s ← n − s`
-  when high, one conditional subtraction — so the emitted `s` satisfies `0 < s ≤ (n−1)/2`
+  shared v3 signing tail normalizes every handle signature before emission. One conditional
+  subtraction, `s ← n − s` when high, ensures the emitted `s` satisfies `0 < s ≤ (n−1)/2`
   always. The retained property run (120 fresh P-256 keys through `signV3Report`) observed
   natural high-S at the expected ~1/2 rate, every emitted signature verifying under
   node:crypto both in the raw `ieee-p1363` form and re-encoded as DER.
@@ -396,8 +407,8 @@ Documentation patch; no code or dependency change.
   SHA-256, typed projection, URI normalization, Bounds) single-sources from the verifier
   package's exported primitives; only the v3-specific bytes are authored here. The
   dependency moves to `@bounded-authority-protocol/verifier` `^0.3.0` (the lockstep
-  latest-first move onto the verifier's ES256 release), and the v3 test oracle —
-  crypto-level while the verifier package lacked a v3 surface — now cross-verifies through
+  latest-first move onto the verifier's ES256 release). The v3 test oracle previously
+  checked signatures at the crypto level; it now cross-verifies through
   the verifier package's `v3` namespace (`v3.verifyGrant`, `v3.checkEnvelope`,
   `v3.verifyHistoricalAnchor`, `v3.verifyKeyTransition`) per this repository's
   no-self-round-trip evidence rule, with the crypto-level signature pinning retained as
@@ -406,17 +417,18 @@ Documentation patch; no code or dependency change.
   low-S normalization, the wrong-key guard (ES256 form), the issuer-role gate (ES256
   form), and the producer's P-256 on-curve/width check each redden exactly their leg.
 - Dependency currency (the latest-first gate): in-range lockfile updates discovered by
-  running the gate — `@types/node` 26.6.2, `tsx` 4.23.15 (never pinnable, in-range drift).
-- The repository's GitHub Pages site is live — the envelope playground
+  running the gate update `@types/node` to 26.6.2 and `tsx` to 4.23.15. In-range drift
+  cannot be exempted by a pin.
+- The repository's GitHub Pages site now serves the envelope playground
   (https://baselabs.github.io/bounded_authority_signer_typescript/): a landing page pitched
   at MCP/OAuth audiences plus a fully in-browser demo bundling this package and the published
   verifier package (real signatures, real verification, tamper deck, wire viewer; keys
   generated in the visitor's browser never enter the library). The npm `homepage` field now
   points there; the README links it at the top. No library-code change.
 
-## [0.1.2] — 2026-09-18
+## [0.1.2] (2026-09-18)
 
-No library-code change — alignment with the protocol family as of September 17, 2026 (protocol
+No library code changed. This release aligns with the protocol family as of September 17, 2026 (protocol
 0.4.1, Elixir `bounded_authority_report_adapter` 0.6.2 and that adapter's pin move). The five-function surface is 1:1 with the
 Elixir reference (compared against its `main` @ `d235a4a`: same signing table, profiles, bounds
 flow, closed error set, and five-span telemetry) with zero signing-behavior delta since its
@@ -425,12 +437,12 @@ flow, closed error set, and five-span telemetry) with zero signing-behavior delt
 - Dependency currency: the lockfile resolves `@bounded-authority-protocol/verifier` **0.2.2**
   (a verifier release with no library-code change; its 0.2.1 was its first provenance-bound
   release). The requirement
-  deliberately holds the caret `^0.2.0` — an exact pin in a published package's dependencies
+  uses the caret `^0.2.0`. An exact pin in a published package's dependencies
   would force every consumer's resolution and block dedupe, and reproducibility is already
   provided by the tracked lockfile plus CI's `--frozen-lockfile` installs.
 - Dependency-currency gate (latest-first, the shape every package in the protocol family uses):
-  `tools/check-currency.mjs` ported byte-identical from the verifier package's repository — `pnpm outdated` data
-  classified through the canonical `semver` resolver: in-range resolvable drift fails (never
+  `tools/check-currency.mjs` is ported byte-identical from the verifier package's repository.
+  It classifies `pnpm outdated` data through the canonical `semver` resolver: in-range resolvable drift fails (never
   pinnable), deliberate pins cover only out-of-range latests and carry inline reasons
   (typescript stays on 6.x pending the 7.x native-compiler review), and an unverifiable
   currency state fails closed. Wired as `pnpm check:currency` and a CI `dependency-currency`
@@ -438,10 +450,10 @@ flow, closed error set, and five-span telemetry) with zero signing-behavior delt
   unreachable registry / green all-current scratch). Dev dependencies at latest:
   `@types/node` 26.6.1, `semver` 7.8.5 (the gate's resolver).
 - Tri-platform CI (September 16, 2026): `ci.yml` gains `windows-latest` and `macos-latest`
-  lanes beside `ubuntu-24.04` — every step is pnpm/Node, no POSIX shell. `.gitattributes`
+  lanes beside `ubuntu-24.04`. Every step uses pnpm/Node without a POSIX shell. `.gitattributes`
   (`* text=auto eol=lf`) keeps a Windows autocrlf checkout byte-stable.
-- Node toolchain identity: the repository pins its development toolchain — `.tool-versions`
-  (`nodejs 22.23.1`, matching the Elixir family's pin) and
+- Node toolchain identity: `.tool-versions` pins the development toolchain to
+  `nodejs 22.23.1`, matching the Elixir family. That pin and
   the CI `node-version` move lockstep. `engines.node` stays the consumer floor `>= 22`; the
   release lane stays on Node 24 for the npm >= 11.5 that trusted publishing requires.
 - README: the protocol-family cross-links land (verifier package by npm and repository, the
@@ -449,15 +461,15 @@ flow, closed error set, and five-span telemetry) with zero signing-behavior delt
   and the contract-major statement is now explicit: this 0.1.x line signs **v1 only** (the
   verifier package's v2 surface is verify-side and unreachable from this library).
 
-## [0.1.1] — 2026-09-14
+## [0.1.1] (2026-09-14)
 
 - The first provenance-bound release: identical library content to 0.1.0 (which was
   published from a local terminal and carries no registry attestation), published through this repository's
-  release workflow under npm trusted publishing — the workflow stages with a signed
+  release workflow uses npm trusted publishing. The workflow stages with a signed
   provenance statement and a human approves under 2FA. 0.1.0 is deprecated in favor of this
   version.
 
-## [0.1.0] — 2026-09-14
+## [0.1.0] (2026-09-14)
 
 - First release: the TypeScript port of the Elixir bounded_authority_report_adapter
   (tracked against its 0.6.0 / protocol 0.4.0). The five companion signers (report,

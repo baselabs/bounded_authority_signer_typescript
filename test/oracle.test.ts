@@ -3,7 +3,7 @@
 // self-round-trip evidence). Issuer signs a grant → holder signs a report over
 // it → the verifier's checkEnvelope consumes both; the anchor and transition
 // signers verify through their historical surfaces. The v3 (ES256) battery
-// mirrors all three through the verifier package's v3 namespace — the oracle
+// mirrors all three through the verifier package's v3 namespace. The oracle
 // the v3 gap pin anticipated, flipped when the verifier shipped 0.3.0.
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -32,7 +32,7 @@ import {
 import { amountArgs, b64, ecHandleFor, ecRawKey, handleFor, rawKey } from "./helpers.js";
 
 // The verifier's facts values have no JSON encoding (REQ1-VERIFY-facts-redacted; verifier
-// 0.8.0+ throws), and an assert's message template evaluates even when the assert passes — so
+// 0.8.0+ throws). An assertion's message template evaluates even when it passes, so
 // every diagnostic here renders through a guard instead of JSON.stringify directly.
 const show = (r: unknown): string => {
   try {

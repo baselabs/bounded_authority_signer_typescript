@@ -1,4 +1,4 @@
-# GitHub Pages — the envelope playground. Static bundle built from this
+# GitHub Pages serves the envelope playground and versioned API reference. Static bundle built from this
 # repository's signer source plus the published verifier package; no backend,
 # no secrets, deploy-only permissions.
 name: Pages
@@ -6,7 +6,7 @@ name: Pages
 on:
   push:
     branches: [main]
-    paths: ["web/**", "package.json", "pnpm-lock.yaml", ".github/workflows/pages.yml", "tools/check-site-badge.mjs", "tools/release-state.mjs"]
+    paths: ["web/**", "src/**", "typedoc.json", "tsconfig*.json", "package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml", ".github/workflows/pages.yml", "tools/check-site-badge.mjs", "tools/release-state.mjs"]
   workflow_dispatch:
 
 permissions:
@@ -18,7 +18,7 @@ concurrency:
 
 jobs:
   build:
-    name: Build the playground bundle
+    name: Build the playground and API reference
     runs-on: ubuntu-24.04
     steps:
       - name: Check out source
@@ -55,6 +55,9 @@ jobs:
       # portable backend for the browser); a free Node global anywhere in it fails the deploy.
       - name: Browser guard over the bundle (no unresolved globals, eval or Function constructor)
         run: pnpm guard:site
+
+      - name: Build the versioned API reference
+        run: pnpm docs:api
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@0252fc4ba7626f0298f0cf00902a25c6afc77fa8 # v3.0.0

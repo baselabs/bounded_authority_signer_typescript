@@ -2,7 +2,7 @@
 # repository's workflow identity (GitHub Actions OIDC, no long-lived token) and
 # runs in TWO STAGES per the npm trusted-publisher configuration: the workflow
 # STAGES the artifact (`npm stage publish`, provenance attached), and a human
-# approves the staged release on npmjs.com under the org's 2FA — CI can never
+# approves the staged release on npmjs.com under the org's 2FA. CI cannot
 # make a version live alone. The verify job packs the release tarball once and
 # records its SHA-256; the publish job repacks the same tree, refuses unless the
 # hash matches, and stages exactly that tarball.
@@ -62,6 +62,9 @@ jobs:
       - name: Build
         run: pnpm build
 
+      - name: API reference (all package export paths, warnings are errors)
+        run: pnpm docs:api
+
       # The release tarball (tools/pack.mjs: npm pack, scripts ignored; it never writes the working
       # tree). The tarball and reader lanes below check exactly this file, and the publish job
       # publishes a tarball only if its SHA-256 equals this one.
@@ -102,7 +105,7 @@ jobs:
         with:
           version: 10.20.0
 
-      - name: Set up Node (24 bundles npm >= 11.5 — required for OIDC trusted publishing)
+      - name: Set up Node (24 bundles npm >= 11.5 for OIDC trusted publishing)
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           # Exact pin (24.0.0 shipped npm 11.3, below the trusted-publishing floor;
@@ -128,8 +131,7 @@ jobs:
             echo "published=false" >> "$GITHUB_OUTPUT"
           fi
 
-      # The family routine is "a v* tag on a version-bump commit" — enforce the
-      # match instead of trusting it: the idempotency check above keys on the
+      # The tag must match the version-bump commit. The idempotency check above keys on the
       # TAG, while npm stage publish below publishes package.json's version, so
       # a tag/manifest mismatch would silently stage the wrong version.
       - name: Tag must match package.json version

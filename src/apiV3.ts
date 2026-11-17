@@ -1,4 +1,4 @@
-// The four contract-major-3 companion signers — the ES256-suite mirror of the
+// The four contract-major-3 companion signers mirror the
 // v1 five-function surface (the local-loopback profile is contract-major-1
 // bound and has no v3 form). Same structure as api.ts: validate the input →
 // resolve the handle's identity atomically → compose through the v3 producers
@@ -36,16 +36,33 @@ import { defaultProofId } from "./proof-id.js";
  * may return a Promise. The private key never enters this library.
  */
 export interface Es256KeyHandle {
+  /** Sign a copy of the standard JWS signing input using caller-owned custody. Return 64-byte raw `r || s`; the signer normalizes high-S signatures. */
   sign(message: Uint8Array): Uint8Array | Promise<Uint8Array>; // 64-byte raw r || s
+  /** Return the 65-byte uncompressed SEC1 P-256 public key (`0x04 || x || y`). */
   publicKey(): Uint8Array | Promise<Uint8Array>;               // 65 bytes: 0x04 || x || y
+  /** Return the RFC 7638 EC JWK thumbprint as unpadded base64url. */
   thumbprint(): string | Promise<string>;                      // RFC 7638 EC, base64url
-  keyIdentity?(): { keyId: string; publicKey: Uint8Array } | Promise<{ keyId: string; publicKey: Uint8Array }>;
+  /** Return a key identifier and public key in one atomic snapshot; required for anchors and key transitions. */
+  keyIdentity?(): {
+    /** A non-empty key identifier. */
+    keyId: string;
+    /** The 65-byte uncompressed SEC1 P-256 public key. */
+    publicKey: Uint8Array
+  } | Promise<{
+    /** A non-empty key identifier. */
+    keyId: string;
+    /** The 65-byte uncompressed SEC1 P-256 public key. */
+    publicKey: Uint8Array
+  }>;
+  /** Return role, key identifier, and public key atomically; grant signing requires the issuer role. */
   signingIdentity?(): Promise<AtomicSigningIdentity> | AtomicSigningIdentity;
 }
 
 /** A telemetry event from a v3 signer, passed to {@link V3SignOpts.onEvent}. */
 export interface V3SignerEvent {
+  /** The signing operation that emitted this event. */
   readonly kind: "v3_report" | "v3_anchor" | "v3_grant" | "v3_key_transition";
+  /** One start event, followed by one stop on success or error on failure. */
   readonly phase: "start" | "stop" | "error";
 }
 
@@ -65,41 +82,65 @@ export interface V3SignOpts {
 
 /** The request a v3 holder proof binds (`signV3Report`); the fields mean what they mean in `ReportInput`. */
 export interface V3ReportInput {
+  /** The signed grant as ASCII compact JWS bytes; included unchanged in the returned envelope. */
   readonly grantCompact: Uint8Array;
+  /** The operation name to bind; the resource must match it against a permitted grant operation. */
   readonly operation: string;
+  /** The HTTP request method, such as "POST". */
   readonly method: string;
+  /** The absolute HTTPS request URI; URI normalization follows the wire profile. */
   readonly targetUri: string;
+  /** A lowercase RFC 4122 UUID identifying one logical invocation; the host runtime reserves it for single use. */
   readonly invocationId: string;
+  /** Typed request arguments whose canonical projection is committed to by the proof digest. */
   readonly castArguments: Tagged;
+  /** Optional server-issued nonce to bind into the proof. */
   readonly nonce?: string;
 }
 
 /** A v3 boundary anchor (`signV3Anchor`); the fields mean what they mean in `AnchorInput`. */
 export interface V3AnchorInput {
+  /** A non-empty identifier for this boundary anchor. */
   readonly anchorId: string;
+  /** A non-empty identifier for the consumption chain. */
   readonly chainId: string;
+  /** The covered chain sequence number, a non-negative integer. */
   readonly sequence: number;
+  /** The chain hash at the covered sequence, exactly 32 bytes. */
   readonly chainHash: Uint8Array; // 32 bytes
 }
 
 /** A v3 capability grant (`signV3Grant`); the fields mean what they mean in `GrantInput`, with the v2 selector kinds and an EC holder thumbprint. */
 export interface V3GrantInput {
+  /** The issuer identifier as a StringOrURI, for example https://issuer.example. */
   readonly issuer: string;
+  /** A non-empty identifier for the grant. */
   readonly grantId: string;
+  /** The intended resource audiences; at least one. */
   readonly audiences: readonly string[];
+  /** The issuance time (`iat`) in integer Unix seconds. */
   readonly issuedAt: number;
+  /** The start of the grant validity window (`nbf`) in integer Unix seconds. */
   readonly notBefore: number;
+  /** The end of the grant validity window (`exp`) in integer Unix seconds; after `notBefore`. */
   readonly expiresAt: number;
+  /** The holder’s RFC 7638 EC JWK thumbprint as unpadded base64url. */
   readonly holderThumbprint: string; // RFC 7638 EC thumbprint, base64url
+  /** At least one operation and its argument selectors; granting these bounds does not replace host authorization policy. */
   readonly operations: readonly V3OperationInput[];
 }
 
 /** A v3 key transition (`signV3KeyTransition`); `nextPublicKey` is a 65-byte uncompressed P-256 point. */
 export interface V3TransitionInput {
+  /** A non-empty identifier for the key transition. */
   readonly transitionId: string;
+  /** A non-empty identifier for the consumption chain. */
   readonly chainId: string;
+  /** The next key activation time in integer Unix seconds. */
   readonly effectiveAt: number;
+  /** The next key’s non-empty identifier. */
   readonly nextKeyId: string;
+  /** The next key’s 65-byte uncompressed SEC1 P-256 point (`0x04 || x || y`). */
   readonly nextPublicKey: Uint8Array; // 65 bytes: 0x04 || x || y
 }
 
@@ -212,7 +253,7 @@ export async function signV3Grant(input: V3GrantInput, handle: Es256KeyHandle, o
     return err("invalid_grant");
   }
   // The issuer-role gate (ES256 form): only an issuer-role identity (resolved
-  // atomically) may sign a grant — a holder handle fails closed BEFORE
+  // atomically) may sign a grant. A holder handle fails closed BEFORE
   // sign() is ever called.
   const identity = await resolveEs256IssuerIdentity(handle);
   if (identity === undefined) { emit("error"); return err("invalid_key_handle"); }

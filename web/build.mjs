@@ -1,5 +1,5 @@
 // Copies the static site pieces next to esbuild's bundle (managed-language,
-// cross-platform — no shell in the build path) and cache-busts the asset URLs:
+// cross-platform, without a shell) and cache-busts the asset URLs:
 // every deploy gets styles.css/app.js suffixed with the commit SHA, so returning
 // visitors can never be served a stale stylesheet from an unchanged URL.
 import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -16,7 +16,7 @@ let version = "dev";
 try {
   version = execFileSync("git", ["rev-parse", "--short", "HEAD"], { cwd: join(web, "..") }).toString().trim();
 } catch {
-  // no git (e.g., an exported tree) — fall back to a content-free tag
+  // An exported tree may lack Git metadata. Keep the content-free fallback tag.
 }
 
 let html = readFileSync(join(web, "index.html"), "utf8");

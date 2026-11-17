@@ -1,5 +1,5 @@
-// Test-only fixtures: an in-memory raw Ed25519 key handle (the port of BARA's
-// Keys.RawKey — ships in test/, never in the package; the C5 discipline), and
+// Test-only fixtures include an in-memory raw Ed25519 handle mirroring BARA's
+// Keys.RawKey. It ships in test/ only, following the C5 discipline, alongside
 // the ES256 (P-256) fixtures for the v3 suite: an in-memory EC key whose
 // thumbprint is computed INDEPENDENTLY of src/ (literal RFC 7638 preimage +
 // node:crypto hash) so the library's JCS-based spelling is cross-checked, and
@@ -26,9 +26,9 @@ export interface HandleOpts {
   keyId: string;
   role?: KeyRole;
   withKeyIdentity?: boolean;
-  /** Signs with a DIFFERENT key than publicKey() reports — the wrong-key probe. */
+  /** Probe the wrong-key guard by signing with a key other than the one publicKey() reports. */
   wrongSigningKey?: RawKey;
-  /** Counts sign() invocations — the C1 gate must never call sign for a holder. */
+  /** Count sign() invocations to confirm the C1 gate refuses a holder before signing. */
   signCalls?: { count: number };
 }
 
@@ -60,11 +60,11 @@ export const amountArgs = (): AmountArgs => ({
 
 export const b64 = (b: Uint8Array): string => Buffer.from(b).toString("base64url");
 
-// RFC 7638 JWK thumbprint (base64url) of a raw Ed25519 public key — the cnf.jkt form.
+// The cnf.jkt form is the RFC 7638 JWK thumbprint of a raw Ed25519 public key, in base64url.
 export const b64Thumbprint = (raw: Uint8Array): string =>
   thumbprint({ kty: "OKP", crv: "Ed25519", x: b64(raw) });
 
-// --- ES256 (P-256) fixtures — the v3 suite --------------------------------
+// ES256 (P-256) fixtures for the v3 suite.
 
 export interface EcRawKey {
   publicKey: Uint8Array;  // 65-byte uncompressed SEC1: 0x04 || x || y
@@ -74,7 +74,7 @@ export interface EcRawKey {
 }
 
 // Independent RFC 7638 EC thumbprint: SHA-256 over the LITERAL lexicographic
-// JSON preimage — no src/ code on this path, so agreement with the library's
+// JSON preimage. This path uses no src/ code, so agreement with the library's
 // JCS-built preimage is a cross-check, not a tautology.
 const ecThumbprintIndependent = (jwk: { x: string; y: string }): string =>
   createHash("sha256")
@@ -100,9 +100,9 @@ export interface EcHandleOpts {
   keyId: string;
   role?: KeyRole;
   withKeyIdentity?: boolean;
-  /** Signs with a DIFFERENT key than publicKey() reports — the wrong-key probe. */
+  /** Probe the wrong-key guard by signing with a key other than the one publicKey() reports. */
   wrongSigningKey?: EcRawKey;
-  /** Counts sign() invocations — the C1 gate must never call sign for a holder. */
+  /** Count sign() invocations to confirm the C1 gate refuses a holder before signing. */
   signCalls?: { count: number };
   /** Records each raw (pre-normalization) signature the handle returned. */
   rawSignatures?: Uint8Array[];

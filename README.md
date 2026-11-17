@@ -15,8 +15,15 @@ You pass a **key handle**: an object whose `sign()` reaches your own key custody
 WebCrypto key, or an in-process key in tests). The private key never enters the library, and every
 handle method may be async.
 
+OAuth 2.0 is an authorization framework for delegated, scoped access. BAP complements OAuth by
+binding a holder's authority to the exact request bytes through a signed grant and holder proof.
+The verifier checks those bytes against caller-supplied trust and context. The host runtime
+separately applies authorization policy, revocation checks, and replay reservation.
+
 **Try it in your browser first:** the [envelope playground](https://baselabs.github.io/bounded_authority_signer_typescript/)
 runs this package and the verifier in the page, with keys your browser generates.
+Browse the [API reference](https://baselabs.github.io/bounded_authority_signer_typescript/api/)
+for searchable signatures and types, stamped with the package version.
 
 What it is not: it does not verify (that is the verifier package), decide whether a request is
 allowed, store keys, transport anything, or track replay and revocation (that is your authority
@@ -241,6 +248,10 @@ signature has `0 < s ≤ (n−1)/2` and cannot be re-spelled into a second valid
 [Keys in a KMS or HSM](#keys-in-a-kms-or-hsm).
 
 ## API reference
+
+The [browsable API reference](https://baselabs.github.io/bounded_authority_signer_typescript/api/)
+includes every public export and its TSDoc, with the package version in its title. The examples
+below explain how to use those APIs together.
 
 ### Signers
 
@@ -1186,9 +1197,20 @@ releases are supported, and what this package does and does not do.
 ```bash
 pnpm install --frozen-lockfile
 pnpm typecheck && pnpm build && pnpm lint && pnpm test
+pnpm build:site && pnpm docs:api && pnpm guard:site
 ```
 
 The repository pins Node 22.23.1 in [`.tool-versions`](.tool-versions); CI also runs Node 24.19.0.
+The project uses pnpm 10.20.0. Its install-script allowlist permits only esbuild, whose native
+binary installation is used by the browser and site bundles. No blanket build-script approval is
+needed after a clean install.
+
+`pnpm docs:api` generates `site-dist/api/`. TypeDoc discovers entry points from the package's
+`exports` map and maps the built paths to source using `tsconfig.build.json`; `./package.json`
+is metadata, not a code entry point. Missing documentation and TypeDoc warnings fail CI. Build
+the playground before the API reference because `build:site` recreates `site-dist/`. Pages
+publishes both from that directory, with the reference at `/api/`.
+
 The CI scripts:
 
 | Script | What it checks |
@@ -1205,6 +1227,7 @@ The CI scripts:
 | `check:currency` | every dependency at its latest version, or pinned with a recorded reason |
 | `pack:release` | the release tarball, as the release workflow packs and publishes it (after `build`); prints its path and SHA-256 |
 | `build:site`, `guard:site` | the playground bundle, and its scan |
+| `docs:api` | version-stamped TypeDoc reference from all public export paths; warnings fail the build |
 
 ## License
 

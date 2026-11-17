@@ -1,4 +1,4 @@
-// The five companion-signer entry points — the port of the Elixir
+// The five companion-signer entry points mirror the Elixir
 // bounded_authority_report_adapter's public surface.
 // This library SIGNS; the verifier package verifies. Every compact produced
 // here is verified by the signer package's own test oracle through the
@@ -33,7 +33,9 @@ import {
 
 /** A telemetry event from a v1 signer, passed to {@link SignOpts.onEvent}: one `start`, then one `stop` or `error`. */
 export interface SignerEvent {
+  /** The signing operation that emitted this event. */
   readonly kind: "report" | "local_loopback_report" | "anchor" | "grant" | "key_transition";
+  /** One start event, followed by one stop on success or error on failure. */
   readonly phase: "start" | "stop" | "error";
 }
 
@@ -89,9 +91,11 @@ export interface GrantInput {
   readonly grantId: string;
   /** The resources the grant is for; at least one. */
   readonly audiences: readonly string[];
-  /** `iat`, `nbf` and `exp` in Unix seconds: integers, with `expiresAt` after `notBefore`. */
+  /** The issuance time (`iat`) in integer Unix seconds. */
   readonly issuedAt: number;
+  /** The start of the grant validity window (`nbf`) in integer Unix seconds. */
   readonly notBefore: number;
+  /** The end of the grant validity window (`exp`) in integer Unix seconds; after `notBefore`. */
   readonly expiresAt: number;
   /** The holder key's RFC 7638 JWK thumbprint, base64url (the holder handle's `thumbprint()`). */
   readonly holderThumbprint: string;
@@ -114,13 +118,27 @@ export interface TransitionInput {
 }
 
 /** A report signer's value: the grant compact (unchanged) and the new proof compact, both ASCII bytes. */
-export interface Envelope { readonly grant: Uint8Array; readonly proof: Uint8Array }
+export interface Envelope {
+  /** The unchanged grant as ASCII compact JWS bytes. */
+  readonly grant: Uint8Array;
+  /** The fresh holder proof as ASCII compact JWS bytes. */
+  readonly proof: Uint8Array
+}
 /** An anchor signer's value: the anchor compact. */
-export interface AnchorCompact { readonly anchor: Uint8Array }
+export interface AnchorCompact {
+  /** The signed boundary anchor as ASCII compact JWS bytes. */
+  readonly anchor: Uint8Array
+}
 /** A grant signer's value: the grant compact. */
-export interface GrantCompact { readonly grant: Uint8Array }
+export interface GrantCompact {
+  /** The signed grant as ASCII compact JWS bytes. */
+  readonly grant: Uint8Array
+}
 /** A key-transition signer's value: the transition compact. */
-export interface TransitionCompact { readonly keyTransition: Uint8Array }
+export interface TransitionCompact {
+  /** The signed key transition as ASCII compact JWS bytes. */
+  readonly keyTransition: Uint8Array
+}
 
 const nowSeconds = () => Math.floor(Date.now() / 1000);
 const isStr = (v: unknown): v is string => typeof v === "string" && v.length > 0;
@@ -258,7 +276,7 @@ export async function signGrant(input: GrantInput, handle: KeyHandle, opts: Sign
     return err("invalid_grant");
   }
   // The issuer-role gate: only an issuer-role identity (resolved atomically) may sign a
-  // grant — a holder handle (or one without signingIdentity) fails closed
+  // grant. A holder handle (or one without signingIdentity) fails closed
   // BEFORE sign() is called.
   const identity = await resolveIssuerIdentity(handle);
   if (identity === undefined) { emit("error"); return err("invalid_key_handle"); }

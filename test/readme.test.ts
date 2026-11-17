@@ -7,7 +7,7 @@
 // README anchor that the README itself or a src/ doc comment links to exists.
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { format } from "node:util";
@@ -124,6 +124,20 @@ test("README: every declaration in a types sample is the exported declaration, t
   assert.ok(compared >= 7, `compared ${compared} declarations`);
 });
 
+test("API docs: every root export has TSDoc, including aliases", () => {
+  const index = join(REPO, "src/index.ts");
+  const program = ts.createProgram({ rootNames: [index], options: { module: ts.ModuleKind.NodeNext, moduleResolution: ts.ModuleResolutionKind.NodeNext, noEmit: true } });
+  const checker = program.getTypeChecker();
+  const moduleSymbol = checker.getSymbolAtLocation(program.getSourceFile(index)!)!;
+  const exports = checker.getExportsOfModule(moduleSymbol);
+  assert.ok(exports.length >= 51, `found ${exports.length} root exports`);
+  const missing = exports.filter((symbol) => {
+    const target = symbol.flags & ts.SymbolFlags.Alias ? checker.getAliasedSymbol(symbol) : symbol;
+    return ts.displayPartsToString(target.getDocumentationComment(checker)).trim() === "";
+  }).map((symbol) => symbol.getName());
+  assert.deepEqual(missing, []);
+});
+
 test("README: V2SelectorInput and V2OperationInput declare the same members as their v3 counterparts, as the README says", () => {
   const source = exportedDeclarations();
   const body = (name: string): string => normalized(source.get(name)!).replace(/^(type|interface)\s*\w+/, "").replaceAll("V2SelectorInput", "V3SelectorInput");
@@ -159,11 +173,17 @@ test("README: every anchor linked from the README and from src/ doc comments exi
 // Hygiene. The protocol's design records (ADRs) are not published, so no shipped or public text may
 // cite one; and release history belongs in CHANGELOG.md, not in the README's version notes.
 test("hygiene: no README, CHANGELOG, SECURITY, source, tool, page or workflow text cites a design record (ADR)", () => {
-  const files = ["README.md", "CHANGELOG.md", "SECURITY.md", "web/index.html",
-    ...readdirSync(join(REPO, "src")).filter((f) => f.endsWith(".ts")).map((f) => `src/${f}`),
-    ...readdirSync(join(REPO, "tools")).filter((f) => /\.m?js$/.test(f)).map((f) => `tools/${f}`),
-    ...readdirSync(join(REPO, ".github/workflows")).map((f) => `.github/workflows/${f}`)];
-  const cited = files.filter((f) => /\bADRs?\b|\/adr\//.test(readFileSync(join(REPO, f), "utf8")));
+  const publicFiles = (relative: string): string[] => {
+    const path = join(REPO, relative);
+    if (!existsSync(path)) return [];
+    return readdirSync(path, { withFileTypes: true }).flatMap((entry) => {
+      const child = `${relative}/${entry.name}`;
+      return entry.isDirectory() ? publicFiles(child) : /\.(?:md|html|css|ts|m?js|ya?ml)$/.test(child) ? [child] : [];
+    });
+  };
+  const files = ["README.md", "CHANGELOG.md", "SECURITY.md",
+    ...["docs", "src", "tools", "web", ".github/workflows"].flatMap(publicFiles)];
+  const cited = files.filter((f) => /\bADRs?\b|\bADR[ _-]*\d+\b|\/adr\//i.test(readFileSync(join(REPO, f), "utf8")));
   assert.deepEqual(cited, []);
 });
 

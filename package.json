@@ -1,7 +1,7 @@
 {
   "name": "@bounded-authority-protocol/signer",
   "version": "2.0.0",
-  "description": "Holder/issuer companion signer for the Bounded Authority Protocol — signs proofs, grants, boundary anchors, and key transitions through a caller-owned key handle whose private key never enters the library.",
+  "description": "Holder/issuer companion signer for the Bounded Authority Protocol. Signs proofs, grants, boundary anchors, and key transitions through a caller-owned key handle whose private key never enters the library.",
   "license": "Apache-2.0",
   "keywords": [
     "bounded-authority-protocol",
@@ -62,7 +62,8 @@
     "check:currency": "node tools/check-currency.mjs",
     "typecheck:web": "tsc -p tsconfig.web.json",
     "build:site": "node web/build.mjs && esbuild web/main.ts --bundle --minify --format=iife --target=es2022 --outfile=site-dist/app.js",
-    "guard:site": "node tools/browser-guard.mjs --scan site-dist/app.js"
+    "guard:site": "node tools/browser-guard.mjs --scan site-dist/app.js",
+    "docs:api": "typedoc"
   },
   "dependencies": {
     "@bounded-authority-protocol/verifier": "^2.0.0"
@@ -76,6 +77,7 @@
     "playwright": "^1.65.0",
     "semver": "^7.8.6",
     "tsx": "^4.23.15",
+    "typedoc": "0.28.20",
     "typescript": "6.0.3",
     "typescript-eslint": "^8.72.2"
   }

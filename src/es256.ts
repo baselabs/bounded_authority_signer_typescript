@@ -1,4 +1,4 @@
-// The ES256 signing tail — the v3 mirror of sign.ts's shared tail: sign via
+// The ES256 signing tail follows sign.ts's shared flow for v3: sign via
 // the handle → NORMALIZE to low-S → VERIFY STRICTLY against the resolved public
 // key (the wrong-key guard) → assemble the compact. Pure: normalization is
 // BigInt arithmetic and the verify is the verifier package's synchronous
@@ -7,7 +7,7 @@
 //
 // Low-S is load-bearing (spec/bap-v3.md §3.2; REQ3-SIGNING-low-s): a backend
 // emits high-`s` about half the time, and for any valid `(r, s)` the
-// counterpart `(r, n − s)` also verifies — so an emitted high-`s` signature
+// counterpart `(r, n − s)` also verifies. An emitted high-`s` signature
 // would be malleable. The normalizer is ONE conditional subtraction
 // (`s ← n − s` when high) with no modular inverse, deliberately simple to
 // implement. The emitted `s` satisfies
@@ -42,9 +42,9 @@ function bigIntToFixedWidth(v: bigint, width: number): Uint8Array {
 
 /**
  * Low-S normalization (REQ3-SIGNING-low-s): given a 64-byte raw `r || s`
- * signature, returns the encoding with `s` in `0 < s ≤ (n−1)/2` — replacing a
- * high `s` with `n − s` (equally valid for the same key and message), leaving
- * a low `s` untouched. It first asserts `0 < r < n` and `0 < s < n` and throws
+ * signature, returns the encoding with `s` in `0 < s ≤ (n−1)/2`. It replaces a
+ * high `s` with `n − s`, which is equally valid for the same key and message,
+ * and leaves a low `s` untouched. It first asserts `0 < r < n` and `0 < s < n` and throws
  * otherwise (the signing tail maps the throw to signing_failed). Pure: no
  * crypto, no allocation beyond the output copy.
  */

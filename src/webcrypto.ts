@@ -42,15 +42,24 @@ import { ecThumbprint, isOnCurveP256 } from "./v3.js";
 
 /** The public facts of a WebCrypto CryptoKey, structurally. A DOM CryptoKey and Node's webcrypto.CryptoKey both match. */
 export interface WebCryptoKeyLike {
+  /** The WebCrypto key type: "private", "public", or "secret". */
   readonly type: string;
+  /** Whether key material may be exported; factories require false for the private key. */
   readonly extractable: boolean;
-  readonly algorithm: { readonly name: string };
+  /** The key’s WebCrypto algorithm descriptor. */
+  readonly algorithm: {
+    /** The algorithm name, such as "Ed25519" or "ECDSA". */
+    readonly name: string
+  };
+  /** The WebCrypto operations permitted for this key. */
   readonly usages: readonly string[];
 }
 
 /** A WebCrypto key pair, structurally. A DOM CryptoKeyPair and Node's webcrypto.CryptoKeyPair both match. */
 export interface WebCryptoKeyPairLike {
+  /** The caller-owned non-extractable signing key; the factory retains a usable key reference without exporting its bytes. */
   readonly privateKey: WebCryptoKeyLike;
+  /** The matching public key; exported in the suite’s raw format to bind and check signatures. */
   readonly publicKey: WebCryptoKeyLike;
 }
 
@@ -169,6 +178,7 @@ const PROBE = Uint8Array.from("bounded-authority-protocol signer: WebCrypto key-
 
 /** A key snapshot: the raw public key and its RFC 7638 thumbprint, captured once per handle. */
 export interface KeySnapshot {
+  /** The matching public key; exported in the suite’s raw format to bind and check signatures. */
   readonly publicKey: Uint8Array;
   readonly thumbprint: string;
 }

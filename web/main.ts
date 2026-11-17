@@ -1,4 +1,4 @@
-// The envelope playground — the live page logic. Everything cryptographic runs
+// Live page logic for the envelope playground. Everything cryptographic runs
 // through the REAL packages: this repository's signer source (the version on
 // main, which can be ahead of the latest npm release) and the published
 // @bounded-authority-protocol/verifier,
@@ -27,7 +27,7 @@ async function makeKey(): Promise<CustodyKey> {
       mode: "WebCrypto non-extractable",
     };
   } catch {
-    // Ed25519 WebCrypto unavailable in this browser — an in-page noble key keeps
+    // When Ed25519 WebCrypto is unavailable, an in-page noble key keeps
     // the same boundary: the private bytes live only in this closure.
     const kp = ed25519.keygen();
     return {
@@ -140,7 +140,7 @@ function renderSeg(segs: string[], idx: number, name: string): void {
     const decoded = utf8.decode(raw);
     try { body = JSON.stringify(JSON.parse(decoded), null, 2); } catch { body = decoded; }
   }
-  wireBody.innerHTML = `<span class="k">// ${currentBytes?.label ?? ""} — ${name} (${raw.length} bytes)\n</span>`;
+  wireBody.innerHTML = `<span class="k">// Showing ${name} for ${currentBytes?.label ?? ""} (${raw.length} bytes).\n</span>`;
   if (highlight && highlight.seg === idx) {
     const lines = body.split("\n");
     const lineNo = Math.min(highlight.from, lines.length - 1);
@@ -175,7 +175,7 @@ async function doGrant(): Promise<void> {
   flash($("lane-issuer"));
   bProof.disabled = false;
   tamperBtns.forEach((b) => (b.disabled = true));
-  setVerdict("idle", "grant signed — the holder can now prove a request");
+  setVerdict("idle", "Grant signed. The holder can now prove a request.");
 }
 
 async function doProof(): Promise<void> {
@@ -196,7 +196,7 @@ async function doProof(): Promise<void> {
   flash($("lane-holder"));
   bVerify.disabled = false;
   tamperBtns.forEach((b) => (b.disabled = false));
-  setVerdict("idle", "envelope assembled — verify it");
+  setVerdict("idle", "Envelope assembled. Verify it to inspect the facts.");
 }
 
 function mark(card: HTMLElement): void {
@@ -204,7 +204,7 @@ function mark(card: HTMLElement): void {
   card.classList.add("selected");
 }
 
-// Fact-sheet rendering: Maps become objects, byte arrays become hex — anything
+// Fact-sheet rendering converts Maps to objects and byte arrays to hex. Anything
 // byte-like (Uint8Array) collapses to a readable digest.
 function factsReplacer(_k: string, v: unknown): unknown {
   if (v instanceof Map) return Object.fromEntries(v);
@@ -227,27 +227,27 @@ function expected(over: Record<string, unknown> = {}) {
 function verifyWith(grant: Uint8Array, proof: Uint8Array, exp: ReturnType<typeof expected>): void {
   const at = checkEnvelope(grant, proof, exp as never);
   if (at.ok) {
-    setVerdict("ok", "ENVELOPE OK — cryptographic facts returned");
+    setVerdict("ok", "ENVELOPE OK: cryptographic facts returned");
     $("facts-body").innerHTML = rawJsonBox(at.value);
     $("tamper-hint").className = "hint";
-    $("tamper-hint").textContent = "Now break it — every button below produces a real, closed INVALID from the verifier.";
+    $("tamper-hint").textContent = "Change an input below to see a real, closed INVALID from the verifier.";
     return;
   }
   const why: Record<string, string> = {
-    payload: "request-digest binding — the proof commits to the digest of THIS request",
-    operation: "operation match — the grant and proof bind one operation",
-    expiry: "time window — grants and proofs expire",
-    impostor: "holder binding — the grant names one holder key (jkt), and this proof was signed by another",
-    issuer: "issuer trust — the verifier was told to trust a different issuer key",
+    payload: "Request-digest binding: the proof commits to the digest of this request",
+    operation: "Operation match: the grant and proof bind one operation",
+    expiry: "Time validity: grants and proofs expire",
+    impostor: "Holder binding: the grant names one holder key (jkt), but another signed this proof",
+    issuer: "Issuer trust: the verifier was told to trust a different issuer key",
   };
   if (!at.ok) {
-    setVerdict("fail", "VERIFICATION FAILED — <b>INVALID</b>");
+    setVerdict("fail", "VERIFICATION FAILED: <b>INVALID</b>");
     $("facts-body").innerHTML = rawJsonBox(at);
     const which = lastTamper ? why[lastTamper] : undefined;
     $("tamper-hint").className = "hint fail";
     $("tamper-hint").textContent = which
-      ? `${which} — and the verifier returned exactly {"ok":false}. No reason, no partial: verification is not authority, and there is no oracle for an attacker.`
-      : 'the verifier returned exactly {"ok":false} — no reason, no partial (verification is not authority).';
+      ? `${which}. The verifier returned exactly {"ok":false}, without a reason or partial facts. Verification is not authorization.`
+      : 'The verifier returned exactly {"ok":false}, without a reason or partial facts. Verification is not authorization.';
   }
 }
 
@@ -308,10 +308,10 @@ function accordion(title: string, chip: string | undefined, facts: unknown, open
 }
 
 
-// Raw-JSON code box for the FACTS area (deliberately unformatted) —
-// defensively hex any string that still carries control/lossy characters.
+// The FACTS area displays raw JSON without syntax formatting.
+// Strings containing control or lossy characters use defensive hex encoding.
 function sanitize(v: unknown): unknown {
-  // Byte arrays render as their base64url wire form — JSON.stringify on a
+  // Byte arrays render as their base64url wire form. JSON.stringify on a
   // Uint8Array explodes into {"0":123,"1":34,…} index objects otherwise.
   if (v instanceof Uint8Array) {
     return b64(v);
@@ -364,14 +364,14 @@ async function tamper(kind: string): Promise<void> {
   const proofCard = $("proof-card");
   switch (kind) {
     case "payload": {
-      // The replay attack: the proof commits to a DIGEST of the request, so the
+      // Request substitution: the proof commits to the request digest, so the
       // attacker leaves the proof untouched and rewrites the REQUEST instead
       // (ticket 90112 → 90113). The verifier's request-digest binding must reject.
       tamperedProof = proofCompact;
       verifyWith(grantCompact, tamperedProof, expected({
         castArguments: { t: "object", v: new Map([["ticket", { t: "int", v: 90113 }]]) },
       }));
-      showWire("proof (byte-identical — the REQUEST changed)", proofCompact);
+      showWire("Unchanged proof; modified request", proofCompact);
       return;
     }
     case "operation":
@@ -383,8 +383,8 @@ async function tamper(kind: string): Promise<void> {
       showWire("proof (unchanged)", proofCompact);
       return;
     case "impostor": {
-      // A second holder key signs a perfectly valid proof over the stolen grant —
-      // but the grant binds the ORIGINAL holder's thumbprint. Identity fails.
+      // A second holder key signs a valid proof over the stolen grant.
+      // The grant binds the ORIGINAL holder's thumbprint. Identity fails.
       const r = await signReport({
         grantCompact, operation: "read_record", method: "POST", targetUri: SCENE.targetUri,
         invocationId: SCENE.invocationId, castArguments: castArguments(),
@@ -424,7 +424,7 @@ async function reset(): Promise<void> {
   tamperBtns.forEach((b) => (b.disabled = true));
   $("facts-body").textContent = "—";
   $("tamper-hint").className = "hint";
-  $("tamper-hint").textContent = "Sign and prove first — then break it on purpose.";
+  $("tamper-hint").textContent = "Sign and prove first. Then try changing the inputs.";
   segTabs.innerHTML = "";
   wireBody.textContent = "nothing selected yet";
   setVerdict("idle", "verify an envelope to see the fact sheet");

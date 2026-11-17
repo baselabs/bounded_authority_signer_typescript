@@ -1,4 +1,4 @@
-// The public surface of @bounded-authority-protocol/signer — the TypeScript
+// The public surface of @bounded-authority-protocol/signer is the TypeScript
 // companion signer for the Bounded Authority Protocol (the port of the Elixir
 // bounded_authority_report_adapter). This library takes a caller-owned key
 // handle and a protocol signing input and produces the signed compact form;
