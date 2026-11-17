@@ -46,7 +46,7 @@ function bigIntToFixedWidth(v: bigint, width: number): Uint8Array {
  * high `s` with `n − s`, which is equally valid for the same key and message,
  * and leaves a low `s` untouched. It first asserts `0 < r < n` and `0 < s < n` and throws
  * otherwise (the signing tail maps the throw to signing_failed). Pure: no
- * crypto, no allocation beyond the output copy.
+ * cryptographic operation. Low-S input is returned unchanged; high-S input allocates a normalized copy and scalar bytes.
  */
 export function normalizeLowS(signature: Uint8Array): Uint8Array {
   if (signature.length !== RAW_SIGNATURE_BYTES)

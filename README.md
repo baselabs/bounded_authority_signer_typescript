@@ -1144,6 +1144,11 @@ every lane on Node 24.19.0 against that tarball, then repacks the tagged tree in
 stages that tarball only if its SHA-256 matches, for a person to approve; packages are published
 with npm provenance.
 
+After human approval makes npm latest available, Pages checks the registry against its deployed
+`api/release.json` at minutes 17 and 47 of each hour and rebuilds only when they differ. The
+release workflow's staging success is not publication. Registry or Pages read failures fail
+closed; push and manual Pages runs still rebuild the site. GitHub may delay scheduled runs.
+
 ## Versioning and compatibility
 
 Package versions follow SemVer: a breaking change costs a major version, and a caret range such as
@@ -1206,20 +1211,28 @@ The project uses pnpm 10.20.0. Its install-script allowlist permits only esbuild
 binary installation is used by the browser and site bundles. No blanket build-script approval is
 needed after a clean install.
 
-`pnpm docs:api` generates `site-dist/api/`. TypeDoc discovers entry points from the package's
+`pnpm docs:api` is the local, strict source-tree build of `site-dist/api/`. TypeDoc discovers
+entry points from the package's
 `exports` map and maps the built paths to source using `tsconfig.build.json`; `./package.json`
 is metadata, not a code entry point. Missing documentation and TypeDoc warnings fail CI. Build
 the playground before the API reference because `build:site` recreates `site-dist/`. Pages
 publishes the development playground from main, explicitly labeled as development source.
-`pnpm docs:api:release` builds the hosted `/api/` from the immutable tag matching npm latest,
+`pnpm docs:api:release` builds the hosted `/api/` from the npm-latest release tag, stamped "released vX.Y.Z",
 with version, tag and commit in `release.json` and source links fixed to that commit. Historical
 release rendering preserves the released comments without retroactive coverage checks; strict
 coverage remains enforced on current source in CI.
+
+The built-site check rejects every standalone semantic version in HTML, including metadata,
+badges, headers, footers and API pages, unless it equals npm latest. Development-source labels
+and release tags do not exempt claims. SVG drawing coordinates and four-part addresses are not
+package-version claims.
 
 The CI scripts:
 
 | Script | What it checks |
 |---|---|
+| `test:network` | released API and built-site version policy against the real network, failing closed |
+| `check:site` | every version claim in built HTML equals npm latest |
 | `typecheck`, `build` | strict typecheck; the `dist/` build |
 | `typecheck:browser`, `typecheck:web` | `src/` with the DOM library and no ambient types; the playground |
 | `lint`, `guard:browser` | the browser-safety lint rules; a scan of the browser bundle |
@@ -1227,12 +1240,12 @@ The CI scripts:
 | `test`, `test:portable` | unit tests, gates, the verifier oracle and the README samples, on the verifier's node and portable backends |
 | `test:gates` | the red-capable gates alone |
 | `test:runtimes` | the sign-then-verify lanes; `BAP_RUNTIMES` selects from `node,node-portable,deno,bun` (default: all four) |
-| `test:tarball` | the packed package as a consumer installs it (needs Deno and Bun); the Quickstart as a reader runs it, the README's version pins, and the playground badge rules (these need the npm registry) |
+| `test:tarball` | the packed package as a consumer installs it (needs Deno and Bun); the Quickstart as a reader runs it, the README's version pins (these need the npm registry) |
 | `test:browser` | Playwright lanes; `BAP_BROWSERS` selects from `chromium,firefox,webkit` (default `chromium`); install the engines with `pnpm exec playwright install` |
 | `check:currency` | every dependency at its latest version, or pinned with a recorded reason |
 | `pack:release` | the release tarball, as the release workflow packs and publishes it (after `build`); prints its path and SHA-256 |
 | `build:site`, `guard:site` | the playground bundle, and its scan |
-| `docs:api` | version-stamped TypeDoc reference from all public export paths; warnings fail the build |
+| `docs:api` | strict source-tree TypeDoc reference from all public export paths; missing documentation and warnings fail the build |
 
 ## License
 

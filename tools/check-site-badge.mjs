@@ -1,44 +1,40 @@
-// The development playground identifies its source without a release-version claim. If a
-// numeric npm badge (`<li>npm X.Y.Z</li>`) is added, it passes when it names
-//   - the latest version of this package on the npm registry, or
-//   - package.json's version while a v<version> tag points at HEAD: the release commit, whose Pages
-//     deploy runs before the npm publish is approved (0.3.1, 0.4.0 and 0.5.0 all did). This state needs
-//     no registry call. If the tag is pushed after the commit, rerun the Pages job once it is.
-// Anything else fails: a badge ahead of npm without a release tag claims a version nobody can install,
-// and a badge behind npm is stale.
-// Registry outage: fail closed. The check exists to keep a false version claim off the page, and
-// without the registry it cannot tell a stale badge from a current one; skipping would let exactly that
-// through. A failed docs deploy costs a rerun; nothing else depends on it.
-// Usage: node tools/check-site-badge.mjs [repository root]   (exit 0 pass, 1 fail)
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
-import { npmLatest, tagAtHead } from "./release-state.mjs";
+// Check every built HTML page, including API pages, metadata, badges, headers and footers.
+// Standalone semantic versions outside SVG geometry are claims. Four-part addresses are not versions.
+// Development-source labels and local release tags never exempt a claim from npm latest.
+import assert from "node:assert/strict";
+import spawn from "cross-spawn";
+import { readFileSync, readdirSync } from "node:fs";
+import { join, relative } from "node:path";
 
 const root = process.argv[2] ?? process.cwd();
-const pass = (message) => { console.log(`site badge: PASS (${message})`); process.exit(0); };
-const fail = (message) => { console.error(`site badge: FAIL: ${message}`); process.exit(1); };
-
 const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
-const html = readFileSync(join(root, "web/index.html"), "utf8");
-const badges = [...html.matchAll(/<li>npm ([0-9]+\.[0-9]+\.[0-9]+)<\/li>/g)].map((m) => m[1]);
-if (badges.length === 0 && html.includes("<li>Development source</li>")) {
-  pass("development demo makes no released-version claim");
+const result = spawn.sync("npm", ["view", `${pkg.name}@latest`, "version", "--fetch-retries=1", "--fetch-timeout=20000"], {
+  cwd: root, encoding: "utf8", timeout: 90_000, stdio: ["ignore", "pipe", "pipe"],
+});
+if (result.error) throw result.error;
+assert.equal(result.status, 0, "could not read npm latest; site version checks fail closed");
+const latest = result.stdout.trim();
+assert.match(latest, /^\d+\.\d+\.\d+$/, "npm latest must be a stable release");
+const versions = /(?<![\w.])v?(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?)(?!\w|\.\d|-[0-9A-Za-z])/g;
+let pages = 0;
+const stale = [];
+function check(dir) {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const path = join(dir, entry.name);
+    if (entry.isDirectory()) check(path);
+    else if (entry.name.endsWith(".html")) {
+      pages++;
+      const text = readFileSync(path, "utf8");
+      // SVG drawing coordinates can look like versions, but carry no package claim. Retain offsets.
+      const claims = text.replace(/(<(?:path|polygon|polyline)\b[^>]*?\b(?:d|points)\s*=\s*)(["'])([\s\S]*?)\2/gi,
+        (_match, prefix, quote, coordinates) => prefix + quote + coordinates.replace(/[^\r\n]/g, " ") + quote);
+      for (const match of claims.matchAll(versions)) {
+        if (match[1] !== latest) stale.push(`${relative(root, path)}:${text.slice(0, match.index).split("\n").length}: ${match[1]}`);
+      }
+    }
+  }
 }
-if (badges.length !== 1) fail(`web/index.html must carry exactly one <li>npm X.Y.Z</li> badge; found ${badges.length}`);
-const badge = badges[0];
-
-if (badge === pkg.version && tagAtHead(badge, { cwd: root })) {
-  pass(`names ${badge}, package.json's version, and v${badge} points at HEAD: a release commit`);
-}
-
-let latest;
-try {
-  latest = npmLatest(pkg.name, { cwd: root });
-} catch (error) {
-  fail(`could not read the latest ${pkg.name} version from the npm registry (${String(error.message).split("\n")[0]}). ` +
-    "The badge cannot be checked without it; rerun this job once the registry answers.");
-}
-if (badge === latest) pass(`names ${badge}, the latest npm release`);
-fail(badge === pkg.version
-  ? `names ${badge}, package.json's version, which is not on npm (latest ${latest}) and has no v${badge} tag at HEAD; name ${latest} until ${badge} is released`
-  : `names ${badge}, but the latest npm release is ${latest}; update the badge`);
+check(join(root, "site-dist"));
+assert.ok(pages > 0, "the built site must contain HTML");
+assert.deepEqual(stale, [], `every site version claim must equal npm latest ${latest}`);
+console.log(`site badge: PASS (${pages} built pages, npm latest ${latest})`);

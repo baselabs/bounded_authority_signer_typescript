@@ -188,8 +188,8 @@ export interface KeySnapshot {
  * private CryptoKey, check the bytes (Ed25519: 32 bytes, acceptablePublicKey, torsionFree; P-256: the
  * 65-byte uncompressed point on the curve), then sign the fixed probe message once with the private key
  * and verify it strictly against those bytes (verifyStrict; normalizeLowS then es256VerifyStrict). A
- * mismatched pair, a relabeled algorithm (X25519 as Ed25519, P-384 as P-256) or a key that cannot sign
- * fails here. Never throws: any failure is undefined.
+ * mismatched pair or a key that cannot sign fails here. The factory checks algorithm
+ * descriptors before admission. Never throws: any failure is undefined.
  */
 export async function admitKeyPair(suite: Suite, raw: Uint8Array, privateKey: unknown): Promise<KeySnapshot | undefined> {
   try {

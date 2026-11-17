@@ -53,9 +53,9 @@ export interface V2ReportInput {
   readonly grantCompact: Uint8Array;
   /** The operation name to bind; the resource must match it against a permitted grant operation. */
   readonly operation: string;
-  /** The HTTP request method, such as "POST". */
+  /** RFC 9110 method token, 1 to 32 ASCII bytes (tightenable via method_bytes). Preserved exactly, without case folding. */
   readonly method: string;
-  /** The absolute HTTPS request URI; URI normalization follows the wire profile. */
+  /** Already-normalized HTTPS request URI, at most 8,192 ASCII bytes (tightenable via uri_bytes). Noncanonical input is refused. */
   readonly targetUri: string;
   /** A lowercase RFC 4122 UUID identifying one logical invocation; the host runtime reserves it for single use. */
   readonly invocationId: string;
@@ -101,7 +101,7 @@ export type V2SelectorInput =
     readonly values: readonly Tagged[]
   }
   | {
-    /** Require the numeric value at the path to be at most the bound. */
+    /** Require a numeric value with the same int or float tag to be at most the inclusive bound. */
     readonly kind: "lte";
     /** Member names locating the value within the typed request arguments. */
     readonly path: readonly string[];
@@ -109,7 +109,7 @@ export type V2SelectorInput =
     readonly value: Tagged
   }
   | {
-    /** Require the numeric value at the path to be at least the bound. */
+    /** Require a numeric value with the same int or float tag to be at least the inclusive bound. */
     readonly kind: "gte";
     /** Member names locating the value within the typed request arguments. */
     readonly path: readonly string[];

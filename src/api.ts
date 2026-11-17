@@ -57,11 +57,11 @@ export interface SignOpts {
 export interface ReportInput {
   /** The signed grant compact, as `signGrant` returned it. It passes through to the envelope untouched. */
   readonly grantCompact: Uint8Array;
-  /** The operation name; it must be one the grant names. */
+  /** Operation name, 1 to 128 printable ASCII bytes. The resource verifies grant membership; signing does not authenticate the grant. */
   readonly operation: string;
-  /** The HTTP method of the request, for example `"POST"`. */
+  /** RFC 9110 method token, 1 to 32 ASCII bytes (tightenable via method_bytes). Preserved exactly, without case folding. */
   readonly method: string;
-  /** The absolute request URI. On the loopback profile: `http://127.0.0.1[:port]/…` or `http://[::1][:port]/…` only. */
+  /** Already-normalized request URI, at most 8,192 ASCII bytes (tightenable via uri_bytes). HTTPS by default. On the loopback profile: `http://127.0.0.1[:port]/…` or `http://[::1][:port]/…` only. */
   readonly targetUri: string;
   /** The invocation id: a lowercase RFC 4122 UUID (anything else is `producer_error`). */
   readonly invocationId: string;

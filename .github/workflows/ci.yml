@@ -48,6 +48,9 @@ jobs:
       - name: Install (frozen lockfile)
         run: pnpm install --frozen-lockfile
 
+      - name: Network documentation checks (registry, fail closed)
+        run: pnpm test:network
+
       - name: Typecheck (strict)
         run: pnpm typecheck
 
@@ -160,7 +163,7 @@ jobs:
       - name: Install (frozen lockfile)
         run: pnpm install --frozen-lockfile
 
-      - name: Packed tarball checks, the README Quickstart run as a reader runs it, the README version pins, and the site badge rules (builds first; uses the npm registry)
+      - name: Packed tarball checks, the README Quickstart run as a reader runs it, the README version pins (builds first; uses the npm registry)
         run: pnpm test:tarball
 
   browser:

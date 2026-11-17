@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+- Rebuild Pages after approved npm publication through registry reconciliation. Check all built
+  HTML version claims against npm latest, including when the page identifies development source.
+- Keep network documentation checks in a separate required CI and release lane. Verify release
+  tags against remote peeled refs and run package commands portably on Windows.
+
 - Build the hosted `/api/` from the release tag matching npm latest, with its exact commit
   recorded. Label the playground as development source and describe the request projection
   as method, URI, operation and the JCS typed projection of `cast_arguments`.

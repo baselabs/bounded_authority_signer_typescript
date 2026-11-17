@@ -113,7 +113,7 @@ export type KeyCheck = (key: Uint8Array) => boolean;
 // resolution, before sign() is called. Such a handle returns invalid_key_handle.
 export const ed25519Key: KeyCheck = (key) => key.length === 32 && acceptablePublicKey(key);
 
-/** Copy a handle-supplied key; throws for a Proxy or other non-typed-array (callers are inside a try). */
+/** Copy a handle-supplied typed-array key; return undefined for other values or a failed check. Copying a Proxy may throw; callers catch it. */
 function copyKey(value: unknown, check: KeyCheck): Uint8Array | undefined {
   if (!(value instanceof Uint8Array)) return undefined;
   const copy = new Uint8Array(value);

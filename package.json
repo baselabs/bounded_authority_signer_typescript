@@ -55,7 +55,7 @@
     "test": "node --test --import tsx/esm test/*.test.ts",
     "test:portable": "node --test --conditions=bap-portable --import tsx/esm test/*.test.ts",
     "test:gates": "node --test --import tsx/esm test/gates.test.ts",
-    "test:tarball": "pnpm build && node --test --import tsx/esm test/tarball.ts test/reader.ts test/site-badge.ts",
+    "test:tarball": "pnpm build && node --test --import tsx/esm test/tarball.ts test/reader.ts",
     "pack:release": "node tools/pack.mjs",
     "test:runtimes": "node --test --import tsx/esm test/runtimes.ts",
     "test:browser": "node --test --import tsx/esm test/browser.ts",
@@ -64,7 +64,9 @@
     "build:site": "node web/build.mjs && esbuild web/main.ts --bundle --minify --format=iife --target=es2022 --outfile=site-dist/app.js",
     "guard:site": "node tools/browser-guard.mjs --scan site-dist/app.js",
     "docs:api": "typedoc",
-    "docs:api:release": "node tools/build-release-api.mjs"
+    "docs:api:release": "node tools/build-release-api.mjs",
+    "test:network": "node --test --import tsx/esm test/*.network.ts",
+    "check:site": "node tools/check-site-badge.mjs"
   },
   "dependencies": {
     "@bounded-authority-protocol/verifier": "^2.0.0"
@@ -72,14 +74,16 @@
   "devDependencies": {
     "@noble/curves": "^2.4.0",
     "@types/node": "^26.6.6",
+    "cross-spawn": "^7.0.6",
     "esbuild": "^0.28.2",
     "eslint": "^10.15.0",
     "globals": "^17.14.0",
     "playwright": "^1.65.1",
     "semver": "^7.8.6",
     "tsx": "^4.23.15",
-    "typedoc": "0.28.20",
+    "typedoc": "^0.28.20",
     "typescript": "6.0.3",
     "typescript-eslint": "^8.73.0"
-  }
+  },
+  "packageManager": "pnpm@10.20.0"
 }

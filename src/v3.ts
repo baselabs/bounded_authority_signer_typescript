@@ -274,7 +274,7 @@ export type V3SelectorInput =
     readonly values: readonly Tagged[]
   }
   | {
-    /** Require the numeric value at the path to be at most the bound. */
+    /** Require a numeric value with the same int or float tag to be at most the inclusive bound. */
     readonly kind: "lte";
     /** Member names locating the value within the typed request arguments. */
     readonly path: readonly string[];
@@ -282,7 +282,7 @@ export type V3SelectorInput =
     readonly value: Tagged
   }
   | {
-    /** Require the numeric value at the path to be at least the bound. */
+    /** Require a numeric value with the same int or float tag to be at least the inclusive bound. */
     readonly kind: "gte";
     /** Member names locating the value within the typed request arguments. */
     readonly path: readonly string[];

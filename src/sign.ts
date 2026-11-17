@@ -1,7 +1,7 @@
 // The shared signing tail mirrors the Elixir adapter's companion primitive:
 // sign via the handle → VERIFY the signature against the resolved public key →
-// assemble through the verifier package. Every object this library signs flows
-// through here.
+// assemble through the verifier package. Ed25519 artifacts flow through here;
+// ES256 artifacts use signV3AndAssemble.
 //
 // The wrong-key guard: a signature that does
 // not verify against the resolved public key is signing_failed, never a silent

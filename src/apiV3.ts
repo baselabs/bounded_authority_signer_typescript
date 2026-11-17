@@ -86,9 +86,9 @@ export interface V3ReportInput {
   readonly grantCompact: Uint8Array;
   /** The operation name to bind; the resource must match it against a permitted grant operation. */
   readonly operation: string;
-  /** The HTTP request method, such as "POST". */
+  /** RFC 9110 method token, 1 to 32 ASCII bytes (tightenable via method_bytes). Preserved exactly, without case folding. */
   readonly method: string;
-  /** The absolute HTTPS request URI; URI normalization follows the wire profile. */
+  /** Already-normalized HTTPS request URI, at most 8,192 ASCII bytes (tightenable via uri_bytes). Noncanonical input is refused. */
   readonly targetUri: string;
   /** A lowercase RFC 4122 UUID identifying one logical invocation; the host runtime reserves it for single use. */
   readonly invocationId: string;
