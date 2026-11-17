@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- CI runs on every push to `main` and `kci/**`: the push trigger has no `paths-ignore`, because a
+  landing candidate whose files were all filtered gets no run and cannot land.
+
 - Rebuild Pages after approved npm publication through registry reconciliation. Check all built
   HTML version claims against npm latest, including when the page identifies development source.
 - Keep network documentation checks in a separate required CI and release lane. Verify release

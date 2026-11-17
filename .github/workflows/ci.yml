@@ -2,10 +2,9 @@ name: CI
 
 on:
   push:
+    # No paths or paths-ignore: a landing candidate on kci/** whose files were all filtered would
+    # get no run, and kimosabe-land could not land it.
     branches: [main, 'kci/**']
-    paths-ignore:
-      - "LICENSE*"
-      - ".github/ISSUE_TEMPLATE/**"
   pull_request:
 
 permissions:
