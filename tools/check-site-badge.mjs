@@ -1,5 +1,6 @@
 // Check every built HTML page, including API pages, metadata, badges, headers and footers.
-// Standalone semantic versions outside SVG geometry are claims. Four-part addresses are not versions.
+// Standalone semantic versions are claims, except dependency source paths and SVG geometry.
+// Four-part addresses are not versions.
 // Development-source labels and local release tags never exempt a claim from npm latest.
 import assert from "node:assert/strict";
 import spawn from "cross-spawn";
@@ -15,6 +16,7 @@ if (result.error) throw result.error;
 assert.equal(result.status, 0, "could not read npm latest; site version checks fail closed");
 const latest = result.stdout.trim();
 assert.match(latest, /^\d+\.\d+\.\d+$/, "npm latest must be a stable release");
+const packageCoordinate = pkg.name.replace("/", "+") + "@";
 const versions = /(?<![\w.])v?(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?)(?!\w|\.\d|-[0-9A-Za-z])/g;
 let pages = 0;
 const stale = [];
@@ -27,7 +29,11 @@ function check(dir) {
       const text = readFileSync(path, "utf8");
       // SVG drawing coordinates can look like versions, but carry no package claim. Retain offsets.
       const claims = text.replace(/(<(?:path|polygon|polyline)\b[^>]*?\b(?:d|points)\s*=\s*)(["'])([\s\S]*?)\2/gi,
-        (_match, prefix, quote, coordinates) => prefix + quote + coordinates.replace(/[^\r\n]/g, " ") + quote);
+        (_match, prefix, quote, coordinates) => prefix + quote + coordinates.replace(/[^\r\n]/g, " ") + quote)
+        // TypeDoc includes inherited dependency declarations with pnpm versioned source paths.
+        .replace(/node_modules\/\.pnpm\/([^/<>"'\s]+)\/node_modules\//g,
+          (dependencyPath, coordinate) => coordinate.startsWith(packageCoordinate)
+            ? dependencyPath : dependencyPath.replace(/[^\r\n]/g, " "));
       for (const match of claims.matchAll(versions)) {
         if (match[1] !== latest) stale.push(`${relative(root, path)}:${text.slice(0, match.index).split("\n").length}: ${match[1]}`);
       }

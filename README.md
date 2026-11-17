@@ -1224,8 +1224,8 @@ coverage remains enforced on current source in CI.
 
 The built-site check rejects every standalone semantic version in HTML, including metadata,
 badges, headers, footers and API pages, unless it equals npm latest. Development-source labels
-and release tags do not exempt claims. SVG drawing coordinates and four-part addresses are not
-package-version claims.
+and release tags do not exempt claims. Dependency source paths, SVG drawing coordinates and
+four-part addresses are not package-version claims.
 
 The CI scripts:
 

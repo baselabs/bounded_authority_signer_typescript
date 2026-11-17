@@ -25,7 +25,7 @@ test("built site claims fail closed against the real npm latest, anywhere on any
     const home = join(scratch, "site-dist/index.html");
     const nested = join(scratch, "site-dist/api/index.html");
     writeFileSync(home, '<li>Development source</li><p>http://127.0.0.1</p><svg><path d="M8 21v-2c0-1.1.9-2 2-2h4"/></svg>');
-    writeFileSync(nested, "<p>API</p>");
+    writeFileSync(nested, "<aside>node_modules/.pnpm/typescript@6.0.3/node_modules/typescript/lib.d.ts</aside>");
     let result = run();
     assert.equal(result.status, 0, result.output);
     const latest = /npm latest (\d+\.\d+\.\d+)/.exec(result.output)?.[1];
@@ -34,7 +34,8 @@ test("built site claims fail closed against the real npm latest, anywhere on any
     result = run();
     assert.equal(result.status, 0, result.output);
     for (const claim of ["<li>npm 99.0.0</li>", "<header>v99.0.0</header>", "<footer>99.0.0</footer>",
-      `<p>${pkg.name}@99.0.0</p>`, '<meta content="v99.0.0">', "<p>99.0.0-beta.1</p>", "<p>Version 99.0.0.</p>"]) {
+      `<p>${pkg.name}@99.0.0</p>`, '<meta content="v99.0.0">', "<p>99.0.0-beta.1</p>", "<p>Version 99.0.0.</p>",
+      `<aside>node_modules/.pnpm/${pkg.name.replace("/", "+")}@99.0.0/node_modules/sdk/index.d.ts</aside>`]) {
       writeFileSync(nested, claim);
       result = run();
       assert.equal(result.status, 1, result.output);
