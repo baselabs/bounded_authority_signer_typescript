@@ -1,5 +1,5 @@
-// The playground page's npm badge (web/index.html, `<li>npm X.Y.Z</li>`) is a hand-maintained literal.
-// It passes when it names
+// The development playground identifies its source without a release-version claim. If a
+// numeric npm badge (`<li>npm X.Y.Z</li>`) is added, it passes when it names
 //   - the latest version of this package on the npm registry, or
 //   - package.json's version while a v<version> tag points at HEAD: the release commit, whose Pages
 //     deploy runs before the npm publish is approved (0.3.1, 0.4.0 and 0.5.0 all did). This state needs
@@ -21,6 +21,9 @@ const fail = (message) => { console.error(`site badge: FAIL: ${message}`); proce
 const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
 const html = readFileSync(join(root, "web/index.html"), "utf8");
 const badges = [...html.matchAll(/<li>npm ([0-9]+\.[0-9]+\.[0-9]+)<\/li>/g)].map((m) => m[1]);
+if (badges.length === 0 && html.includes("<li>Development source</li>")) {
+  pass("development demo makes no released-version claim");
+}
 if (badges.length !== 1) fail(`web/index.html must carry exactly one <li>npm X.Y.Z</li> badge; found ${badges.length}`);
 const badge = badges[0];
 

@@ -16,7 +16,8 @@ WebCrypto key, or an in-process key in tests). The private key never enters the 
 handle method may be async.
 
 OAuth 2.0 is an authorization framework for delegated, scoped access. BAP complements OAuth by
-binding a holder's authority to the exact request bytes through a signed grant and holder proof.
+binding a holder's authority to the method, URI, operation and JCS typed projection of
+`cast_arguments` through a signed grant and holder proof.
 The verifier checks those bytes against caller-supplied trust and context. The host runtime
 separately applies authorization policy, revocation checks, and replay reservation.
 
@@ -1209,7 +1210,11 @@ needed after a clean install.
 `exports` map and maps the built paths to source using `tsconfig.build.json`; `./package.json`
 is metadata, not a code entry point. Missing documentation and TypeDoc warnings fail CI. Build
 the playground before the API reference because `build:site` recreates `site-dist/`. Pages
-publishes both from that directory, with the reference at `/api/`.
+publishes the development playground from main, explicitly labeled as development source.
+`pnpm docs:api:release` builds the hosted `/api/` from the immutable tag matching npm latest,
+with version, tag and commit in `release.json` and source links fixed to that commit. Historical
+release rendering preserves the released comments without retroactive coverage checks; strict
+coverage remains enforced on current source in CI.
 
 The CI scripts:
 

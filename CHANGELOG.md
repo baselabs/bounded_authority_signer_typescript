@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- Build the hosted `/api/` from the release tag matching npm latest, with its exact commit
+  recorded. Label the playground as development source and describe the request projection
+  as method, URI, operation and the JCS typed projection of `cast_arguments`.
 - Add a version-stamped TypeDoc API reference from the package exports at `/api/`.
   CI rejects undocumented public declarations and documentation warnings.
 - Correct the OAuth comparison and distinguish request verification from host authorization,
