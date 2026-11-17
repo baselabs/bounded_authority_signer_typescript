@@ -139,7 +139,7 @@ test.before(() => {
   }));
   // --prefer-offline, not --offline: a fresh CI runner has no pnpm metadata cache for the
   // packed tarball's own dependencies, so it must be allowed to fetch them.
-  run("pnpm", ["install", "--prefer-offline", "--ignore-scripts", "--config.confirmModulesPurge=false"], consumer);
+  run("pnpm", ["install", "--frozen-lockfile", "--prefer-offline", "--ignore-scripts", "--config.confirmModulesPurge=false"], consumer);
   writeFileSync(join(consumer, "consumer.ts"), CONSUMER_TS);
   writeFileSync(join(consumer, "main.mjs"), CONSUMER_JS);
 });

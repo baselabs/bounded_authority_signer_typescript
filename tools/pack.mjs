@@ -1,14 +1,13 @@
 #!/usr/bin/env node
 // Builds the package tarball that is checked and published (pnpm pack:release; test:tarball,
-// test/reader.ts and the release workflow all use it). Run `pnpm build` first.
+// test/reader.ts and the publish workflow all use it). Run `pnpm build` first.
 //
 // It packs the repository with npm, scripts ignored, into an output directory, and never writes the
-// working tree. npm packs with fixed file times and order, so the same tree gives the same bytes: the
-// release job compares the SHA-256 of its tarball with the one the verify job checked, and then
-// publishes that file (`npm stage publish <file>`, which runs no scripts and reads the manifest from
-// the tarball). The same model as the verifier repository's tools/pack.mjs, without its staging copy:
-// this manifest carries no development-only conditions to strip.
-//
+// working tree. npm packs with fixed file times and order, so the same tree gives the same bytes.
+// publish.yml inspects and hashes this archive, checks its hash, then stages those bytes
+// (`npm stage publish <file> --provenance`) for the owner to approve on npmjs.com.
+// This manifest carries no development-only conditions to strip.
+
 // Usage: node tools/pack.mjs [--out <dir>]   Prints {"file": <absolute path>, "sha256": <hex>}.
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
