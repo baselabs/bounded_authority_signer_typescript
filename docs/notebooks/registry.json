@@ -1,19 +1,31 @@
 {
+  "schema": 1,
+  "package": "@bounded-authority-protocol/signer",
+  "version": "2.0.0",
+  "packages": {
+    "@bounded-authority-protocol/signer": "2.0.0",
+    "@bounded-authority-protocol/verifier": "2.0.0"
+  },
   "notebooks": [
     {
-      "file": "grant-and-proof.ipynb"
+      "file": "grant-and-proof.ipynb",
+      "title": "Grant and proof"
     },
     {
-      "file": "bounded-selectors-es256.ipynb"
+      "file": "bounded-selectors-es256.ipynb",
+      "title": "Bounded selectors and ES256"
     },
     {
-      "file": "key-custody.ipynb"
+      "file": "key-custody.ipynb",
+      "title": "Key custody and handle refusals"
     },
     {
-      "file": "local-loopback.ipynb"
+      "file": "local-loopback.ipynb",
+      "title": "Local loopback"
     },
     {
-      "file": "anchors-and-transitions.ipynb"
+      "file": "anchors-and-transitions.ipynb",
+      "title": "Anchors and key transitions"
     }
   ]
 }

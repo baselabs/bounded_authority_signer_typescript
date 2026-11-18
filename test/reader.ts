@@ -3,9 +3,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { executeNode, prepare, samples, typecheck, type Mode } from "./sample-runner.js";
 
-const selected = process.env.BAP_SAMPLE_MODE ?? "both";
-assert.ok(["candidate", "published", "both"].includes(selected), "BAP_SAMPLE_MODE must be candidate, published or both");
-const modes: Mode[] = selected === "both" ? ["candidate", "published"] : [selected as Mode];
+const selected = process.env.BAP_SAMPLE_MODE ?? "candidate";
+assert.ok(["candidate", "published"].includes(selected), "BAP_SAMPLE_MODE must be candidate or published");
+const modes: Mode[] = [selected as Mode];
 for (const mode of modes) test(`${mode}: every Node journey typechecks installed declarations and matches recorded output`, () => {
   const consumer = prepare(mode);
   try {

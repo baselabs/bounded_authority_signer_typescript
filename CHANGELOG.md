@@ -7,9 +7,18 @@ category: Package policies
 
 ## [Unreleased]
 
+- Qualify only the packed candidate; run exact-version npm notebook, sample and registry checks
+  after upload in a separate keyless publication job.
+- Standardize notebook execution on `scripts/check_notebooks.py`, a versioned notebook registry,
+  inspected candidate or registry archives, real Deno kernels and saved Jupyter golden outputs.
+- Split notebook journeys into explained, asserted steps with computed semantic results.
+- Pin Python 3.15.2, uv 0.13.9, nbclient 0.11.0, nbformat 5.11.1 and jupyter-client 8.10.0;
+  generate locks with pinned uv and install the notebook toolchain through one composite action.
+- Read both exact Node lanes from the valid multi-version asdf line and compare tool version fields.
+
 - Split integrator documentation into versioned guides; execute guide and API examples against
   explicit candidate and registry installs, and browser examples in real engines.
-- Add Deno Jupyter journeys with candidate and published qualification jobs, strict documentation
+- Add Deno Jupyter journeys with candidate qualification and published post-upload jobs, strict documentation
   currency, suite-specific playgrounds and shipped documentation sources.
 
 - Run every browser lane in the digest-pinned official Playwright 1.65.1 Noble image with preinstalled browsers and OS packages; refuse a different installed Playwright version before testing.
@@ -20,7 +29,7 @@ category: Package policies
 
 - The owner dispatches Pages after approved npm publication; publication does not automatically
   rebuild Pages. Check signer release claims in built HTML against npm latest.
-- Keep network documentation checks in a separate required CI and release lane. Verify release
+- Keep registry documentation checks in a separate keyless post-upload lane. Verify release
   tags against remote peeled refs and run package commands portably on Windows.
 
 - Build the hosted `/api/` from the release tag matching npm latest, with its exact commit

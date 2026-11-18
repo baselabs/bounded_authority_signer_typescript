@@ -65,20 +65,18 @@ test("pins on current install surfaces match package.json; the error table exact
 });
 
 test("notebook registry, pinned imports, persisted outputs and generated guide coverage are complete", () => {
-  const toolPins = new Map(read(".tool-versions").trim().split("\n").map((line) => {
-    const [tool, version] = line.split(/\s+/);
-    return [tool!, version!] as const;
-  }));
-  const registry = JSON.parse(read("docs/notebooks/registry.json")) as { notebooks: { file: string }[] };
+  const registry = JSON.parse(read("docs/notebooks/registry.json")) as { schema: number; package: string; version: string; packages: Record<string, string>; notebooks: { file: string; title: string }[] };
+  assert.equal(registry.schema, 1); assert.equal(registry.package, pkg.name);
+  assert.equal(registry.version, pkg.version); assert.equal(registry.packages[pkg.name], pkg.version);
   const notebookFiles = surfaces.filter((f) => f.endsWith(".ipynb")).map((f) => f.replaceAll("\\", "/")).sort();
   assert.deepEqual(registry.notebooks.map((n) => `docs/notebooks/${n.file}`).sort(), notebookFiles);
   for (const file of notebookFiles) {
     const nb = JSON.parse(read(file)) as { metadata: { kernelspec: { name: string } }; cells: { cell_type: string; source: string[]; outputs?: unknown[] }[] };
     assert.equal(nb.metadata.kernelspec.name, "deno");
     const launch = nb.cells.find((c) => c.cell_type === "markdown")!.source.join("");
-    for (const [tool, label] of [["deno", "Deno"], ["python", "Python"], ["uv", "uv"]]) {
-      assert.ok(launch.includes(`${label} ${toolPins.get(tool!)}`), `${file}: stale ${tool} launch pin`);
-    }
+    assert.ok(launch.includes("deno jupyter --install"));
+    assert.ok(launch.includes("Jupyter"));
+    assert.ok(!/uv sync|Python [0-9]|pnpm notebooks/.test(launch), `${file}: contributor setup in launch instructions`);
     const cells = nb.cells.filter((c) => c.cell_type === "code");
     assert.ok(cells.length > 0);
     for (const cell of cells) assert.ok(cell.outputs?.length, `${file}: missing persisted output`);
@@ -88,6 +86,20 @@ test("notebook registry, pinned imports, persisted outputs and generated guide c
   for (const file of surfaces.filter((f) => f.startsWith("docs/guides/") && f.endsWith(".md"))) assert.ok(config.projectDocuments.includes(file), `${file}: absent from generated docs`);
   for (const kind of ["Property", "Method", "Function", "Interface", "TypeAlias"]) assert.ok(config.requiredToBeDocumented.includes(kind));
   assert.equal(config.validation.notDocumented, true);
+});
+
+test("notebook qualification uses the pinned shared composite action and frozen locks", () => {
+  const workflow = read(".github/workflows/ci.yml");
+  const action = read(".github/actions/notebook-tools/action.yml");
+  assert.equal((workflow.match(/uses: \.\/\.github\/actions\/notebook-tools/g) ?? []).length, 1);
+  assert.ok(workflow.includes("notebooks-local") && !workflow.includes("notebooks-published"));
+  assert.ok(action.includes("pnpm install --frozen-lockfile"));
+  assert.ok(action.includes("uv lock --check") && action.indexOf("uv lock --check") < action.indexOf("uv sync --frozen"));
+  assert.ok(action.includes("enable-cache: false") && action.includes("save-cache: false"));
+  assert.ok(action.includes("deno --version | awk 'NR == 1 {print $2}'"));
+  assert.ok(action.includes("uv --version | awk '{print $2}'"));
+  const scripts = JSON.parse(read("package.json")) as { scripts: Record<string, string> };
+  for (const mode of ["local", "published"]) assert.ok(scripts.scripts[`notebooks:${mode}`]?.includes(`scripts/check_notebooks.py --${mode}`));
 });
 
 test("public functions and nested API members have docs and real examples, with a task group", () => {

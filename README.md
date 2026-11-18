@@ -198,6 +198,12 @@ Every signer returns `{ ok: true, value }` or `{ ok: false, error }`; check `ok`
 
 ## Notebooks
 
+Qualification installs this repository's own package only from the packed candidate.
+`publish.yml` runs published notebooks and the other registry checks after each upload in the
+keyless `published-notebooks` job. That job waits up to ten minutes for npm to serve the exact
+version. A maintainer can run `pnpm notebooks:published` and `pnpm docs:checks:published` on demand
+once that version is available. The upload job and its environment gate are separate.
+
 Jupyter notebooks use the Deno kernel and exact published npm releases. See [launch instructions](docs/notebooks/README.md).
 
 - [Grant and proof](docs/notebooks/grant-and-proof.ipynb)

@@ -25,7 +25,7 @@ test("signer release identities fail closed; protocol, dependency and historical
     const home = join(scratch, "site-dist/index.html");
     const nested = join(scratch, "site-dist/api/index.html");
     writeFileSync(home, '<li>Development source</li><p>http://127.0.0.1</p><svg><path d="M8 21v-2c0-1.1.9-2 2-2h4"/></svg>');
-    writeFileSync(nested, "<aside>node_modules/.pnpm/typescript@6.0.3/node_modules/typescript/lib.d.ts</aside><p>Protocol 3.0.0; previous package 1.0.0; Python 3.13.9</p>");
+    writeFileSync(nested, "<aside>node_modules/.pnpm/typescript@6.0.3/node_modules/typescript/lib.d.ts</aside><p>Protocol 3.0.0; previous package 1.0.0; Python 3.15.2</p>");
     let result = run();
     assert.equal(result.status, 0, result.output);
     const latest = /npm latest (\d+\.\d+\.\d+)/.exec(result.output)?.[1];

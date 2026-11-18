@@ -10,6 +10,9 @@ import { filename, prepare, ROOT, samples, typecheck, type Mode } from "./sample
 
 const engines: Record<string, BrowserType> = { chromium, firefox, webkit };
 const selected = (process.env.BAP_BROWSERS ?? "chromium").split(",");
+const mode = process.env.BAP_SAMPLE_MODE ?? "candidate";
+assert.ok(mode === "candidate" || mode === "published", "BAP_SAMPLE_MODE must be candidate or published");
+const modes: Mode[] = [mode];
 const CSP = "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'";
 async function serve(scripts = new Map<string, string>()) {
   const server = createServer((req, res) => {
@@ -80,7 +83,7 @@ for (const name of selected) {
     } finally { await browser?.close(); await served.close(); }
   });
 
-  for (const mode of ["candidate", "published"] as Mode[]) test(`${name}/${mode}: all DOM examples typecheck installed declarations and execute in the browser`, async () => {
+  for (const mode of modes) test(`${name}/${mode}: all DOM examples typecheck installed declarations and execute in the browser`, async () => {
     const consumer = prepare(mode);
     let browser;
     const scripts = new Map<string, string>();

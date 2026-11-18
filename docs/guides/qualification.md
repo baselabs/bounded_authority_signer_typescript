@@ -35,18 +35,26 @@ category: Guides
 - **Public types.** `test/exports.test.ts` fails if a public declaration names a type that the
   package root does not export.
 - **Documentation.** Recursive CommonMark sample discovery includes guides, TSDoc and the site.
-  Every executable sample has asserted output. Reader runs use explicit candidate and published
-  modes; published mode installs exact registry artifacts and typechecks their declarations.
+  Every executable sample has asserted output. Qualification reader runs use only the packed
+  candidate; after upload, published mode installs exact registry artifacts and typechecks their declarations.
   Browser samples run in each real engine. Deno notebooks execute cell by cell in a fresh Jupyter
   kernel, with persisted semantic output comparison and residue checks.
 
 CI runs on Linux (`ubuntu-24.04`). Linux WebKit is evidence for this code on that WebKit build,
-not for Safari. Qualification runs every lane before a release commit lands. The owner then
+not for Safari. Qualification runs every candidate lane before a release commit lands. The owner then
 dispatches `publish.yml` from the default branch in environment `publish`. It installs the exact
 `.tool-versions` runtime and declared pnpm with frozen dependencies, refuses an already published
 or tagged version, builds the library and API docs, packs and inspects one archive, records and
 checks its SHA-256, and stages those bytes with `npm stage publish --provenance`. It does not
 rerun qualification or create a tag.
+
+Qualification installs this repository's own package only from the packed candidate.
+`publish.yml` runs published notebooks and the other registry checks after each upload in the
+keyless `published-notebooks` job. That job waits up to ten minutes for npm to serve the exact
+version. A maintainer can run `pnpm notebooks:published` and `pnpm docs:checks:published` on demand
+once that version is available. The upload job and its environment gate are separate.
+
+The released API check also requires the release tag that infra creates after publication.
 
 The publication workflow publishes new versions of existing npm packages only and
 refuses a package name the registry has never had. A first publication is the owner's decision.

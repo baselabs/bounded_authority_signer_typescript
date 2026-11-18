@@ -27,14 +27,16 @@ export function prepare(mode: Mode): Consumer {
   const directory = join(scratch, "consumer");
   mkdirSync(directory);
   try {
-    const metadata = JSON.parse(run("npm", ["view", `${pkg.name}@${pkg.version}`, "--json", "--registry=https://registry.npmjs.org"], directory)) as {
+    const metadata = mode === "published" ? JSON.parse(run("npm", ["view", `${pkg.name}@${pkg.version}`, "--json", "--registry=https://registry.npmjs.org"], directory)) as {
       name: string; version: string; dist: { tarball: string; integrity: string };
-    };
-    assert.equal(metadata.name, pkg.name); assert.equal(metadata.version, pkg.version);
-    assert.ok(metadata.dist.tarball.startsWith("https://registry.npmjs.org/"));
+    } : undefined;
+    if (metadata) {
+      assert.equal(metadata.name, pkg.name); assert.equal(metadata.version, pkg.version);
+      assert.ok(metadata!.dist.tarball.startsWith("https://registry.npmjs.org/"));
+    }
     const verifierName = "@bounded-authority-protocol/verifier";
     const verifierVersion = pkg.dependencies[verifierName]!.replace(/^[~^]/, "");
-    const verifierMetadata = JSON.parse(run("npm", ["view", `${verifierName}@${verifierVersion}`, "--json", "--registry=https://registry.npmjs.org"], directory)) as typeof metadata;
+    const verifierMetadata = JSON.parse(run("npm", ["view", `${verifierName}@${verifierVersion}`, "--json", "--registry=https://registry.npmjs.org"], directory)) as NonNullable<typeof metadata>;
     assert.equal(verifierMetadata.name, verifierName); assert.equal(verifierMetadata.version, verifierVersion);
     assert.ok(verifierMetadata.dist.tarball.startsWith("https://registry.npmjs.org/"));
     const artifact = mode === "candidate" ? process.env.BAP_TARBALL ?? pack(join(scratch, "packed")).file : undefined;
@@ -50,7 +52,7 @@ export function prepare(mode: Mode): Consumer {
       const setupLock = JSON.parse(readFileSync(join(setupDirectory, "package-lock.json"), "utf8"));
       const setupEntry = setupLock.packages[`node_modules/${pkg.name}`];
       assert.equal(setupEntry.version, pkg.version, `${setup.source}: setup version`);
-      assert.ok(mode === "candidate" ? setupEntry.resolved.startsWith("file:") : setupEntry.resolved === metadata.dist.tarball,
+      assert.ok(mode === "candidate" ? setupEntry.resolved.startsWith("file:") : setupEntry.resolved === metadata!.dist.tarball,
         `${setup.source}: setup origin`);
     }
     const lock = JSON.parse(readFileSync(join(directory, "package-lock.json"), "utf8")) as {
@@ -65,8 +67,8 @@ export function prepare(mode: Mode): Consumer {
     const entry = lock.packages[`node_modules/${pkg.name}`]!;
     if (mode === "published") {
       // Version equality never chooses a local artifact. Registry tarball and integrity must agree.
-      assert.equal(entry.resolved, metadata.dist.tarball);
-      assert.equal(entry.integrity, metadata.dist.integrity);
+      assert.equal(entry.resolved, metadata!.dist.tarball);
+      assert.equal(entry.integrity, metadata!.dist.integrity);
       assert.ok(!entry.resolved.startsWith("file:"));
     } else {
       assert.ok(artifact && entry.resolved?.startsWith("file:"), "candidate must be the explicitly selected tarball");

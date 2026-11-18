@@ -12,16 +12,24 @@ No credential or service is required for documentation checks; npm registry acce
 Run `pnpm build`, `pnpm typecheck`, `pnpm typecheck:browser`, `pnpm typecheck:web`, `pnpm lint`,
 `pnpm guard:browser`, `pnpm size`, `pnpm test`, `pnpm test:portable`, `pnpm test:network`,
 `pnpm test:tarball`, `pnpm test:runtimes`, `pnpm docs:api` and `pnpm check:currency` for qualification.
-`pnpm test:tarball` executes every Node documentation journey against both the packed candidate and
-exact registry release. `BAP_SAMPLE_MODE=candidate` or `published` selects just one mode explicitly.
+`pnpm test:tarball` executes every Node documentation journey against the packed candidate.
+`pnpm test:playground` also uses the candidate; the published variants run only after upload.
 Install the Playwright browsers with `pnpm exec playwright install --with-deps`, build the site with
 `pnpm build:site`, then run `pnpm test:browser` and `pnpm test:playground` with
 `BAP_BROWSERS=chromium,firefox,webkit`. DOM samples execute in those engines, never in Node.
 
-For notebooks, run `uv sync --frozen`, then `pnpm notebooks:local` and `pnpm notebooks:published`.
+For notebooks, run `uv lock --check` and `uv sync --frozen`, then `pnpm notebooks:local`.
 The runner installs an isolated Deno Jupyter kernel and removes its workspace and caches afterward.
 It executes notebook cells in the real kernel, not a concatenated script. Every code cell has
-persisted semantic stdout; compare fixed meanings, never generated keys or signatures.
+saved Jupyter output as its only golden result; compare computed meanings, never generated keys or signatures.
+
+Qualification installs this repository's own package only from the packed candidate.
+`publish.yml` runs published notebooks and the other registry checks after each upload in the
+keyless `published-notebooks` job. That job waits up to ten minutes for npm to serve the exact
+version. A maintainer can run `pnpm notebooks:published` and `pnpm docs:checks:published` on demand
+once that version is available. The upload job and its environment gate are separate.
+
+The shared runner is `scripts/check_notebooks.py`; see [notebook checks](docs/notebooks/README.md).
 
 Author guides under `docs/guides/`, notebooks under `docs/notebooks/`, and register notebooks in
 `docs/notebooks/registry.json`. TypeScript examples carry a `readme-sample` marker and a matching

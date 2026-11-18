@@ -66,7 +66,7 @@ jobs:
       - name: Install (frozen lockfile)
         run: pnpm install --frozen-lockfile
 
-      - name: Network documentation checks (registry, fail closed)
+      - name: Published dependency documentation checks (fail closed)
         run: pnpm test:network
 
       - name: Typecheck (strict)
@@ -134,7 +134,7 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version-file: .tool-versions
+          node-version: ${{ steps.pins.outputs.nodejs }}
           package-manager-cache: false
       - name: Activate the declared pnpm with Corepack
         run: |
@@ -165,7 +165,7 @@ jobs:
         env:
           RUNTIME: ${{ matrix.runtime }}
         run: |
-          if test "$RUNTIME" = deno; then test "$(deno --version | head -n 1)" = "deno ${{ steps.pins.outputs.deno }}"; fi
+          if test "$RUNTIME" = deno; then test "$(deno --version | awk 'NR == 1 {print $2}')" = "${{ steps.pins.outputs.deno }}"; fi
           if test "$RUNTIME" = bun; then test "$(bun --version)" = "${{ steps.pins.outputs.bun }}"; fi
 
       - name: Install (frozen lockfile)
@@ -177,7 +177,7 @@ jobs:
         run: pnpm test:runtimes
 
   package:
-    timeout-minutes: 90 # no green run yet for candidate and registry documentation journeys.
+    timeout-minutes: 90 # no green run yet for candidate documentation journeys.
     # The packed tarball as a consumer receives it: typecheck with skipLibCheck false under each
     # resolution, lib and condition set, the leaked-type red-proof, the installed package run on
     # Node (both verifier backends), Deno and Bun, and the closed deep-import surface probed on
@@ -206,7 +206,7 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version-file: .tool-versions
+          node-version: ${{ steps.pins.outputs.nodejs }}
           package-manager-cache: false
       - name: Activate the declared pnpm with Corepack
         run: |
@@ -233,13 +233,13 @@ jobs:
       - name: Refuse different runtime versions
         shell: bash
         run: |
-          test "$(deno --version | head -n 1)" = "deno ${{ steps.pins.outputs.deno }}"
+          test "$(deno --version | awk 'NR == 1 {print $2}')" = "${{ steps.pins.outputs.deno }}"
           test "$(bun --version)" = "${{ steps.pins.outputs.bun }}"
 
       - name: Install (frozen lockfile)
         run: pnpm install --frozen-lockfile
 
-      - name: Packed tarball and every Node documentation journey (explicit candidate and registry modes; builds first)
+      - name: Packed tarball and every Node documentation journey (packed candidate; builds first)
         run: pnpm test:tarball
 
   browser:
@@ -265,10 +265,23 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Read exact runtime pins
+        id: pins
+        shell: bash
+        run: |
+          while read -r tool version compatibility; do
+            test -n "$tool" && test -n "$version"
+            printf '%s=%s\n' "$tool" "$version" >> "$GITHUB_OUTPUT"
+            if test "$tool" = nodejs; then
+              test -n "$compatibility"
+              printf 'nodejs-next=%s\n' "$compatibility" >> "$GITHUB_OUTPUT"
+            fi
+          done < .tool-versions
+
       - name: Set up Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version-file: .tool-versions
+          node-version: ${{ steps.pins.outputs.nodejs }}
           package-manager-cache: false
       - name: Activate the declared pnpm with Corepack
         run: |
@@ -297,7 +310,7 @@ jobs:
           pnpm typecheck:web
           pnpm build:site
 
-      - name: Built playground and browser documentation (candidate and registry)
+      - name: Built playground and browser documentation (packed candidate)
         env:
           BAP_BROWSERS: ${{ matrix.engine }}
         run: pnpm test:playground
@@ -318,10 +331,23 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Read exact runtime pins
+        id: pins
+        shell: bash
+        run: |
+          while read -r tool version compatibility; do
+            test -n "$tool" && test -n "$version"
+            printf '%s=%s\n' "$tool" "$version" >> "$GITHUB_OUTPUT"
+            if test "$tool" = nodejs; then
+              test -n "$compatibility"
+              printf 'nodejs-next=%s\n' "$compatibility" >> "$GITHUB_OUTPUT"
+            fi
+          done < .tool-versions
+
       - name: Set up Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version-file: .tool-versions
+          node-version: ${{ steps.pins.outputs.nodejs }}
           package-manager-cache: false
       - name: Activate the declared pnpm with Corepack
         run: |
@@ -356,10 +382,23 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Read exact runtime pins
+        id: pins
+        shell: bash
+        run: |
+          while read -r tool version compatibility; do
+            test -n "$tool" && test -n "$version"
+            printf '%s=%s\n' "$tool" "$version" >> "$GITHUB_OUTPUT"
+            if test "$tool" = nodejs; then
+              test -n "$compatibility"
+              printf 'nodejs-next=%s\n' "$compatibility" >> "$GITHUB_OUTPUT"
+            fi
+          done < .tool-versions
+
       - name: Set up Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version-file: .tool-versions
+          node-version: ${{ steps.pins.outputs.nodejs }}
           package-manager-cache: false
       - name: Activate the declared pnpm with Corepack
         run: |
@@ -389,27 +428,12 @@ jobs:
           persist-credentials: false
       - name: Install exact notebook toolchain and frozen dependencies
         uses: ./.github/actions/notebook-tools
-      - name: Build and execute notebooks against the packed candidate
-        run: |
-          pnpm build
-          pnpm notebooks:local
-
-  notebooks-published:
-    timeout-minutes: 90 # no green run yet
-    runs-on: ubuntu-24.04
-    steps:
-      - name: Check out source
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - name: Install exact notebook toolchain and frozen dependencies
-        uses: ./.github/actions/notebook-tools
-      - name: Execute unchanged notebooks against exact registry releases
-        run: pnpm notebooks:published
+      - name: Execute notebooks against the inspected packed candidate
+        run: pnpm notebooks:local
 
   qualified:
     if: always()
-    needs: [verify, runtimes, package, browser, supply-chain, dependency-currency, notebooks-local, notebooks-published]
+    needs: [verify, runtimes, package, browser, supply-chain, dependency-currency, notebooks-local]
     runs-on: ubuntu-24.04
     timeout-minutes: 5 # Run 44210463169: green job 3s.
     steps:

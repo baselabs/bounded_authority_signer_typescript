@@ -60,7 +60,7 @@
     "test": "node --test --import tsx/esm test/*.test.ts",
     "test:portable": "node --test --conditions=bap-portable --import tsx/esm test/*.test.ts",
     "test:gates": "node --test --import tsx/esm test/gates.test.ts",
-    "test:tarball": "pnpm build && node --test --import tsx/esm test/tarball.ts test/reader.ts",
+    "test:tarball": "pnpm build && BAP_SAMPLE_MODE=candidate node --test --import tsx/esm test/tarball.ts test/reader.ts",
     "pack:release": "node tools/pack.mjs",
     "test:runtimes": "node --test --import tsx/esm test/runtimes.ts",
     "test:browser": "node --test --import tsx/esm test/browser.ts",
@@ -74,9 +74,12 @@
     "check:site": "node tools/check-site-badge.mjs",
     "docs:samples:local": "BAP_SAMPLE_MODE=candidate node --test --import tsx/esm test/reader.ts",
     "docs:samples:published": "BAP_SAMPLE_MODE=published node --test --import tsx/esm test/reader.ts",
-    "notebooks:local": "uv run --frozen python tools/check-notebooks.py --local",
-    "notebooks:published": "uv run --frozen python tools/check-notebooks.py --published",
-    "test:playground": "node --test --import tsx/esm test/playground.ts"
+    "notebooks:local": "pnpm build && uv run --frozen python scripts/check_notebooks.py --local",
+    "notebooks:published": "uv run --frozen python scripts/check_notebooks.py --published",
+    "test:playground": "BAP_SAMPLE_MODE=candidate node --test --import tsx/esm test/playground.ts",
+    "test:network:published": "node --test --import tsx/esm test/*.published.ts",
+    "docs:checks:published": "pnpm docs:samples:published && pnpm test:network:published && pnpm build && pnpm build:site && pnpm exec playwright install --with-deps chromium firefox webkit && BAP_BROWSERS=chromium,firefox,webkit pnpm test:playground:published",
+    "test:playground:published": "BAP_SAMPLE_MODE=published node --test --import tsx/esm test/playground.ts"
   },
   "dependencies": {
     "@bounded-authority-protocol/verifier": "^2.0.0"

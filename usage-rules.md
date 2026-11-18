@@ -21,3 +21,9 @@ category: Package policies
 - The host owns retries, transport, deadlines, storage, key lifecycle, authorization and effects.
 
 See [guides](README.md#documentation), [security](SECURITY.md) and [upgrading](docs/guides/upgrading.md).
+
+Qualification installs this repository's own package only from the packed candidate.
+`publish.yml` runs published notebooks and the other registry checks after each upload in the
+keyless `published-notebooks` job. That job waits up to ten minutes for npm to serve the exact
+version. A maintainer can run `pnpm notebooks:published` and `pnpm docs:checks:published` on demand
+once that version is available. The upload job and its environment gate are separate.
