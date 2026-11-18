@@ -16,6 +16,8 @@ category: Package policies
   inspected candidate or registry archives, real Deno kernels and saved Jupyter golden outputs.
 - Split notebook journeys into explained, asserted steps with computed semantic results.
 - Format every notebook cell with the pinned `deno fmt`; qualification refuses unformatted cells.
+- Build notebook key handles with the signer's WebCrypto factories; the runtimes guide explains
+  why a `node:crypto` ES256 handle is a Node.js pattern (Deno returns DER signatures).
 - Pin Python 3.15.2, uv 0.13.9, nbclient 0.11.0, nbformat 5.11.1 and jupyter-client 8.10.0;
   generate locks with pinned uv and install the notebook toolchain through one composite action.
 - Read both exact Node lanes from the valid multi-version asdf line and compare tool version fields.

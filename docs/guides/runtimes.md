@@ -38,6 +38,11 @@ however that handle is implemented. The only WebCrypto it uses is in the
 [WebCrypto key handles](webcrypto.md): `crypto.subtle.sign` with your
 non-extractable `CryptoKey`, and `exportKey("raw")` of the public key.
 
+In Deno, Bun and browsers, build handles with the [WebCrypto key handles](webcrypto.md). The
+`node:crypto` handle in the getting-started guide is a Node.js pattern: Deno's Node
+compatibility layer (checked with Deno 2.5.6) returns DER from `sign()` for a P-256 key whatever
+`dsaEncoding` asks for, and the signer refuses a DER signature.
+
 **In-page verification is display-only, never a trust decision.** If a page signs and then
 verifies an envelope (as the playground does), that result is for showing to a person. It
 must not authorize anything, feed a trust decision, or be sent anywhere as evidence of

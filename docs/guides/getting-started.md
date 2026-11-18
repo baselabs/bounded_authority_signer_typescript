@@ -18,8 +18,10 @@ npm install @bounded-authority-protocol/signer@2.0.0 @bounded-authority-protocol
 npm install --save-dev tsx
 ```
 
-First, a key handle over in-process keys, for trying the library (in production, `sign()` calls
-your KMS, HSM or WebCrypto key instead). Save it as `key-handle.ts`:
+First, a key handle over in-process Node.js keys, for trying the library (in production, `sign()`
+calls your KMS, HSM or WebCrypto key instead; in Deno, Bun or a browser, use the
+[WebCrypto key handles](webcrypto.md)).
+Save it as `key-handle.ts`:
 
 <!-- readme-sample: file key-handle.ts -->
 ```ts
