@@ -91,9 +91,6 @@
       "ignoreGhsas": [
         "GHSA-fc5q-39xc-vjpf"
       ]
-    },
-    "overrides": {
-      "typedoc>minimatch": "11.0.1"
     }
   }
 }
