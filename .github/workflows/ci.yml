@@ -190,7 +190,7 @@ jobs:
         run: pnpm test:tarball
 
   browser:
-    timeout-minutes: 5 # Run 44122886989: slowest green lane 107s.
+    timeout-minutes: 5 # Run 44210463169: slowest green lane 51s in the pinned Playwright image.
     # Real engines through Playwright under the strict CSP (an engine axis, not an OS axis: Linux only).
     # Each engine also runs the WebCrypto key-handle battery with its own keys (including a same-origin
     # iframe key) and the non-secure-context lane (http://bap.test routed by Playwright). Linux WebKit is
@@ -319,7 +319,7 @@ jobs:
     if: always()
     needs: [verify, runtimes, package, browser, supply-chain, dependency-currency]
     runs-on: ubuntu-24.04
-    timeout-minutes: 5 # no green run yet
+    timeout-minutes: 5 # Run 44210463169: green job 3s.
     steps:
       - name: Require every qualification job to succeed
         env:
