@@ -398,7 +398,7 @@ for (const id of ["contract-major", "custody"]) $(id).addEventListener("change",
 $("selector-refusal").addEventListener("click", async () => {
   const refused = await grantSigner()({ issuer: SCENE.issuer, grantId: SCENE.grantId, audiences: [SCENE.audience],
     issuedAt: SCENE.issuedAt, notBefore: SCENE.notBefore, expiresAt: SCENE.expiresAt, holderThumbprint: holder.thumb,
-    operations: [{ name: "read_record", selectors: [{ kind: "equals", path: ["record"], value: { t: "float", v: 90112 } }] }], handle(issuer));
+    operations: [{ name: "read_record", selectors: [{ kind: "equals", path: ["record"], value: { t: "float", v: 90112 } }] }] }, handle(issuer));
   $("selector-result").textContent = refused.ok ? "unexpected acceptance" : refused.error;
 });
 void reset().catch((error: unknown) => { setVerdict("fail", String(error)); document.body.dataset.ready = "error"; });

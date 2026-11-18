@@ -96,8 +96,8 @@ test("notebook qualification uses the pinned shared composite action and frozen 
   assert.ok(action.includes("pnpm install --frozen-lockfile"));
   assert.ok(action.includes("uv lock --check") && action.indexOf("uv lock --check") < action.indexOf("uv sync --frozen"));
   assert.ok(action.includes("enable-cache: false") && action.includes("save-cache: false"));
-  assert.ok(action.includes("deno --version | awk 'NR == 1 {print $2}'"));
-  assert.ok(action.includes("uv --version | awk '{print $2}'"));
+  assert.ok(action.includes("run: scripts/tool-versions.sh read nodejs deno python uv"));
+  for (const tool of ["nodejs", "deno", "python", "uv"]) assert.ok(action.includes(`scripts/tool-versions.sh check ${tool}`), tool);
   const scripts = JSON.parse(read("package.json")) as { scripts: Record<string, string> };
   for (const mode of ["local", "published"]) assert.ok(scripts.scripts[`notebooks:${mode}`]?.includes(`scripts/check_notebooks.py --${mode}`));
 });

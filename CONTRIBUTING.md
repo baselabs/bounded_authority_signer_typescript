@@ -18,18 +18,39 @@ Install the Playwright browsers with `pnpm exec playwright install --with-deps`,
 `pnpm build:site`, then run `pnpm test:browser` and `pnpm test:playground` with
 `BAP_BROWSERS=chromium,firefox,webkit`. DOM samples execute in those engines, never in Node.
 
-For notebooks, run `uv lock --check` and `uv sync --frozen`, then `pnpm notebooks:local`.
-The runner installs an isolated Deno Jupyter kernel and removes its workspace and caches afterward.
-It executes notebook cells in the real kernel, not a concatenated script. Every code cell has
-saved Jupyter output as its only golden result; compare computed meanings, never generated keys or signatures.
+For notebooks, install the exact Node, Deno, Python and uv versions in `.tool-versions` and
+activate the declared pnpm. The second Node version on the `nodejs` line is the extra
+compatibility lane; notebook checks use the first. Run `pnpm install --frozen-lockfile`,
+`uv lock --check` and `uv sync --frozen`, then `pnpm notebooks:local`.
+
+Both notebook scripts call `scripts/check_notebooks.py`. Register every notebook in
+`docs/notebooks/registry.json`: schema 1 records the package identity, exact npm package pins,
+and an ordered `notebooks` list of `file` and `title` entries. The file list must match the
+notebook directory in both directions.
+
+`--local` installs the candidate tarball from `tools/pack.mjs`, the same packer the package gate
+inspects. `--published` installs exact releases from `https://registry.npmjs.org/` and checks
+registry identity, tarball URL and SHA-512 integrity. Both compare installed files with the archive
+bytes and check in the real kernel that `npm:` imports resolve to that inspected installation.
+Notebook cells are unchanged in both modes.
+
+The runner uses nbclient and a fresh real Deno Jupyter kernel for each notebook. It never
+concatenates cells. Saved Jupyter outputs are the sole expected outputs; it normalizes stdout
+chunks, line endings, ANSI color and display counts before comparing semantic text. Assertions
+stay in each cell. Never persist keys, signatures, nonce values or wall-clock times.
+
+Missing files, unregistered notebooks, empty code, missing output, kernel errors, output
+mismatches, changed files and filesystem residue fail the run. The runner shuts down kernels
+and removes its scratch consumers, inspected tarballs, temporary kernel registration and caches,
+including on failure. Generated development API documentation is a qualification check; publication
+uses the immutable release documentation.
 
 Candidate notebook and consumer journeys install this repository's package from the packed candidate.
 `publish.yml` runs published notebooks and the other registry checks after each upload in the
 keyless `published-notebooks` job. That job waits up to ten minutes for npm to serve the exact
 version. A maintainer can run `pnpm notebooks:published` and `pnpm docs:checks:published` on demand
-once that version is available. The upload job and its environment gate are separate.
-
-The shared runner is `scripts/check_notebooks.py`; see [notebook checks](docs/notebooks/README.md).
+once that version is available. Released API checks also need the immutable release tag that
+infra creates after publication. The upload job and its environment gate are separate.
 
 Author guides under `docs/guides/`, notebooks under `docs/notebooks/`, and register notebooks in
 `docs/notebooks/registry.json`. TypeScript examples carry a `readme-sample` marker and a matching
