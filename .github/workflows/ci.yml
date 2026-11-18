@@ -378,7 +378,7 @@ jobs:
     if: always()
     needs: [verify, runtimes, package, browser, supply-chain, dependency-currency, notebooks-local]
     runs-on: ubuntu-24.04
-    timeout-minutes: 5 # Run 44210463169: green job 3s.
+    timeout-minutes: 5 # Run 44312139445: green job 6s.
     steps:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
