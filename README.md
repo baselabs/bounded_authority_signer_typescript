@@ -1146,6 +1146,9 @@ or tagged version, builds the library and API docs, packs and inspects one archi
 checks its SHA-256, and stages those bytes with `npm stage publish --provenance`. It does not
 rerun qualification or create a tag.
 
+The publication workflow publishes new versions of existing npm packages only and
+refuses a package name the registry has never had. A first publication is the owner's decision.
+
 Staging success is not publication: the owner approves the version on npmjs.com. Infra reads
 the publication back and tags the published commit. The owner then dispatches `pages.yml` from
 the default branch in environment `github-pages`; it rebuilds the site from that branch and
