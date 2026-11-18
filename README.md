@@ -201,9 +201,10 @@ Every signer returns `{ ok: true, value }` or `{ ok: false, error }`; check `ok`
 ## Notebooks
 
 Candidate notebook and consumer journeys install this repository's package from the packed candidate.
-`publish.yml` runs published notebooks and the other registry checks after each upload in the
-keyless `published-notebooks` job. That job waits up to ten minutes for npm to serve the exact
-version. A maintainer can run `pnpm notebooks:published` and `pnpm docs:checks:published` on demand
+`publish.yml` waits up to ten minutes in the upload job for npm to serve the exact inspected
+archive. Pending owner approval fails that run clearly; dispatch the same commit after approval.
+The keyless `published-notebooks` job runs only after byte-for-byte registry read-back succeeds.
+A maintainer can run `pnpm notebooks:published` and `pnpm docs:checks:published` on demand
 once that version is available. The upload job and its environment gate are separate.
 
 Jupyter notebooks use the Deno kernel and exact published npm releases. See [launch instructions](docs/notebooks/README.md).
@@ -217,6 +218,12 @@ Jupyter notebooks use the Deno kernel and exact published npm releases. See [lau
 ## Security
 
 Report vulnerabilities through [SECURITY.md](SECURITY.md). Read [usage rules](usage-rules.md) before integrating.
+
+Verify npm registry provenance for the installed package with `npm audit signatures`.
+Download `package.tgz` and `SHA256SUMS` from the corresponding
+[GitHub release](https://github.com/baselabs/bounded_authority_signer_typescript/releases),
+named `v<version>`, and run `sha256sum --check SHA256SUMS` in their download directory.
+Infra creates that release only after comparing its archive with the npm registry bytes.
 
 ## Development
 

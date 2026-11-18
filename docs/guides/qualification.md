@@ -43,18 +43,23 @@ category: Guides
 CI runs on Linux (`ubuntu-24.04`). Linux WebKit is evidence for this code on that WebKit build,
 not for Safari. Qualification runs every candidate lane before a release commit lands. The owner then
 dispatches `publish.yml` from the default branch in environment `publish`. It installs the exact
-`.tool-versions` runtime and declared pnpm with frozen dependencies, refuses an already published
-or tagged version, builds the library and API docs, packs and inspects one archive, records and
-checks its SHA-256, and stages those bytes with `npm stage publish --provenance`. It does not
-rerun qualification or create a tag.
+`.tool-versions` runtime and declared pnpm with frozen dependencies, refuses a tagged version,
+builds the library and API docs, packs and inspects one archive, and checks its SHA-256.
+An already served version must have the inspected archive's SHA-512 and must not be deprecated;
+otherwise it stages the archive with `npm stage publish --provenance`. An existing pending
+stage is refused without replacement. The job reads back the exact archive bytes before
+succeeding; pending approval after ten minutes fails the run. It does not rerun qualification
+or create a tag.
 
 Candidate notebook and consumer journeys install this repository's package from the packed candidate.
-`publish.yml` runs published notebooks and the other registry checks after each upload in the
-keyless `published-notebooks` job. That job waits up to ten minutes for npm to serve the exact
-version. A maintainer can run `pnpm notebooks:published` and `pnpm docs:checks:published` on demand
+`publish.yml` waits up to ten minutes in the upload job for npm to serve the exact inspected
+archive. Pending owner approval fails that run clearly; dispatch the same commit after approval.
+The keyless `published-notebooks` job runs only after byte-for-byte registry read-back succeeds.
+A maintainer can run `pnpm notebooks:published` and `pnpm docs:checks:published` on demand
 once that version is available. The upload job and its environment gate are separate.
 
-The released API check also requires the release tag that infra creates after publication.
+Before the released API checks, the job waits up to ten minutes for infra's release tag
+and refuses a tag on a different commit.
 
 The publication workflow publishes new versions of existing npm packages only and
 refuses a package name the registry has never had. A first publication is the owner's decision.
@@ -63,3 +68,9 @@ Staging success is not publication: the owner approves the version on npmjs.com.
 the publication back and tags the published commit. The owner then dispatches `pages.yml` from
 the default branch in environment `github-pages`; it rebuilds the site from that branch and
 the API reference from the tag matching npm latest. Registry or Pages read failures fail closed.
+
+Verify npm registry provenance with `npm audit signatures` and compare the archive and
+`SHA256SUMS` from the corresponding
+[GitHub release](https://github.com/baselabs/bounded_authority_signer_typescript/releases),
+named `v<version>`, using `sha256sum --check SHA256SUMS` in their download directory.
+Infra creates that release after comparing the archive with the npm registry bytes.
