@@ -45,7 +45,7 @@ An issuer role is a local handle property, not a credential. The resource select
 ## Install
 
 ```bash
-npm install @bounded-authority-protocol/signer@2.0.0 @bounded-authority-protocol/verifier@2.0.0
+npm install @bounded-authority-protocol/signer@2.0.1 @bounded-authority-protocol/verifier@2.0.1
 ```
 
 Node.js 22 or later; ESM. Install both packages whenever your code imports both.
@@ -61,7 +61,7 @@ module project (the examples use top-level `await`), install both packages, and 
 <!-- readme-sample: setup -->
 ```bash
 npm init -y && npm pkg set type=module
-npm install @bounded-authority-protocol/signer@2.0.0 @bounded-authority-protocol/verifier@2.0.0
+npm install @bounded-authority-protocol/signer@2.0.1 @bounded-authority-protocol/verifier@2.0.1
 npm install --save-dev tsx
 ```
 

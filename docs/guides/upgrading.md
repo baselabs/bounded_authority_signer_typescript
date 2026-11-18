@@ -35,7 +35,7 @@ Before 1.0 the minor position was the breaking boundary. Every release's changes
 
 ## Supported migration routes
 
-From package 1.x, pair signer 2.0.0 with verifier 2.0.0 and replace float-tagged integral
+From package 1.x, pair signer 2.0.1 with verifier 2.0.1 and replace float-tagged integral
 selector values with `int`. The [error guide](errors.md#float-tagged-integral-selector-values)
 executes both the refused old shape and accepted replacement on every grant signer.
 

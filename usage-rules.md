@@ -6,7 +6,7 @@ category: Package policies
 # Signer usage rules
 
 - Import from `@bounded-authority-protocol/signer`; deep paths are closed.
-- Pair `@bounded-authority-protocol/signer@2.0.0` with `@bounded-authority-protocol/verifier@2.0.0` in examples. Choose a wire major explicitly at both ends.
+- Pair `@bounded-authority-protocol/signer@2.0.1` with `@bounded-authority-protocol/verifier@2.0.1` in examples. Choose a wire major explicitly at both ends.
 - Keep private key bytes in caller-owned custody; give the package a handle, public keys and signatures.
 - Grants require an atomic issuer-role signing identity; role is not externally trusted authority.
 - Ed25519 uses 32-byte public keys and 64-byte signatures. ES256 uses 65-byte uncompressed P-256

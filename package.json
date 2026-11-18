@@ -1,6 +1,6 @@
 {
   "name": "@bounded-authority-protocol/signer",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Holder/issuer companion signer for the Bounded Authority Protocol. Signs proofs, grants, boundary anchors, and key transitions through a caller-owned key handle whose private key never enters the library.",
   "license": "Apache-2.0",
   "keywords": [
@@ -83,7 +83,7 @@
     "test:playground:published": "BAP_SAMPLE_MODE=published node --test --import tsx/esm test/playground.ts"
   },
   "dependencies": {
-    "@bounded-authority-protocol/verifier": "^2.0.0"
+    "@bounded-authority-protocol/verifier": "^2.0.1"
   },
   "devDependencies": {
     "@noble/curves": "^2.4.0",

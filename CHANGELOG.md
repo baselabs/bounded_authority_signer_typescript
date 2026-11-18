@@ -5,7 +5,10 @@ category: Package policies
 
 # Changelog
 
-## [Unreleased]
+## [2.0.1] (2026-11-18)
+
+2.0.1 is a patch release: the API is unchanged; it requires verifier `^2.0.1` and ships the
+integrator guides, notebooks and packaged docs.
 
 - Resume held npm publication only when the served SHA-512 and archive bytes match; refuse
   deprecated, changed or pending staged versions. Preserve inspected archives and checksums

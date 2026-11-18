@@ -5,7 +5,7 @@ category: Guides
 
 # Choose a contract major
 
-`@bounded-authority-protocol/signer@2.0.0` pairs with `@bounded-authority-protocol/verifier@2.0.0`. Package majors and wire contract majors are separate.
+`@bounded-authority-protocol/signer@2.0.1` pairs with `@bounded-authority-protocol/verifier@2.0.1`. Package majors and wire contract majors are separate.
 Select one wire major explicitly at both ends; there is no negotiation or permissive parser.
 
 | Wire contract | Suite | Grant and proof | Verifier |
