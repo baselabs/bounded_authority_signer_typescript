@@ -2,7 +2,9 @@
 
 ## [Unreleased]
 
-- CI runs on every push to `main` and `kci/**`: the push trigger has no `paths-ignore`, because a
+- Audit locked dependencies in CI and move TypeDoc’s `minimatch` dependency from 10.2.6 to the first fixed version, 11.0.1.
+
+- CI runs only on pushes to `kci/**`: the trigger has no `paths-ignore`, because a
   landing candidate whose files were all filtered gets no run and cannot land.
 
 - Rebuild Pages after approved npm publication through registry reconciliation. Check all built

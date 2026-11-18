@@ -1139,15 +1139,17 @@ measurement in [`tools/bundle-size-limits.json`](tools/bundle-size-limits.json).
   pinned packages from npm and `npx tsx`, and checks that the pinned versions are npm's latest.
 
 CI runs on Linux (`ubuntu-24.04`). Linux WebKit is evidence for this code on that WebKit build,
-not for Safari. The release workflow packs the release tarball once and records its SHA-256, runs
-every lane on Node 24.19.0 against that tarball, then repacks the tagged tree in the publish job and
-stages that tarball only if its SHA-256 matches, for a person to approve; packages are published
-with npm provenance.
+not for Safari. Qualification runs every lane before a release commit lands. The owner then
+dispatches `publish.yml` from the default branch in environment `publish`. It installs the exact
+`.tool-versions` runtime and declared pnpm with frozen dependencies, refuses an already published
+or tagged version, builds the library and API docs, packs and inspects one archive, records and
+checks its SHA-256, and stages those bytes with `npm stage publish --provenance`. It does not
+rerun qualification or create a tag.
 
-After human approval makes npm latest available, Pages checks the registry against its deployed
-`api/release.json` at minutes 17 and 47 of each hour and rebuilds only when they differ. The
-release workflow's staging success is not publication. Registry or Pages read failures fail
-closed; push and manual Pages runs still rebuild the site. GitHub may delay scheduled runs.
+Staging success is not publication: the owner approves the version on npmjs.com. Infra reads
+the publication back and tags the published commit. The owner then dispatches `pages.yml` from
+the default branch in environment `github-pages`; it rebuilds the site from that branch and
+the API reference from the tag matching npm latest. Registry or Pages read failures fail closed.
 
 ## Versioning and compatibility
 

@@ -52,6 +52,8 @@ package signs with a key other than the handle's, returns an artifact its own ch
 refused, or puts key material, nonce values or report content into an error or event, is about
 this package.
 
-Releases from 0.1.1 on are published from this repository's release workflow through npm trusted
-publishing with provenance; `npm audit signatures` verifies the registry signatures and attestations
+Releases from 0.1.1 on carry npm trusted-publishing provenance. The owner dispatches
+`publish.yml` from the default branch in environment `publish` to build, inspect and stage the
+archive with provenance; approval on npmjs.com completes publication before infra tags it.
+For an installed copy, `npm audit signatures` verifies the registry signatures and attestations
 of an install.
