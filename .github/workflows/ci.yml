@@ -13,7 +13,7 @@ concurrency:
 
 jobs:
   verify:
-    timeout-minutes: 90 # no green run yet for the expanded documentation gates.
+    timeout-minutes: 5 # Run 44312139445: slowest green lane 72s.
     name: typecheck, lint, browser guards, size, unit, gates, oracle, node lanes (both verifier backends) (${{ matrix.os }}, node ${{ matrix.node }})
     strategy:
       fail-fast: false
@@ -156,7 +156,7 @@ jobs:
         run: pnpm test:runtimes
 
   package:
-    timeout-minutes: 90 # no green run yet for candidate documentation journeys.
+    timeout-minutes: 5 # Run 44312139445: green job 39s.
     # The packed tarball as a consumer receives it: typecheck with skipLibCheck false under each
     # resolution, lib and condition set, the leaked-type red-proof, the installed package run on
     # Node (both verifier backends), Deno and Bun, and the closed deep-import surface probed on
@@ -211,7 +211,7 @@ jobs:
         run: pnpm test:tarball
 
   browser:
-    timeout-minutes: 90 # no green run yet for the built playground and all DOM examples.
+    timeout-minutes: 5 # Run 44312139445: slowest green lane 89s.
     # Real engines through Playwright under the strict CSP (an engine axis, not an OS axis: Linux only).
     # Each engine also runs the WebCrypto key-handle battery with its own keys (including a same-origin
     # iframe key) and the non-secure-context lane (http://bap.test routed by Playwright). Linux WebKit is
@@ -357,7 +357,7 @@ jobs:
         run: node tools/check-currency.mjs
 
   notebooks-local:
-    timeout-minutes: 90 # no green run yet
+    timeout-minutes: 5 # Run 44312139445: green job 36s.
     runs-on: ubuntu-24.04
     steps:
       - name: Check out source
