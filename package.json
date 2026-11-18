@@ -78,6 +78,7 @@
     "notebooks:published": "uv run --frozen python scripts/check_notebooks.py --published",
     "test:playground": "BAP_SAMPLE_MODE=candidate node --test --import tsx/esm test/playground.ts",
     "test:network:published": "node --test --import tsx/esm test/*.published.ts",
+    "test:network:pages": "node --test --import tsx/esm test/*.pages.ts",
     "docs:checks:published": "pnpm docs:samples:published && pnpm test:network:published && pnpm build && pnpm build:site && pnpm exec playwright install --with-deps chromium firefox webkit && BAP_BROWSERS=chromium,firefox,webkit pnpm test:playground:published",
     "test:playground:published": "BAP_SAMPLE_MODE=published node --test --import tsx/esm test/playground.ts"
   },
