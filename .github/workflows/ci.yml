@@ -34,15 +34,7 @@ jobs:
       - name: Read exact runtime pins
         id: pins
         shell: bash
-        run: |
-          while read -r tool version compatibility; do
-            test -n "$tool" && test -n "$version"
-            printf '%s=%s\n' "$tool" "$version" >> "$GITHUB_OUTPUT"
-            if test "$tool" = nodejs; then
-              test -n "$compatibility"
-              printf 'nodejs-next=%s\n' "$compatibility" >> "$GITHUB_OUTPUT"
-            fi
-          done < .tool-versions
+        run: scripts/tool-versions.sh read nodejs
 
       - name: Set up Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -59,9 +51,8 @@ jobs:
           test "pnpm@$(pnpm --version)" = "$manager"
       - name: Refuse a different Node version
         env:
-          EXPECTED_NODE: ${{ steps.pins.outputs[matrix.node] }}
-        run: |
-          test "$(node --version)" = "v$EXPECTED_NODE" || { echo "::error::Node must be exactly $EXPECTED_NODE"; exit 1; }
+          NODE_LANE: ${{ matrix.node == 'nodejs-next' && 'next' || 'primary' }}
+        run: scripts/tool-versions.sh check nodejs "$NODE_LANE"
 
       - name: Install (frozen lockfile)
         run: pnpm install --frozen-lockfile
@@ -121,15 +112,7 @@ jobs:
       - name: Read exact runtime pins
         id: pins
         shell: bash
-        run: |
-          while read -r tool version compatibility; do
-            test -n "$tool" && test -n "$version"
-            printf '%s=%s\n' "$tool" "$version" >> "$GITHUB_OUTPUT"
-            if test "$tool" = nodejs; then
-              test -n "$compatibility"
-              printf 'nodejs-next=%s\n' "$compatibility" >> "$GITHUB_OUTPUT"
-            fi
-          done < .tool-versions
+        run: scripts/tool-versions.sh read nodejs deno bun
 
       - name: Set up Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -144,9 +127,7 @@ jobs:
           corepack prepare "$manager" --activate
           test "pnpm@$(pnpm --version)" = "$manager"
       - name: Refuse a different Node version
-        run: |
-          expected="$(awk '$1 == "nodejs" {print $2}' .tool-versions)"
-          test "$(node --version)" = "v$expected" || { echo "::error::Node must be exactly $expected"; exit 1; }
+        run: scripts/tool-versions.sh check nodejs
 
       - name: Set up Deno
         if: matrix.runtime == 'deno'
@@ -161,12 +142,9 @@ jobs:
           bun-version: ${{ steps.pins.outputs.bun }}
 
       - name: Refuse a different runtime version
-        shell: bash
         env:
           RUNTIME: ${{ matrix.runtime }}
-        run: |
-          if test "$RUNTIME" = deno; then test "$(deno --version | awk 'NR == 1 {print $2}')" = "${{ steps.pins.outputs.deno }}"; fi
-          if test "$RUNTIME" = bun; then test "$(bun --version)" = "${{ steps.pins.outputs.bun }}"; fi
+        run: scripts/tool-versions.sh check "$RUNTIME"
 
       - name: Install (frozen lockfile)
         run: pnpm install --frozen-lockfile
@@ -193,15 +171,7 @@ jobs:
       - name: Read exact runtime pins
         id: pins
         shell: bash
-        run: |
-          while read -r tool version compatibility; do
-            test -n "$tool" && test -n "$version"
-            printf '%s=%s\n' "$tool" "$version" >> "$GITHUB_OUTPUT"
-            if test "$tool" = nodejs; then
-              test -n "$compatibility"
-              printf 'nodejs-next=%s\n' "$compatibility" >> "$GITHUB_OUTPUT"
-            fi
-          done < .tool-versions
+        run: scripts/tool-versions.sh read nodejs deno bun
 
       - name: Set up Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -216,9 +186,7 @@ jobs:
           corepack prepare "$manager" --activate
           test "pnpm@$(pnpm --version)" = "$manager"
       - name: Refuse a different Node version
-        run: |
-          expected="$(awk '$1 == "nodejs" {print $2}' .tool-versions)"
-          test "$(node --version)" = "v$expected" || { echo "::error::Node must be exactly $expected"; exit 1; }
+        run: scripts/tool-versions.sh check nodejs
 
       - name: Set up Deno
         uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
@@ -231,10 +199,9 @@ jobs:
           bun-version: ${{ steps.pins.outputs.bun }}
 
       - name: Refuse different runtime versions
-        shell: bash
         run: |
-          test "$(deno --version | awk 'NR == 1 {print $2}')" = "${{ steps.pins.outputs.deno }}"
-          test "$(bun --version)" = "${{ steps.pins.outputs.bun }}"
+          scripts/tool-versions.sh check deno
+          scripts/tool-versions.sh check bun
 
       - name: Install (frozen lockfile)
         run: pnpm install --frozen-lockfile
@@ -268,15 +235,7 @@ jobs:
       - name: Read exact runtime pins
         id: pins
         shell: bash
-        run: |
-          while read -r tool version compatibility; do
-            test -n "$tool" && test -n "$version"
-            printf '%s=%s\n' "$tool" "$version" >> "$GITHUB_OUTPUT"
-            if test "$tool" = nodejs; then
-              test -n "$compatibility"
-              printf 'nodejs-next=%s\n' "$compatibility" >> "$GITHUB_OUTPUT"
-            fi
-          done < .tool-versions
+        run: scripts/tool-versions.sh read nodejs
 
       - name: Set up Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -291,9 +250,7 @@ jobs:
           corepack prepare "$manager" --activate
           test "pnpm@$(pnpm --version)" = "$manager"
       - name: Refuse a different Node version
-        run: |
-          expected="$(awk '$1 == "nodejs" {print $2}' .tool-versions)"
-          test "$(node --version)" = "v$expected" || { echo "::error::Node must be exactly $expected"; exit 1; }
+        run: scripts/tool-versions.sh check nodejs
 
       - name: Install (frozen lockfile)
         run: pnpm install --frozen-lockfile
@@ -334,15 +291,7 @@ jobs:
       - name: Read exact runtime pins
         id: pins
         shell: bash
-        run: |
-          while read -r tool version compatibility; do
-            test -n "$tool" && test -n "$version"
-            printf '%s=%s\n' "$tool" "$version" >> "$GITHUB_OUTPUT"
-            if test "$tool" = nodejs; then
-              test -n "$compatibility"
-              printf 'nodejs-next=%s\n' "$compatibility" >> "$GITHUB_OUTPUT"
-            fi
-          done < .tool-versions
+        run: scripts/tool-versions.sh read nodejs
 
       - name: Set up Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -357,9 +306,7 @@ jobs:
           corepack prepare "$manager" --activate
           test "pnpm@$(pnpm --version)" = "$manager"
       - name: Refuse a different Node version
-        run: |
-          expected="$(awk '$1 == "nodejs" {print $2}' .tool-versions)"
-          test "$(node --version)" = "v$expected" || { echo "::error::Node must be exactly $expected"; exit 1; }
+        run: scripts/tool-versions.sh check nodejs
 
       - name: Install (frozen lockfile)
         run: pnpm install --frozen-lockfile
@@ -385,15 +332,7 @@ jobs:
       - name: Read exact runtime pins
         id: pins
         shell: bash
-        run: |
-          while read -r tool version compatibility; do
-            test -n "$tool" && test -n "$version"
-            printf '%s=%s\n' "$tool" "$version" >> "$GITHUB_OUTPUT"
-            if test "$tool" = nodejs; then
-              test -n "$compatibility"
-              printf 'nodejs-next=%s\n' "$compatibility" >> "$GITHUB_OUTPUT"
-            fi
-          done < .tool-versions
+        run: scripts/tool-versions.sh read nodejs
 
       - name: Set up Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -408,9 +347,7 @@ jobs:
           corepack prepare "$manager" --activate
           test "pnpm@$(pnpm --version)" = "$manager"
       - name: Refuse a different Node version
-        run: |
-          expected="$(awk '$1 == "nodejs" {print $2}' .tool-versions)"
-          test "$(node --version)" = "v$expected" || { echo "::error::Node must be exactly $expected"; exit 1; }
+        run: scripts/tool-versions.sh check nodejs
 
       - name: Install (frozen lockfile)
         run: pnpm install --frozen-lockfile
@@ -437,6 +374,19 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5 # Run 44210463169: green job 3s.
     steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Read exact Python pin
+        id: pins
+        run: scripts/tool-versions.sh read python
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: ${{ steps.pins.outputs.python }}
+      - name: Refuse a different Python version
+        run: scripts/tool-versions.sh check python
       - name: Require every qualification job to succeed
         env:
           NEEDS_JSON: ${{ toJSON(needs) }}

@@ -7,6 +7,9 @@ category: Package policies
 
 ## [Unreleased]
 
+- Use one strict tool-version reader for workflow installation and runtime checks, including
+  the primary and compatibility Node lanes. Gate post-upload checks with the upload condition.
+
 - Qualify only the packed candidate; run exact-version npm notebook, sample and registry checks
   after upload in a separate keyless publication job.
 - Standardize notebook execution on `scripts/check_notebooks.py`, a versioned notebook registry,
