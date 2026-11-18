@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- Run every browser lane in the digest-pinned official Playwright 1.65.1 Noble image with preinstalled browsers and OS packages; refuse a different installed Playwright version before testing.
 - Audit locked dependencies in CI.
 
 - CI runs only on pushes to `kci/**`: the trigger has no `paths-ignore`, because a
