@@ -34,6 +34,7 @@ import { defaultProofId } from "./proof-id.js";
  * normalizes it to low-S before emission), `publicKey()` the 65-byte uncompressed SEC1 point
  * (`0x04 || x || y`, on P-256), and `thumbprint()` the RFC 7638 EC thumbprint (base64url). Every method
  * may return a Promise. The private key never enters this library.
+ * @see [Guide](https://github.com/baselabs/bounded_authority_signer_typescript/blob/main/docs/guides/api-overview.md)
  */
 export interface Es256KeyHandle {
   /** Sign a copy of the standard JWS signing input using caller-owned custody. Return 64-byte raw `r || s`; the signer normalizes high-S signatures. */
@@ -58,7 +59,9 @@ export interface Es256KeyHandle {
   signingIdentity?(): Promise<AtomicSigningIdentity> | AtomicSigningIdentity;
 }
 
-/** A telemetry event from a v3 signer, passed to {@link V3SignOpts.onEvent}. */
+/** A telemetry event from a v3 signer, passed to {@link V3SignOpts.onEvent}.
+ * @see [Guide](https://github.com/baselabs/bounded_authority_signer_typescript/blob/main/docs/guides/api-overview.md)
+ */
 export interface V3SignerEvent {
   /** The signing operation that emitted this event. */
   readonly kind: "v3_report" | "v3_anchor" | "v3_grant" | "v3_key_transition";
@@ -66,7 +69,9 @@ export interface V3SignerEvent {
   readonly phase: "start" | "stop" | "error";
 }
 
-/** Options for the v3 signers: the same fields and defaults as `SignOpts`, with v3 event kinds. */
+/** Options for the v3 signers: the same fields and defaults as `SignOpts`, with v3 event kinds.
+ * @see [Guide](https://github.com/baselabs/bounded_authority_signer_typescript/blob/main/docs/guides/api-overview.md)
+ */
 export interface V3SignOpts {
   /** Size limits passed to the v3 producers and assembler. */
   readonly bounds?: Bounds;
@@ -80,7 +85,9 @@ export interface V3SignOpts {
   readonly onEvent?: (event: V3SignerEvent) => void;
 }
 
-/** The request a v3 holder proof binds (`signV3Report`); the fields mean what they mean in `ReportInput`. */
+/** The request a v3 holder proof binds (`signV3Report`); the fields mean what they mean in `ReportInput`.
+ * @see [Guide](https://github.com/baselabs/bounded_authority_signer_typescript/blob/main/docs/guides/api-overview.md)
+ */
 export interface V3ReportInput {
   /** The signed grant as ASCII compact JWS bytes; included unchanged in the returned envelope. */
   readonly grantCompact: Uint8Array;
@@ -98,7 +105,9 @@ export interface V3ReportInput {
   readonly nonce?: string;
 }
 
-/** A v3 boundary anchor (`signV3Anchor`); the fields mean what they mean in `AnchorInput`. */
+/** A v3 boundary anchor (`signV3Anchor`); the fields mean what they mean in `AnchorInput`.
+ * @see [Guide](https://github.com/baselabs/bounded_authority_signer_typescript/blob/main/docs/guides/api-overview.md)
+ */
 export interface V3AnchorInput {
   /** A non-empty identifier for this boundary anchor. */
   readonly anchorId: string;
@@ -110,7 +119,9 @@ export interface V3AnchorInput {
   readonly chainHash: Uint8Array; // 32 bytes
 }
 
-/** A v3 capability grant (`signV3Grant`); the fields mean what they mean in `GrantInput`, with the v2 selector kinds and an EC holder thumbprint. */
+/** A v3 capability grant (`signV3Grant`); the fields mean what they mean in `GrantInput`, with the v2 selector kinds and an EC holder thumbprint.
+ * @see [Guide](https://github.com/baselabs/bounded_authority_signer_typescript/blob/main/docs/guides/api-overview.md)
+ */
 export interface V3GrantInput {
   /** The issuer identifier as a StringOrURI, for example https://issuer.example. */
   readonly issuer: string;
@@ -130,7 +141,9 @@ export interface V3GrantInput {
   readonly operations: readonly V3OperationInput[];
 }
 
-/** A v3 key transition (`signV3KeyTransition`); `nextPublicKey` is a 65-byte uncompressed P-256 point. */
+/** A v3 key transition (`signV3KeyTransition`); `nextPublicKey` is a 65-byte uncompressed P-256 point.
+ * @see [Guide](https://github.com/baselabs/bounded_authority_signer_typescript/blob/main/docs/guides/api-overview.md)
+ */
 export interface V3TransitionInput {
   /** A non-empty identifier for the key transition. */
   readonly transitionId: string;
@@ -179,7 +192,40 @@ function validateReport(report: V3ReportInput): SignerResult<V3ReportInput> {
  *
  * @returns `{ ok: true, value: { grant, proof } }`, or `invalid_report`, `invalid_key_handle`
  *   (including a public key that is not an uncompressed point on P-256), `producer_error` or `signing_failed`.
- * @example https://github.com/baselabs/bounded_authority_signer_typescript#contract-major-3-es256
+ * @category Grant and proof — major 3
+ * @see [Integrator guide](https://github.com/baselabs/bounded_authority_signer_typescript/blob/main/docs/guides/contract-major-3.md)
+ * @example
+ * <!-- readme-sample: run-dom -->
+ * ```ts
+ * import { es256KeyHandle, signV3Grant, signV3Report } from "@bounded-authority-protocol/signer";
+ * // WebKit for Linux can transiently refuse key generation; retry only OperationError.
+ * async function generatePair(algorithm: Algorithm | EcKeyGenParams, extractable = false): Promise<CryptoKeyPair> {
+ *   for (let attempt = 0; attempt < 3; attempt++) {
+ *     try { return await crypto.subtle.generateKey(algorithm, extractable, ["sign", "verify"]) as CryptoKeyPair; }
+ *     catch (error) { if ((error as { name?: string }).name !== "OperationError" || attempt === 2) throw error; }
+ *   }
+ *   throw new Error("key generation failed");
+ * }
+ *
+ * const pair = await generatePair({ name: "ECDSA", namedCurve: "P-256" });
+ * const made = await es256KeyHandle(pair, { keyId: "example-key", role: "issuer" });
+ * if (!made.ok) throw new Error(made.error);
+ * const grant = await signV3Grant({ issuer: "https://issuer.example", grantId: "urn:example:grant:1",
+ *   audiences: ["https://resource.example"], issuedAt: 1000, notBefore: 1000, expiresAt: 2000,
+ *   holderThumbprint: await made.value.thumbprint(),
+ *   operations: [{ name: "read", selectors: [{ kind: "all" }] }] }, made.value);
+ * if (!grant.ok) throw new Error(grant.error);
+ * const result = await signV3Report({ grantCompact: grant.value.grant, operation: "read", method: "POST",
+ *   targetUri: "https://resource.example/read", invocationId: "550e8400-e29b-41d4-a716-446655440000",
+ *   castArguments: { t: "null" } }, made.value, { issuedAt: 1500, proofId: "urn:example:proof:1" });
+ * if (!result.ok) throw new Error(result.error);
+ * if (new TextDecoder().decode(result.value.proof).split(".").length !== 3) throw new Error("missing compact");
+ * console.log("signV3Report: compact assembled");
+ * ```
+ * <!-- readme-output -->
+ * ```text
+ * signV3Report: compact assembled
+ * ```
  */
 export async function signV3Report(report: V3ReportInput, handle: Es256KeyHandle, opts: V3SignOpts = {}): Promise<SignerResult<Envelope>> {
   const emit = emitter(opts, "v3_report");
@@ -213,7 +259,34 @@ export async function signV3Report(report: V3ReportInput, handle: Es256KeyHandle
  * Sign a contract-major-3 (ES256) boundary anchor. Needs `handle.keyIdentity()`.
  *
  * @returns `{ ok: true, value: { anchor } }`, or `invalid_anchor`, `invalid_key_handle`, `producer_error` or `signing_failed`.
- * @example https://github.com/baselabs/bounded_authority_signer_typescript#contract-major-3-es256
+ * @category Anchors and transitions — major 3
+ * @see [Integrator guide](https://github.com/baselabs/bounded_authority_signer_typescript/blob/main/docs/guides/rotate-keys.md)
+ * @example
+ * <!-- readme-sample: run-dom -->
+ * ```ts
+ * import { es256KeyHandle, signV3Anchor } from "@bounded-authority-protocol/signer";
+ * // WebKit for Linux can transiently refuse key generation; retry only OperationError.
+ * async function generatePair(algorithm: Algorithm | EcKeyGenParams, extractable = false): Promise<CryptoKeyPair> {
+ *   for (let attempt = 0; attempt < 3; attempt++) {
+ *     try { return await crypto.subtle.generateKey(algorithm, extractable, ["sign", "verify"]) as CryptoKeyPair; }
+ *     catch (error) { if ((error as { name?: string }).name !== "OperationError" || attempt === 2) throw error; }
+ *   }
+ *   throw new Error("key generation failed");
+ * }
+ *
+ * const pair = await generatePair({ name: "ECDSA", namedCurve: "P-256" });
+ * const made = await es256KeyHandle(pair, { keyId: "example-key", role: "issuer" });
+ * if (!made.ok) throw new Error(made.error);
+ * const result = await signV3Anchor({ anchorId: "urn:example:anchor:0", chainId: "urn:example:chain:1",
+ *   sequence: 0, chainHash: new Uint8Array(32) }, made.value, { anchoredAt: 1500 });
+ * if (!result.ok) throw new Error(result.error);
+ * if (new TextDecoder().decode(result.value.anchor).split(".").length !== 3) throw new Error("missing compact");
+ * console.log("signV3Anchor: compact assembled");
+ * ```
+ * <!-- readme-output -->
+ * ```text
+ * signV3Anchor: compact assembled
+ * ```
  */
 export async function signV3Anchor(input: V3AnchorInput, handle: Es256KeyHandle, opts: V3SignOpts = {}): Promise<SignerResult<AnchorCompact>> {
   const emit = emitter(opts, "v3_anchor");
@@ -241,7 +314,36 @@ export async function signV3Anchor(input: V3AnchorInput, handle: Es256KeyHandle,
  * Sign a contract-major-3 (ES256) capability grant. Issuer-only: the issuer-role gate of `signGrant` applies.
  *
  * @returns `{ ok: true, value: { grant } }`, or `invalid_grant`, `invalid_key_handle`, `producer_error` or `signing_failed`.
- * @example https://github.com/baselabs/bounded_authority_signer_typescript#contract-major-3-es256
+ * @category Grant and proof — major 3
+ * @see [Integrator guide](https://github.com/baselabs/bounded_authority_signer_typescript/blob/main/docs/guides/contract-major-3.md)
+ * @example
+ * <!-- readme-sample: run-dom -->
+ * ```ts
+ * import { es256KeyHandle, signV3Grant } from "@bounded-authority-protocol/signer";
+ * // WebKit for Linux can transiently refuse key generation; retry only OperationError.
+ * async function generatePair(algorithm: Algorithm | EcKeyGenParams, extractable = false): Promise<CryptoKeyPair> {
+ *   for (let attempt = 0; attempt < 3; attempt++) {
+ *     try { return await crypto.subtle.generateKey(algorithm, extractable, ["sign", "verify"]) as CryptoKeyPair; }
+ *     catch (error) { if ((error as { name?: string }).name !== "OperationError" || attempt === 2) throw error; }
+ *   }
+ *   throw new Error("key generation failed");
+ * }
+ *
+ * const pair = await generatePair({ name: "ECDSA", namedCurve: "P-256" });
+ * const made = await es256KeyHandle(pair, { keyId: "example-key", role: "issuer" });
+ * if (!made.ok) throw new Error(made.error);
+ * const result = await signV3Grant({ issuer: "https://issuer.example", grantId: "urn:example:grant:1",
+ *   audiences: ["https://resource.example"], issuedAt: 1000, notBefore: 1000, expiresAt: 2000,
+ *   holderThumbprint: await made.value.thumbprint(),
+ *   operations: [{ name: "read", selectors: [{ kind: "all" }] }] }, made.value);
+ * if (!result.ok) throw new Error(result.error);
+ * if (new TextDecoder().decode(result.value.grant).split(".").length !== 3) throw new Error("missing compact");
+ * console.log("signV3Grant: compact assembled");
+ * ```
+ * <!-- readme-output -->
+ * ```text
+ * signV3Grant: compact assembled
+ * ```
  */
 export async function signV3Grant(input: V3GrantInput, handle: Es256KeyHandle, opts: V3SignOpts = {}): Promise<SignerResult<GrantCompact>> {
   const emit = emitter(opts, "v3_grant");
@@ -275,7 +377,37 @@ export async function signV3Grant(input: V3GrantInput, handle: Es256KeyHandle, o
  * Sign a contract-major-3 (ES256) key transition. Needs `handle.keyIdentity()`; `nextPublicKey` is 65 bytes.
  *
  * @returns `{ ok: true, value: { keyTransition } }`, or `invalid_transition`, `invalid_key_handle`, `producer_error` or `signing_failed`.
- * @example https://github.com/baselabs/bounded_authority_signer_typescript#contract-major-3-es256
+ * @category Anchors and transitions — major 3
+ * @see [Integrator guide](https://github.com/baselabs/bounded_authority_signer_typescript/blob/main/docs/guides/rotate-keys.md)
+ * @example
+ * <!-- readme-sample: run-dom -->
+ * ```ts
+ * import { es256KeyHandle, signV3KeyTransition } from "@bounded-authority-protocol/signer";
+ * // WebKit for Linux can transiently refuse key generation; retry only OperationError.
+ * async function generatePair(algorithm: Algorithm | EcKeyGenParams, extractable = false): Promise<CryptoKeyPair> {
+ *   for (let attempt = 0; attempt < 3; attempt++) {
+ *     try { return await crypto.subtle.generateKey(algorithm, extractable, ["sign", "verify"]) as CryptoKeyPair; }
+ *     catch (error) { if ((error as { name?: string }).name !== "OperationError" || attempt === 2) throw error; }
+ *   }
+ *   throw new Error("key generation failed");
+ * }
+ *
+ * const pair = await generatePair({ name: "ECDSA", namedCurve: "P-256" });
+ * const made = await es256KeyHandle(pair, { keyId: "example-key", role: "issuer" });
+ * if (!made.ok) throw new Error(made.error);
+ * const nextPair = await generatePair({ name: "ECDSA", namedCurve: "P-256" });
+ * const next = await es256KeyHandle(nextPair, { keyId: "next-key" });
+ * if (!next.ok) throw new Error(next.error);
+ * const result = await signV3KeyTransition({ transitionId: "urn:example:transition:1", chainId: "urn:example:chain:1",
+ *   effectiveAt: 1600, nextKeyId: "next-key", nextPublicKey: await next.value.publicKey() }, made.value);
+ * if (!result.ok) throw new Error(result.error);
+ * if (new TextDecoder().decode(result.value.keyTransition).split(".").length !== 3) throw new Error("missing compact");
+ * console.log("signV3KeyTransition: compact assembled");
+ * ```
+ * <!-- readme-output -->
+ * ```text
+ * signV3KeyTransition: compact assembled
+ * ```
  */
 export async function signV3KeyTransition(input: V3TransitionInput, handle: Es256KeyHandle, opts: V3SignOpts = {}): Promise<SignerResult<TransitionCompact>> {
   const emit = emitter(opts, "v3_key_transition");

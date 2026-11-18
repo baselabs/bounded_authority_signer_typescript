@@ -40,7 +40,9 @@ import { ecThumbprint, isOnCurveP256 } from "./v3.js";
 
 // --- public types: structural only (no DOM or Node global type in any public declaration) ---
 
-/** The public facts of a WebCrypto CryptoKey, structurally. A DOM CryptoKey and Node's webcrypto.CryptoKey both match. */
+/** The public facts of a WebCrypto CryptoKey, structurally. A DOM CryptoKey and Node's webcrypto.CryptoKey both match.
+ * @see [Guide](https://github.com/baselabs/bounded_authority_signer_typescript/blob/main/docs/guides/webcrypto.md)
+ */
 export interface WebCryptoKeyLike {
   /** The WebCrypto key type: "private", "public", or "secret". */
   readonly type: string;
@@ -55,7 +57,9 @@ export interface WebCryptoKeyLike {
   readonly usages: readonly string[];
 }
 
-/** A WebCrypto key pair, structurally. A DOM CryptoKeyPair and Node's webcrypto.CryptoKeyPair both match. */
+/** A WebCrypto key pair, structurally. A DOM CryptoKeyPair and Node's webcrypto.CryptoKeyPair both match.
+ * @see [Guide](https://github.com/baselabs/bounded_authority_signer_typescript/blob/main/docs/guides/webcrypto.md)
+ */
 export interface WebCryptoKeyPairLike {
   /** The caller-owned non-extractable signing key; the factory retains a usable key reference without exporting its bytes. */
   readonly privateKey: WebCryptoKeyLike;
@@ -63,7 +67,9 @@ export interface WebCryptoKeyPairLike {
   readonly publicKey: WebCryptoKeyLike;
 }
 
-/** Options for `ed25519KeyHandle` and `es256KeyHandle`, read from the object's own data properties only. */
+/** Options for `ed25519KeyHandle` and `es256KeyHandle`, read from the object's own data properties only.
+ * @see [Guide](https://github.com/baselabs/bounded_authority_signer_typescript/blob/main/docs/guides/webcrypto.md)
+ */
 export interface WebCryptoHandleOptions {
   /** Enables keyIdentity() and signingIdentity(): anchors, key transitions and grants need it. */
   readonly keyId?: string;
@@ -73,7 +79,9 @@ export interface WebCryptoHandleOptions {
 
 // --- internal ---
 
-/** The two suites: Ed25519 (majors 1 and 2, the sibling profiles) and ES256 (major 3). */
+/** The two suites: Ed25519 (majors 1 and 2, the sibling profiles) and ES256 (major 3).
+ * @see [Guide](https://github.com/baselabs/bounded_authority_signer_typescript/blob/main/docs/guides/webcrypto.md)
+ */
 export type Suite = "Ed25519" | "ES256";
 
 type Getter = (this: unknown) => unknown;
@@ -176,7 +184,9 @@ function readOptions(opts: unknown): Options | undefined {
 // signature can never be a signature over a protocol object (and handle.sign() refuses this shape).
 const PROBE = Uint8Array.from("bounded-authority-protocol signer: WebCrypto key-pair probe\u0000", (c) => c.charCodeAt(0));
 
-/** A key snapshot: the raw public key and its RFC 7638 thumbprint, captured once per handle. */
+/** A key snapshot: the raw public key and its RFC 7638 thumbprint, captured once per handle.
+ * @see [Guide](https://github.com/baselabs/bounded_authority_signer_typescript/blob/main/docs/guides/webcrypto.md)
+ */
 export interface KeySnapshot {
   /** The matching public key; exported in the suite’s raw format to bind and check signatures. */
   readonly publicKey: Uint8Array;
@@ -302,7 +312,33 @@ async function keyHandle(suite: Suite, pair: unknown, opts: unknown): Promise<Si
  * whose private key is non-extractable. Resolves { ok: false, error: "invalid_key_handle" } for anything
  * else; never throws and never rejects.
  *
- * @example https://github.com/baselabs/bounded_authority_signer_typescript#webcrypto-key-handles
+ * @category Key custody
+ * @see [Integrator guide](https://github.com/baselabs/bounded_authority_signer_typescript/blob/main/docs/guides/webcrypto.md)
+ * @example
+ * <!-- readme-sample: run-dom -->
+ * ```ts
+ * import { ed25519KeyHandle } from "@bounded-authority-protocol/signer";
+ * // WebKit for Linux can transiently refuse key generation; retry only OperationError.
+ * async function generatePair(algorithm: Algorithm | EcKeyGenParams, extractable = false): Promise<CryptoKeyPair> {
+ *   for (let attempt = 0; attempt < 3; attempt++) {
+ *     try { return await crypto.subtle.generateKey(algorithm, extractable, ["sign", "verify"]) as CryptoKeyPair; }
+ *     catch (error) { if ((error as { name?: string }).name !== "OperationError" || attempt === 2) throw error; }
+ *   }
+ *   throw new Error("key generation failed");
+ * }
+ *
+ * const pair = await generatePair({ name: "Ed25519" });
+ * const made = await ed25519KeyHandle(pair, { keyId: "example-key", role: "issuer" });
+ * if (!made.ok) throw new Error(made.error);
+ * const extractable = await generatePair({ name: "Ed25519" }, true);
+ * const refused = await ed25519KeyHandle(extractable);
+ * if (refused.ok || refused.error !== "invalid_key_handle") throw new Error("extractable pair accepted");
+ * console.log("handle built; extractable pair refused");
+ * ```
+ * <!-- readme-output -->
+ * ```text
+ * handle built; extractable pair refused
+ * ```
  */
 export function ed25519KeyHandle(pair: WebCryptoKeyPairLike, opts?: WebCryptoHandleOptions): Promise<SignerResult<KeyHandle>> {
   return keyHandle("Ed25519", pair, opts);
@@ -313,7 +349,33 @@ export function ed25519KeyHandle(pair: WebCryptoKeyPairLike, opts?: WebCryptoHan
  * key is non-extractable. Resolves { ok: false, error: "invalid_key_handle" } for anything else; never
  * throws and never rejects.
  *
- * @example https://github.com/baselabs/bounded_authority_signer_typescript#webcrypto-key-handles
+ * @category Key custody
+ * @see [Integrator guide](https://github.com/baselabs/bounded_authority_signer_typescript/blob/main/docs/guides/webcrypto.md)
+ * @example
+ * <!-- readme-sample: run-dom -->
+ * ```ts
+ * import { es256KeyHandle } from "@bounded-authority-protocol/signer";
+ * // WebKit for Linux can transiently refuse key generation; retry only OperationError.
+ * async function generatePair(algorithm: Algorithm | EcKeyGenParams, extractable = false): Promise<CryptoKeyPair> {
+ *   for (let attempt = 0; attempt < 3; attempt++) {
+ *     try { return await crypto.subtle.generateKey(algorithm, extractable, ["sign", "verify"]) as CryptoKeyPair; }
+ *     catch (error) { if ((error as { name?: string }).name !== "OperationError" || attempt === 2) throw error; }
+ *   }
+ *   throw new Error("key generation failed");
+ * }
+ *
+ * const pair = await generatePair({ name: "ECDSA", namedCurve: "P-256" });
+ * const made = await es256KeyHandle(pair, { keyId: "example-key", role: "issuer" });
+ * if (!made.ok) throw new Error(made.error);
+ * const extractable = await generatePair({ name: "ECDSA", namedCurve: "P-256" }, true);
+ * const refused = await es256KeyHandle(extractable);
+ * if (refused.ok || refused.error !== "invalid_key_handle") throw new Error("extractable pair accepted");
+ * console.log("handle built; extractable pair refused");
+ * ```
+ * <!-- readme-output -->
+ * ```text
+ * handle built; extractable pair refused
+ * ```
  */
 export function es256KeyHandle(pair: WebCryptoKeyPairLike, opts?: WebCryptoHandleOptions): Promise<SignerResult<Es256KeyHandle>> {
   return keyHandle("ES256", pair, opts);

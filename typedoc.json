@@ -2,15 +2,73 @@
   "$schema": "https://typedoc.org/schema.json",
   "tsconfig": "tsconfig.build.json",
   "out": "site-dist/api",
-  "readme": "none",
+  "readme": "README.md",
   "includeVersion": true,
   "navigationLinks": {
     "Playground": "https://baselabs.github.io/bounded_authority_signer_typescript/",
-    "Guide": "https://github.com/baselabs/bounded_authority_signer_typescript#readme"
+    "Guide": "https://github.com/baselabs/bounded_authority_signer_typescript/blob/main/docs/guides/getting-started.md"
   },
   "validation": {
-    "notDocumented": true
+    "notDocumented": true,
+    "notExported": true,
+    "invalidLink": true
   },
   "treatWarningsAsErrors": true,
-  "sourceLinkTemplate": "https://github.com/baselabs/bounded_authority_signer_typescript/blob/{gitRevision}/{path}#L{line}"
+  "sourceLinkTemplate": "https://github.com/baselabs/bounded_authority_signer_typescript/blob/{gitRevision}/{path}#L{line}",
+  "projectDocuments": [
+    "docs/guides/getting-started.md",
+    "docs/guides/concepts.md",
+    "docs/guides/api-overview.md",
+    "docs/guides/contract-majors.md",
+    "docs/guides/contract-major-2.md",
+    "docs/guides/contract-major-3.md",
+    "docs/guides/key-custody.md",
+    "docs/guides/webcrypto.md",
+    "docs/guides/remote-custody.md",
+    "docs/guides/local-loopback.md",
+    "docs/guides/rotate-keys.md",
+    "docs/guides/runtimes.md",
+    "docs/guides/security.md",
+    "docs/guides/operations.md",
+    "docs/guides/telemetry.md",
+    "docs/guides/errors.md",
+    "docs/guides/recipes.md",
+    "docs/guides/test-your-integration.md",
+    "docs/guides/upgrading.md",
+    "docs/guides/faq.md",
+    "docs/guides/glossary.md",
+    "docs/guides/cheatsheet.md",
+    "docs/guides/qualification.md",
+    "docs/notebooks/README.md",
+    "usage-rules.md",
+    "CONTRIBUTING.md",
+    "SECURITY.md",
+    "CHANGELOG.md"
+  ],
+  "requiredToBeDocumented": [
+    "Namespace",
+    "Enum",
+    "EnumMember",
+    "Variable",
+    "Function",
+    "Class",
+    "Interface",
+    "Property",
+    "Method",
+    "Accessor",
+    "TypeAlias"
+  ],
+  "categorizeByGroup": false,
+  "categoryOrder": [
+    "Grant and proof \u2014 major 1",
+    "Grant and proof \u2014 major 2",
+    "Grant and proof \u2014 major 3",
+    "Local loopback",
+    "Anchors and transitions \u2014 major 1",
+    "Anchors and transitions \u2014 major 2",
+    "Anchors and transitions \u2014 major 3",
+    "Key custody",
+    "*"
+  ],
+  "sortEntryPoints": false
 }

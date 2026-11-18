@@ -22,10 +22,14 @@
 
 import { acceptablePublicKey } from "@bounded-authority-protocol/verifier";
 
-/** A handle's role. Only an `"issuer"` identity can sign a grant (the issuer-role gate). */
+/** A handle's role. Only an `"issuer"` identity can sign a grant (the issuer-role gate).
+ * @see [Guide](https://github.com/baselabs/bounded_authority_signer_typescript/blob/main/docs/guides/key-custody.md)
+ */
 export type KeyRole = "issuer" | "holder";
 
-/** A key id and public key returned together by `keyIdentity()`, so a rotating handle cannot split them. Read from own data properties only. */
+/** A key id and public key returned together by `keyIdentity()`, so a rotating handle cannot split them. Read from own data properties only.
+ * @see [Guide](https://github.com/baselabs/bounded_authority_signer_typescript/blob/main/docs/guides/key-custody.md)
+ */
 export interface AtomicKeyIdentity {
   /** A non-empty key identifier, resolved atomically with the public key. */
   readonly keyId: string;
@@ -33,7 +37,9 @@ export interface AtomicKeyIdentity {
   readonly publicKey: Uint8Array;
 }
 
-/** `AtomicKeyIdentity` plus the role, returned together by `signingIdentity()` (grants). */
+/** `AtomicKeyIdentity` plus the role, returned together by `signingIdentity()` (grants).
+ * @see [Guide](https://github.com/baselabs/bounded_authority_signer_typescript/blob/main/docs/guides/key-custody.md)
+ */
 export interface AtomicSigningIdentity extends AtomicKeyIdentity {
   /** The claimed key role; grant signing requires "issuer". The host selects which issuer identities to trust. */
   readonly role: KeyRole;
@@ -50,7 +56,8 @@ export interface AtomicSigningIdentity extends AtomicKeyIdentity {
  * - `keyIdentity()`: required by the anchor and key-transition signers.
  * - `signingIdentity()`: required by the grant signers, with `role: "issuer"`.
  *
- * @see https://github.com/baselabs/bounded_authority_signer_typescript#the-key-handle-contract
+ * @see https://github.com/baselabs/bounded_authority_signer_typescript/blob/main/docs/guides/key-custody.md
+ * @see [Guide](https://github.com/baselabs/bounded_authority_signer_typescript/blob/main/docs/guides/key-custody.md)
  */
 export interface KeyHandle {
   /** Sign a copy of the standard JWS signing input using caller-owned custody. Return a 64-byte raw Ed25519 signature. */
@@ -68,7 +75,8 @@ export interface KeyHandle {
 /**
  * The closed set of signer error codes. No error carries key material, nonce values or report content.
  *
- * @see https://github.com/baselabs/bounded_authority_signer_typescript#errors
+ * @see https://github.com/baselabs/bounded_authority_signer_typescript/blob/main/docs/guides/errors.md
+ * @see [Guide](https://github.com/baselabs/bounded_authority_signer_typescript/blob/main/docs/guides/key-custody.md)
  */
 export type SignerErrorCode =
   | "invalid_report"
@@ -79,7 +87,9 @@ export type SignerErrorCode =
   | "signing_failed"
   | "producer_error";
 
-/** Every signer and factory result: check `ok` before reading `value`. */
+/** Every signer and factory result: check `ok` before reading `value`.
+ * @see [Guide](https://github.com/baselabs/bounded_authority_signer_typescript/blob/main/docs/guides/key-custody.md)
+ */
 export type SignerResult<T> = {
   /** True when signing or handle construction succeeded. */
   readonly ok: true;
@@ -105,7 +115,9 @@ export const err = <T = never>(error: SignerErrorCode): SignerResult<T> => ({ ok
 // inherited or polluted role, key id or key never counts. Any fault is undefined, which the signers map
 // to invalid_key_handle.
 
-/** A key check over the library's own copy (width, and for Ed25519 the verifier's acceptability). */
+/** A key check over the library's own copy (width, and for Ed25519 the verifier's acceptability).
+ * @see [Guide](https://github.com/baselabs/bounded_authority_signer_typescript/blob/main/docs/guides/key-custody.md)
+ */
 export type KeyCheck = (key: Uint8Array) => boolean;
 
 // A handle's Ed25519 public key must be 32 bytes AND acceptable to the verifier: canonical, not one of

@@ -28,7 +28,7 @@ test("API docs: exports-map discovery covers every code entry point and rejects 
       compilerOptions: { target: "ES2022", module: "NodeNext", rootDir: "src", outDir: "dist", declaration: true, types: [] },
       include: ["src/**/*.ts"],
     }));
-    writeFileSync(join(dir, "typedoc.json"), JSON.stringify({ ...options, disableSources: true }));
+    writeFileSync(join(dir, "typedoc.json"), JSON.stringify({ ...options, readme: "none", projectDocuments: [], disableSources: true }));
     const run = () => {
       const result = spawnSync(process.execPath, [join(REPO, "node_modules/typedoc/bin/typedoc")], {
         cwd: dir, encoding: "utf8", timeout: 60_000,
@@ -49,6 +49,31 @@ test("API docs: exports-map discovery covers every code entry point and rejects 
       assert.notEqual(result.status, 0, `${name}: an undocumented export must fail the build`);
       assert.match(result.output, /undocumented.*does not have any documentation/);
       writeFileSync(path, documented);
+    }
+
+    const memberPath = join(dir, "src/index.ts");
+    const memberFixture = (propertyDoc: string, methodDoc: string) => documented + `
+/** A public key identity with documented members. */
+export interface PublicIdentity {
+  ${propertyDoc}
+  readonly keyId: string;
+  ${methodDoc}
+  publicKey(): Uint8Array;
+}
+`;
+    const propertyDoc = "/** The stable key identifier. */";
+    const methodDoc = "/** Read the selected suite's public key. */";
+    writeFileSync(memberPath, memberFixture(propertyDoc, methodDoc));
+    result = run();
+    assert.equal(result.status, 0, result.output);
+    for (const [member, source] of [
+      ["keyId", memberFixture("", methodDoc)],
+      ["publicKey", memberFixture(propertyDoc, "")],
+    ]) {
+      writeFileSync(memberPath, source!);
+      result = run();
+      assert.notEqual(result.status, 0, `${member}: an undocumented member must fail the build`);
+      assert.match(result.output, new RegExp(`${member}.*does not have any documentation`));
     }
   } finally {
     rmSync(dir, { recursive: true, force: true });

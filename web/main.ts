@@ -6,37 +6,44 @@
 // verifier resolves its portable backend in the bundle, so no shim or polyfill
 // is involved. No mocks, no server.
 import { ed25519 } from "@noble/curves/ed25519.js";
-import { signGrant, signReport, type KeyHandle } from "../src/index.js";
-import { base64urlEncode, checkEnvelope, thumbprint, utf8Str } from "@bounded-authority-protocol/verifier";
+import { p256 } from "@noble/curves/nist.js";
+import { ed25519KeyHandle, es256KeyHandle, signGrant, signReport, signV2Grant, signV2Report, signV3Grant, signV3Report, type KeyHandle } from "../src/index.js";
+import { base64urlEncode, checkEnvelope, thumbprint, utf8Str, v2, v3 } from "@bounded-authority-protocol/verifier";
 
 // ---------- keys: browser custody, never inside the library ----------
 
 interface CustodyKey {
   pub: Uint8Array;
-  sign: (m: Uint8Array) => Promise<Uint8Array>;
+  handle: KeyHandle;
   mode: "WebCrypto non-extractable" | "in-page (noble)";
 }
-
-async function makeKey(): Promise<CustodyKey> {
-  try {
-    const kp = (await crypto.subtle.generateKey({ name: "Ed25519" } as Algorithm, false, ["sign"])) as CryptoKeyPair;
-    const raw = new Uint8Array(await crypto.subtle.exportKey("raw", kp.publicKey));
-    return {
-      pub: new Uint8Array(raw),
-      sign: async (m) => new Uint8Array(await crypto.subtle.sign({ name: "Ed25519" }, kp.privateKey, m as BufferSource)),
-      mode: "WebCrypto non-extractable",
-    };
-  } catch {
-    // When Ed25519 WebCrypto is unavailable, an in-page noble key keeps
-    // the same boundary: the private bytes live only in this closure.
-    const kp = ed25519.keygen();
-    return {
-      pub: new Uint8Array(kp.publicKey),
-      sign: async (m) => ed25519.sign(m, kp.secretKey),
-      mode: "in-page (noble)",
-    };
+let major: 1 | 2 | 3 = 1;
+async function makeKey(keyId: string, role: "issuer" | "holder"): Promise<CustodyKey> {
+  const suite = major;
+  const custody = (document.getElementById("custody") as HTMLSelectElement).value;
+  if (custody === "webcrypto") {
+    const algorithm = suite === 3 ? { name: "ECDSA", namedCurve: "P-256" } : { name: "Ed25519" };
+    let pair: CryptoKeyPair | undefined;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      try { pair = await crypto.subtle.generateKey(algorithm, false, ["sign", "verify"]) as CryptoKeyPair; break; }
+      catch (error) { if (!(error instanceof DOMException) || error.name !== "OperationError" || attempt === 4) throw error; }
+    }
+    if (!pair) throw new Error("key generation failed");
+    const made = suite === 3 ? await es256KeyHandle(pair, { keyId, role }) : await ed25519KeyHandle(pair, { keyId, role });
+    if (!made.ok) throw new Error(made.error);
+    return { pub: await made.value.publicKey(), handle: made.value, mode: "WebCrypto non-extractable" };
   }
+  const kp = suite === 3 ? p256.keygen() : ed25519.keygen();
+  const pub = suite === 3 ? p256.Point.fromBytes(kp.publicKey).toBytes(false) : kp.publicKey;
+  const print = suite === 3 ? v3.thumbprint({ kty: "EC", crv: "P-256", x: b64(pub.subarray(1, 33)), y: b64(pub.subarray(33)) }) : jwkThumb(pub);
+  return { pub, mode: "in-page (noble)", handle: {
+    sign: async (message) => suite === 3 ? p256.sign(message, kp.secretKey, { prehash: true, lowS: false, format: "compact" }) : ed25519.sign(message, kp.secretKey),
+    publicKey: () => pub, thumbprint: () => print,
+    keyIdentity: () => ({ keyId, publicKey: pub }), signingIdentity: () => ({ role, keyId, publicKey: pub }),
+  } };
 }
+const grantSigner = () => major === 3 ? signV3Grant : major === 2 ? signV2Grant : signGrant;
+const reportSigner = () => major === 3 ? signV3Report : major === 2 ? signV2Report : signReport;
 
 const b64 = (b: Uint8Array): string => utf8Str(base64urlEncode(b));
 const utf8 = new TextDecoder();
@@ -49,7 +56,7 @@ function fromBase64url(segment: string): Uint8Array {
 }
 const jwkThumb = (pub: Uint8Array): string => thumbprint({ kty: "OKP", crv: "Ed25519", x: b64(pub) });
 
-// The demo's fixed scenario: a support agent may read one ticket's record. The
+// The demo's fixed scenario: a holder may read one selected record. The
 // timestamps match the package's own oracle test, so every value on screen is
 // deterministic and inspectable.
 const SCENE = {
@@ -62,7 +69,7 @@ const SCENE = {
   issuedAt: 1000, notBefore: 1000, expiresAt: 2000, evaluationTime: 1500, clockSkew: 60, proofMaxAge: 300,
 };
 const castArguments = (): { t: "object"; v: Map<string, { t: "int"; v: number }> } => ({
-  t: "object", v: new Map([["ticket", { t: "int", v: 90112 }]]),
+  t: "object", v: new Map([["record", { t: "int", v: 90112 }]]),
 });
 
 interface Actor { key: CustodyKey; thumb: string; keyId: string }
@@ -71,13 +78,7 @@ let grantCompact: Uint8Array | null = null;
 let proofCompact: Uint8Array | null = null;
 let tamperedProof: Uint8Array | null = null;
 
-const handle = (a: Actor, extra: Partial<KeyHandle> = {}): KeyHandle => ({
-  sign: (m) => a.key.sign(m),
-  publicKey: () => a.key.pub,
-  thumbprint: () => a.thumb,
-  keyIdentity: () => ({ keyId: a.keyId, publicKey: a.key.pub }),
-  ...extra,
-});
+const handle = (a: Actor, extra: Partial<KeyHandle> = {}): KeyHandle => ({ ...a.key.handle, ...extra });
 
 // ---------- state + DOM ----------
 
@@ -158,15 +159,19 @@ function renderSeg(segs: string[], idx: number, name: string): void {
 // ---------- the three actions (real package calls) ----------
 
 async function doGrant(): Promise<void> {
-  const r = await signGrant({
+  const r = await grantSigner()({
     issuer: SCENE.issuer, grantId: SCENE.grantId, audiences: [SCENE.audience],
     issuedAt: SCENE.issuedAt, notBefore: SCENE.notBefore, expiresAt: SCENE.expiresAt,
     holderThumbprint: holder.thumb,
-    operations: [{ name: "read_record", selectors: [{ kind: "all" } as never] }],
+    operations: [{ name: "read_record", selectors: [{ kind: "equals", path: ["record"], value: { t: "int", v: 90112 } }] }],
   }, handle(issuer, { signingIdentity: () => ({ role: "issuer", keyId: issuer.keyId, publicKey: issuer.key.pub }) }));
   if (!r.ok) { setVerdict("fail", `signGrant → ${r.error}`); return; }
   grantCompact = r.value.grant;
-  tamperedProof = null;
+  proofCompact = tamperedProof = null;
+  bVerify.disabled = true;
+  $("slot-proof").textContent = "";
+  $("facts-body").textContent = "—";
+  $("flow-proof").classList.remove("arrived");
   const slot = $("slot-grant");
   slot.textContent = "";
   const card = artifactCard("grant", "ba+cap", `jkt ${holder.thumb.slice(0, 8)}…`, () => { mark(card); showWire("grant", grantCompact!); });
@@ -180,7 +185,7 @@ async function doGrant(): Promise<void> {
 
 async function doProof(): Promise<void> {
   if (!grantCompact) return;
-  const r = await signReport({
+  const r = await reportSigner()({
     grantCompact, operation: "read_record", method: "POST", targetUri: SCENE.targetUri,
     invocationId: SCENE.invocationId, castArguments: castArguments(),
   }, handle(holder), { issuedAt: SCENE.evaluationTime, proofId: SCENE.proofId });
@@ -189,7 +194,7 @@ async function doProof(): Promise<void> {
   tamperedProof = null;
   const slot = $("slot-proof");
   slot.textContent = "";
-  const card = artifactCard("proof", "dpop+jwt", "POST /invoke · ticket 90112", () => { mark(card); showWire("proof", proofCompact!); });
+  const card = artifactCard("proof", "dpop+jwt", "POST /invoke · record 90112", () => { mark(card); showWire("proof", proofCompact!); });
   slot.appendChild(card);
   card.id = "proof-card";
   $("flow-proof").classList.add("arrived");
@@ -202,14 +207,6 @@ async function doProof(): Promise<void> {
 function mark(card: HTMLElement): void {
   document.querySelectorAll(".artifact-card.selected").forEach((c) => c.classList.remove("selected"));
   card.classList.add("selected");
-}
-
-// Fact-sheet rendering converts Maps to objects and byte arrays to hex. Anything
-// byte-like (Uint8Array) collapses to a readable digest.
-function factsReplacer(_k: string, v: unknown): unknown {
-  if (v instanceof Map) return Object.fromEntries(v);
-  if (v instanceof Uint8Array) return `hex:${Array.from(v, (b) => b.toString(16).padStart(2, "0")).join("").slice(0, 32)}…`;
-  return v;
 }
 
 function expected(over: Record<string, unknown> = {}) {
@@ -225,7 +222,8 @@ function expected(over: Record<string, unknown> = {}) {
 }
 
 function verifyWith(grant: Uint8Array, proof: Uint8Array, exp: ReturnType<typeof expected>): void {
-  const at = checkEnvelope(grant, proof, exp as never);
+  const verify = major === 3 ? v3.checkEnvelope : major === 2 ? v2.checkEnvelope : checkEnvelope;
+  const at = verify(grant, proof, exp as never);
   if (at.ok) {
     setVerdict("ok", "ENVELOPE OK: cryptographic facts returned");
     $("facts-body").innerHTML = rawJsonBox(at.value);
@@ -254,58 +252,6 @@ function verifyWith(grant: Uint8Array, proof: Uint8Array, exp: ReturnType<typeof
 
 // ---------- artifact accordions: designed, animated disclosure ----------
 const esc = (s: string): string => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-
-
-const humanize = (k: string): string =>
-  k.replace(/[_-]+/g, " ").replace(/([a-z])([A-Z])/g, "$1 $2").replace(/\b\w/g, (c) => c.toUpperCase()).trim();
-
-const isBinaryString2 = (s: string): boolean => /[\u0000-\u0008\u000e-\u001f\u007f-\u00ff]/.test(s);
-const toHex2 = (bytes: number[]): string => bytes.map((b) => b.toString(16).padStart(2, "0")).join("");
-
-function valueChip(v: unknown): string | null {
-  if (v instanceof Uint8Array) {
-    const hex = toHex2(Array.from(v));
-    return `<span class="chip mono" title="${esc(hex)}">${hex.slice(0, 20)}… · ${v.length}B</span>`;
-  }
-  if (typeof v === "string" && isBinaryString2(v)) {
-    const m = v.match(/^([a-z0-9]+-?[a-z0-9]*:)/i);
-    const prefix = m ? m[1] : "";
-    const hex = toHex2(Array.from(v.slice(prefix.length), (c) => c.charCodeAt(0) & 0xff));
-    return `<span class="chip mono" title="${esc(prefix + hex)}">${prefix}${hex.slice(0, 20)}… · ${v.length - prefix.length}B</span>`;
-  }
-  return null;
-}
-
-function fieldRows(obj: unknown, depth = 0): string {
-  if (obj === null || typeof obj !== "object") {
-    const chip = valueChip(obj);
-    return chip ?? `<span class="val">${esc(String(obj))}</span>`;
-  }
-  const entries: [string, unknown][] = Array.isArray(obj)
-    ? obj.map((v, i) => [`Item ${i + 1}`, v])
-    : Object.entries(obj as Record<string, unknown>);
-  return entries.map(([k, v]) => {
-    if (v !== null && typeof v === "object" && !(v instanceof Uint8Array)) {
-      return `<div class="field group"><div class="fl">${esc(humanize(k))}</div><div class="group-inner">${fieldRows(v, depth + 1)}</div></div>`;
-    }
-    const chip = valueChip(v);
-    const s = String(v);
-    const shown = chip ?? `<span class="val${/sha-256:|urn:|https:/.test(s) ? " mono" : ""}" title="${esc(s)}">${esc(s.length > 72 ? s.slice(0, 72) + "…" : s)}</span>`;
-    return `<div class="field"><div class="fl">${esc(humanize(k))}</div><div class="fvs">${shown}</div></div>`;
-  }).join("");
-}
-
-function accordion(title: string, chip: string | undefined, facts: unknown, open = false): string {
-  return `<div class="acc${open ? " open" : ""}">
-    <button type="button" class="acc-head" aria-expanded="${open}">
-      <svg class="ic"><use href="#i-doc"/></svg>
-      <span class="acc-title">${esc(title)}</span>
-      ${chip ? `<span class="acc-chip mono">${esc(chip)}</span>` : ""}
-      <svg class="ic acc-chev"><use href="#i-chev"/></svg>
-    </button>
-    <div class="acc-body"><div class="acc-inner">${fieldRows(facts)}</div></div>
-  </div>`;
-}
 
 
 // The FACTS area displays raw JSON without syntax formatting.
@@ -366,10 +312,10 @@ async function tamper(kind: string): Promise<void> {
     case "payload": {
       // Request substitution: the proof commits to the request digest, so the
       // attacker leaves the proof untouched and rewrites the REQUEST instead
-      // (ticket 90112 → 90113). The verifier's request-digest binding must reject.
+      // (record 90112 → 90113). The verifier's request-digest binding must reject.
       tamperedProof = proofCompact;
       verifyWith(grantCompact, tamperedProof, expected({
-        castArguments: { t: "object", v: new Map([["ticket", { t: "int", v: 90113 }]]) },
+        castArguments: { t: "object", v: new Map([["record", { t: "int", v: 90113 }]]) },
       }));
       showWire("Unchanged proof; modified request", proofCompact);
       return;
@@ -385,7 +331,7 @@ async function tamper(kind: string): Promise<void> {
     case "impostor": {
       // A second holder key signs a valid proof over the stolen grant.
       // The grant binds the ORIGINAL holder's thumbprint. Identity fails.
-      const r = await signReport({
+      const r = await reportSigner()({
         grantCompact, operation: "read_record", method: "POST", targetUri: SCENE.targetUri,
         invocationId: SCENE.invocationId, castArguments: castArguments(),
       }, handle(impostor), { issuedAt: SCENE.evaluationTime, proofId: "urn:demo:proof:stolen" });
@@ -408,12 +354,21 @@ async function tamper(kind: string): Promise<void> {
 // ---------- boot ----------
 
 async function reset(): Promise<void> {
+  document.body.dataset.ready = "false";
+  bGrant.disabled = true; bProof.disabled = true; bVerify.disabled = true;
+  for (const id of ["contract-major", "custody", "reset", "selector-refusal"]) ($<HTMLButtonElement | HTMLSelectElement>(id)).disabled = true;
+  $("selector-result").textContent = "";
+  major = Number(($<HTMLSelectElement>("contract-major")).value) as 1 | 2 | 3;
+  const actor = async (keyId: string, role: "issuer" | "holder"): Promise<Actor> => {
+    const key = await makeKey(keyId, role); return { key, keyId, thumb: await key.handle.thumbprint() };
+  };
   [issuer, holder, impostor] = await Promise.all([
-    (async () => { const k = await makeKey(); return { key: k, thumb: jwkThumb(k.pub), keyId: "issuer-key" }; })(),
-    (async () => { const k = await makeKey(); return { key: k, thumb: jwkThumb(k.pub), keyId: "holder-key" }; })(),
-    (async () => { const k = await makeKey(); return { key: k, thumb: jwkThumb(k.pub), keyId: "impostor-key" }; })(),
+    actor("issuer-key", "issuer"),
+    actor("holder-key", "holder"),
+    actor("impostor-key", "holder"),
   ]);
   grantCompact = proofCompact = tamperedProof = null;
+  lastTamper = null; currentBytes = null; highlight = null;
   setChip($("chip-issuer"), issuer, "issuer role");
   setChip($("chip-holder"), holder, "your key");
   $("trust-key").textContent = `${issuer.keyId} · jkt ${issuer.thumb.slice(0, 8)}…`;
@@ -428,6 +383,9 @@ async function reset(): Promise<void> {
   segTabs.innerHTML = "";
   wireBody.textContent = "nothing selected yet";
   setVerdict("idle", "verify an envelope to see the fact sheet");
+  bGrant.disabled = false;
+  for (const id of ["contract-major", "custody", "reset", "selector-refusal"]) ($<HTMLButtonElement | HTMLSelectElement>(id)).disabled = false;
+  document.body.dataset.ready = "true";
 }
 
 bGrant.addEventListener("click", doGrant);
@@ -436,4 +394,11 @@ bVerify.addEventListener("click", doVerify);
 $("reset").addEventListener("click", reset);
 tamperBtns.forEach((b) => b.addEventListener("click", () => void tamper(b.dataset.tamper!)));
 
-void reset();
+for (const id of ["contract-major", "custody"]) $(id).addEventListener("change", () => void reset());
+$("selector-refusal").addEventListener("click", async () => {
+  const refused = await grantSigner()({ issuer: SCENE.issuer, grantId: SCENE.grantId, audiences: [SCENE.audience],
+    issuedAt: SCENE.issuedAt, notBefore: SCENE.notBefore, expiresAt: SCENE.expiresAt, holderThumbprint: holder.thumb,
+    operations: [{ name: "read_record", selectors: [{ kind: "equals", path: ["record"], value: { t: "float", v: 90112 } }] }], handle(issuer));
+  $("selector-result").textContent = refused.ok ? "unexpected acceptance" : refused.error;
+});
+void reset().catch((error: unknown) => { setVerdict("fail", String(error)); document.body.dataset.ready = "error"; });

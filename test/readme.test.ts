@@ -1,194 +1,128 @@
-// The README's TypeScript samples, typechecked and run against this source (no mocks: real keys, the
-// real verifier package). The markers are described in test/readme-samples.ts. The package specifier is
-// rewritten to this repository's src/index.js, so the samples run against the code at HEAD; under
-// test:portable they run on the verifier's portable backend. test/reader.ts runs the Quickstart the way a
-// reader does instead: an empty directory, the README's setup commands, the published packages.
-// The types samples must be the exported declarations, text for text; the last test checks that every
-// README anchor that the README itself or a src/ doc comment links to exists.
-import { after, before, test } from "node:test";
+import { test } from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
-import { format } from "node:util";
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import ts from "typescript";
-import { parse } from "./readme-samples.js";
+import { anchors, discover, files, links, parse } from "../tools/documentation.mjs";
 
-const REPO = fileURLToPath(new URL("..", import.meta.url));
-const SRC_INDEX = join(REPO, "src/index.js");
-const PACKAGE = "@bounded-authority-protocol/signer";
-const README = readFileSync(join(REPO, "README.md"), "utf8");
+const root = fileURLToPath(new URL("..", import.meta.url));
+const read = (file: string): string => readFileSync(join(root, file), "utf8");
+const pkg = JSON.parse(read("package.json")) as { name: string; version: string; dependencies: Record<string, string> };
+const surfaces = files(root).filter((f) => f.endsWith(".md") || f.endsWith(".ipynb") || f.startsWith("web/") && f.endsWith(".html"));
+const samples = discover(root);
 
-const SAMPLES = parse(README).filter((s) => s.kind !== "setup");
-let dir = "";
-
-function typecheck(baseConfig: string, files: readonly string[]): string[] {
-  const config = join(dir, `tsconfig.${baseConfig.replace(/\W/g, "_")}.json`);
-  writeFileSync(config, JSON.stringify({ extends: join(REPO, baseConfig), compilerOptions: { noEmit: true }, include: [], files }));
-  const parsed = ts.getParsedCommandLineOfConfigFile(config, {}, { ...ts.sys, onUnRecoverableConfigFileDiagnostic: () => {} });
-  assert.ok(parsed, "the config parses");
-  const program = ts.createProgram({ rootNames: parsed.fileNames, options: parsed.options });
-  return ts.getPreEmitDiagnostics(program).map((d) => {
-    const where = d.file ? `${d.file.fileName.replace(dir, "")}:${d.file.getLineAndCharacterOfPosition(d.start ?? 0).line + 1}` : "";
-    return `${where} TS${d.code}: ${ts.flattenDiagnosticMessageText(d.messageText, " ")}`;
-  });
-}
-
-before(() => {
-  mkdirSync(join(REPO, "node_modules/.cache"), { recursive: true });
-  dir = mkdtempSync(join(REPO, "node_modules/.cache/bap-readme-"));
-  writeFileSync(join(dir, "package.json"), JSON.stringify({ type: "module" }));
-  for (const sample of SAMPLES) {
-    let code = sample.code.replaceAll(`"${PACKAGE}"`, JSON.stringify(SRC_INDEX));
-    if (sample.kind === "types") {
-      // Each declared name must be the same type as the package export of that name.
-      const names = [...sample.code.matchAll(/^(?:export\s+)?(?:interface|type)\s+(\w+)/gm)].map((m) => m[1]!);
-      assert.ok(names.length > 0, `README.md:${sample.line}: a types sample declares at least one type`);
-      code += `\nimport type * as __Package from ${JSON.stringify(SRC_INDEX)};\n` +
-        "type __Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;\n" +
-        names.map((n) => `export const __same_${n}: __Same<${n}, __Package.${n}> = true;`).join("\n") + "\n";
-    }
-    writeFileSync(join(dir, sample.fileName), code);
-  }
+test("README renders whole and retains orientation, trust, install, quickstart and guide index", () => {
+  const readme = read("README.md");
+  assert.ok(Buffer.byteLength(readme, "utf8") < 32_768, "README must remain well below npm's 65,536 character truncation");
+  const ids = anchors(readme);
+  for (const id of ["when-to-use-it", "when-not-to-use-it", "trust-boundary", "install", "quickstart", "documentation", "notebooks", "security", "development", "license"]) assert.ok(ids.has(id), id);
 });
 
-after(() => {
-  if (dir !== "") rmSync(dir, { recursive: true, force: true });
+test("CommonMark discovery includes indented, nested and tilde fences; missing outputs fail", () => {
+  const nested = "> <!-- readme-sample: run -->\n> ~~~~typescript\n> console.log('ok');\n> ~~~~\n> <!-- readme-output -->\n> ~~~~text\n> ok\n> ~~~~\n";
+  assert.equal(parse(nested)[0]?.output, "ok");
+  const indented = "   <!-- readme-sample: run -->\n   ```ts\n   console.log('ok');\n   ```\n   <!-- readme-output -->\n   ```text\n   ok\n   ```\n";
+  assert.equal(parse(indented)[0]?.output, "ok");
+  assert.throws(() => parse("```ts\nconsole.log('missed');\n```"), /marker/);
+  assert.throws(() => parse("<!-- readme-sample: run -->\n```ts\nconsole.log('missed');\n```"), /recorded output/);
+  assert.ok(samples.some((s) => s.source.startsWith("docs/guides/")));
+  assert.ok(samples.some((s) => s.source.startsWith("src/")));
+  assert.ok(samples.some((s) => s.source.startsWith("web/")));
+  assert.ok(samples.some((s) => s.kind === "notebook"));
 });
 
-test("README: the samples are found, and every runnable one has a recorded output or prints nothing checked", () => {
-  assert.ok(SAMPLES.filter((s) => s.kind === "run").length >= 5, `found ${SAMPLES.length} samples`);
-  assert.ok(SAMPLES.some((s) => s.kind === "run-dom"));
-  assert.ok(SAMPLES.some((s) => s.kind === "types"));
-  assert.ok(SAMPLES.some((s) => s.kind === "file" && s.fileName === "key-handle.ts"));
-});
-
-test("README: the Node samples, the shared key-handle module and the type shapes typecheck under tsconfig.json", () => {
-  const files = SAMPLES.filter((s) => s.kind !== "run-dom").map((s) => join(dir, s.fileName));
-  assert.deepEqual(typecheck("tsconfig.json", files), []);
-});
-
-test("README: the browser samples typecheck under tsconfig.browser.json (DOM library, no Node types)", () => {
-  const files = SAMPLES.filter((s) => s.kind === "run-dom").map((s) => join(dir, s.fileName));
-  assert.deepEqual(typecheck("tsconfig.browser.json", files), []);
-});
-
-for (const sample of SAMPLES.filter((s) => s.kind === "run" || s.kind === "run-dom")) {
-  test(`README.md:${sample.line}: the sample runs${sample.output === undefined ? "" : " and prints the output shown"}`, async () => {
-    const printed: string[] = [];
-    const log = console.log;
-    console.log = (...args: unknown[]) => { printed.push(format(...args)); };
-    try {
-      await import(pathToFileURL(join(dir, sample.fileName)).href);
-    } finally {
-      console.log = log;
-    }
-    if (sample.output !== undefined) assert.equal(printed.join("\n"), sample.output);
-  });
-}
-
-// The text of a declaration without comments, `export`, or whitespace differences.
-const normalized = (text: string): string =>
-  text.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "").replace(/^\s*export\s+/, "").replace(/\s+/g, " ").replace(/\s*([;{}()<>|:,?=\[\]])\s*/g, "$1").trim();
-
-/** The source text of every type the package root exports, by exported name. */
-function exportedDeclarations(): Map<string, string> {
-  const index = join(REPO, "src/index.ts");
-  const program = ts.createProgram({ rootNames: [index], options: { strict: true, module: ts.ModuleKind.NodeNext, moduleResolution: ts.ModuleResolutionKind.NodeNext, noEmit: true } });
-  const checker = program.getTypeChecker();
-  const moduleSymbol = checker.getSymbolAtLocation(program.getSourceFile(index)!)!;
-  const found = new Map<string, string>();
-  for (const symbol of checker.getExportsOfModule(moduleSymbol)) {
-    const target = symbol.flags & ts.SymbolFlags.Alias ? checker.getAliasedSymbol(symbol) : symbol;
-    const decl = target.declarations?.find((d) => ts.isInterfaceDeclaration(d) || ts.isTypeAliasDeclaration(d));
-    if (decl !== undefined) found.set(symbol.getName(), decl.getText());
-  }
-  return found;
-}
-
-test("README: every declaration in a types sample is the exported declaration, text for text (comments aside)", () => {
-  const source = exportedDeclarations();
-  let compared = 0;
-  for (const sample of SAMPLES.filter((s) => s.kind === "types")) {
-    const file = ts.createSourceFile("sample.ts", sample.code, ts.ScriptTarget.ES2022, true);
-    for (const statement of file.statements) {
-      if (ts.isImportDeclaration(statement)) continue;
-      assert.ok(ts.isInterfaceDeclaration(statement) || ts.isTypeAliasDeclaration(statement), `README.md:${sample.line}: a types sample holds only imports and type declarations`);
-      const name = statement.name.text;
-      const exported = source.get(name);
-      assert.ok(exported !== undefined, `README.md:${sample.line}: ${name} is not an exported type`);
-      assert.equal(normalized(statement.getText()), normalized(exported), `README.md:${sample.line}: ${name} differs from its source declaration`);
-      compared++;
+test("every relative document link and fragment resolves, including notebook Markdown", () => {
+  for (const file of surfaces) {
+    const text = file.endsWith(".ipynb") ? (JSON.parse(read(file)) as { cells: { cell_type: string; source: string[] }[] }).cells
+      .filter((c) => c.cell_type === "markdown").map((c) => c.source.join("")).join("\n") : read(file);
+    for (const href of links(text)) {
+      if (/^(?:[a-z]+:|\/\/)/i.test(href)) continue;
+      const [path = "", fragment] = decodeURIComponent(href).split("#");
+      const target = path ? resolve(root, dirname(file), path.split("?")[0]!) : join(root, file);
+      // The source page names two generated build outputs. Require the producing contract
+      // here; the real-engine test requests the generated assets and site entry point.
+      if (file === "web/index.html" && ["./api/", "./app.js"].includes(path.split("?")[0]!)) {
+        const scripts = JSON.parse(read("package.json")) as { scripts: Record<string, string> };
+        if (path === "./api/") assert.equal(JSON.parse(read("typedoc.json")).out, "site-dist/api");
+        else assert.ok(scripts.scripts["build:site"]?.includes("--outfile=site-dist/app.js"));
+        continue;
+      }
+      assert.ok(existsSync(target), `${file}: ${href} missing`);
+      if (fragment && /\.(?:md|html)$/.test(target)) assert.ok(anchors(readFileSync(target, "utf8")).has(fragment), `${file}: ${href} missing anchor`);
     }
   }
-  assert.ok(compared >= 7, `compared ${compared} declarations`);
 });
 
-test("API docs: every root export has TSDoc, including aliases", () => {
-  const index = join(REPO, "src/index.ts");
+test("pins on current install surfaces match package.json; the error table exactly covers the source union", () => {
+  for (const file of surfaces.filter((f) => f !== "CHANGELOG.md" && !f.endsWith("upgrading.md"))) {
+    for (const m of read(file).matchAll(/@bounded-authority-protocol\/(signer|verifier)@(\d+\.\d+\.\d+)/g)) assert.equal(m[2], m[1] === "signer" ? pkg.version : pkg.dependencies["@bounded-authority-protocol/verifier"]!.replace(/^[~^]/, ""), `${file}: stale ${m[1]} install`);
+  }
+  const code = read("src/handle.ts").split("export type SignerErrorCode =")[1]!.split(";")[0]!;
+  const codes = [...code.matchAll(/"([a-z_]+)"/g)].map((m) => m[1]).sort();
+  const rows = [...read("docs/guides/errors.md").matchAll(/^\| `([a-z_]+)` \|/gm)].map((m) => m[1]).sort();
+  assert.deepEqual(rows, codes);
+});
+
+test("notebook registry, pinned imports, persisted outputs and generated guide coverage are complete", () => {
+  const toolPins = new Map(read(".tool-versions").trim().split("\n").map((line) => {
+    const [tool, version] = line.split(/\s+/);
+    return [tool!, version!] as const;
+  }));
+  const registry = JSON.parse(read("docs/notebooks/registry.json")) as { notebooks: { file: string }[] };
+  const notebookFiles = surfaces.filter((f) => f.endsWith(".ipynb")).map((f) => f.replaceAll("\\", "/")).sort();
+  assert.deepEqual(registry.notebooks.map((n) => `docs/notebooks/${n.file}`).sort(), notebookFiles);
+  for (const file of notebookFiles) {
+    const nb = JSON.parse(read(file)) as { metadata: { kernelspec: { name: string } }; cells: { cell_type: string; source: string[]; outputs?: unknown[] }[] };
+    assert.equal(nb.metadata.kernelspec.name, "deno");
+    const launch = nb.cells.find((c) => c.cell_type === "markdown")!.source.join("");
+    for (const [tool, label] of [["deno", "Deno"], ["python", "Python"], ["uv", "uv"]]) {
+      assert.ok(launch.includes(`${label} ${toolPins.get(tool!)}`), `${file}: stale ${tool} launch pin`);
+    }
+    const cells = nb.cells.filter((c) => c.cell_type === "code");
+    assert.ok(cells.length > 0);
+    for (const cell of cells) assert.ok(cell.outputs?.length, `${file}: missing persisted output`);
+    assert.ok(cells.some((c) => c.source.join("").includes(`npm:${pkg.name}@${pkg.version}`)));
+  }
+  const config = JSON.parse(read("typedoc.json")) as { projectDocuments: string[]; validation: Record<string, boolean>; requiredToBeDocumented: string[] };
+  for (const file of surfaces.filter((f) => f.startsWith("docs/guides/") && f.endsWith(".md"))) assert.ok(config.projectDocuments.includes(file), `${file}: absent from generated docs`);
+  for (const kind of ["Property", "Method", "Function", "Interface", "TypeAlias"]) assert.ok(config.requiredToBeDocumented.includes(kind));
+  assert.equal(config.validation.notDocumented, true);
+});
+
+test("public functions and nested API members have docs and real examples, with a task group", () => {
+  const index = join(root, "src/index.ts");
   const program = ts.createProgram({ rootNames: [index], options: { module: ts.ModuleKind.NodeNext, moduleResolution: ts.ModuleResolutionKind.NodeNext, noEmit: true } });
   const checker = program.getTypeChecker();
-  const moduleSymbol = checker.getSymbolAtLocation(program.getSourceFile(index)!)!;
-  const exports = checker.getExportsOfModule(moduleSymbol);
-  assert.ok(exports.length >= 51, `found ${exports.length} root exports`);
-  const missing = exports.filter((symbol) => {
+  const exports = checker.getExportsOfModule(checker.getSymbolAtLocation(program.getSourceFile(index)!)!);
+  const functions: string[] = [];
+  for (const symbol of exports) {
     const target = symbol.flags & ts.SymbolFlags.Alias ? checker.getAliasedSymbol(symbol) : symbol;
-    return ts.displayPartsToString(target.getDocumentationComment(checker)).trim() === "";
-  }).map((symbol) => symbol.getName());
-  assert.deepEqual(missing, []);
-});
-
-test("README: V2SelectorInput and V2OperationInput declare the same members as their v3 counterparts, as the README says", () => {
-  const source = exportedDeclarations();
-  const body = (name: string): string => normalized(source.get(name)!).replace(/^(type|interface)\s*\w+/, "").replaceAll("V2SelectorInput", "V3SelectorInput");
-  assert.equal(body("V2SelectorInput"), body("V3SelectorInput"));
-  assert.equal(body("V2OperationInput"), body("V3OperationInput"));
-});
-
-// GitHub's heading anchors: lowercase, punctuation other than hyphens and spaces dropped, spaces to hyphens.
-function anchors(markdown: string): Set<string> {
-  const found = new Set<string>();
-  let inFence = false;
-  for (const line of markdown.split("\n")) {
-    if (line.startsWith("```")) inFence = !inFence;
-    const heading = inFence ? null : /^#{1,6}\s+(.*)$/.exec(line);
-    if (heading === null) continue;
-    found.add(heading[1]!.trim().toLowerCase().replace(/`/g, "").replace(/[^\p{L}\p{N}\s-]/gu, "").replace(/\s/g, "-"));
+    assert.ok(ts.displayPartsToString(target.getDocumentationComment(checker)).trim(), symbol.name);
+    const checkMembers = (node: ts.Node): void => {
+      if (ts.isPropertySignature(node) || ts.isMethodSignature(node)) {
+        const member = checker.getSymbolAtLocation(node.name);
+        assert.ok(member && ts.displayPartsToString(member.getDocumentationComment(checker)).trim(),
+          `${symbol.name}.${node.name.getText()}: member documentation`);
+      }
+      ts.forEachChild(node, checkMembers);
+    };
+    for (const declaration of target.getDeclarations() ?? []) if (ts.isInterfaceDeclaration(declaration) || ts.isTypeAliasDeclaration(declaration)) checkMembers(declaration);
+    if (target.flags & ts.SymbolFlags.Function) {
+      functions.push(symbol.name);
+      const tags = target.getJsDocTags(checker);
+      assert.ok(tags.some((tag) => tag.name === "example" && ts.displayPartsToString(tag.text).includes("```ts")), `${symbol.name}: example`);
+      assert.ok(tags.some((tag) => tag.name === "category"), `${symbol.name}: task category`);
+      assert.ok(tags.some((tag) => tag.name === "see"), `${symbol.name}: guide`);
+    }
   }
-  return found;
-}
-
-test("README: every anchor linked from the README and from src/ doc comments exists", () => {
-  const known = anchors(README);
-  const wanted = new Map<string, string>();
-  for (const m of README.matchAll(/\]\(#([^)]+)\)/g)) wanted.set(m[1]!, "README.md");
-  for (const name of readdirSync(join(REPO, "src")).filter((f) => f.endsWith(".ts"))) {
-    const source = readFileSync(join(REPO, "src", name), "utf8");
-    for (const m of source.matchAll(/bounded_authority_signer_typescript#([a-z0-9-]+)/g)) wanted.set(m[1]!, `src/${name}`);
-  }
-  assert.ok(wanted.size > 5);
-  for (const [anchor, from] of wanted) assert.ok(known.has(anchor), `${from} links to #${anchor}, which is not a README heading`);
+  const guide = read("docs/guides/api-overview.md");
+  for (const name of functions) assert.ok(guide.includes(`\`${name}\``), `${name}: API overview`);
+  assert.equal(samples.filter((s) => s.source.startsWith("src/") && s.kind === "run-dom").length, functions.length);
 });
 
-// Hygiene. The protocol's design records (ADRs) are not published, so no shipped or public text may
-// cite one; and release history belongs in CHANGELOG.md, not in the README's version notes.
-test("hygiene: no README, CHANGELOG, SECURITY, source, tool, page or workflow text cites a design record (ADR)", () => {
-  const publicFiles = (relative: string): string[] => {
-    const path = join(REPO, relative);
-    if (!existsSync(path)) return [];
-    return readdirSync(path, { withFileTypes: true }).flatMap((entry) => {
-      const child = `${relative}/${entry.name}`;
-      return entry.isDirectory() ? publicFiles(child) : /\.(?:md|html|css|ts|m?js|ya?ml)$/.test(child) ? [child] : [];
-    });
-  };
-  const files = ["README.md", "CHANGELOG.md", "SECURITY.md",
-    ...["docs", "src", "tools", "web", ".github/workflows"].flatMap(publicFiles)];
-  const cited = files.filter((f) => /\bADRs?\b|\bADR[ _-]*\d+\b|\/adr\//i.test(readFileSync(join(REPO, f), "utf8")));
-  assert.deepEqual(cited, []);
-});
-
-test("hygiene: the README carries no pre-1.0 version notes (release history is in CHANGELOG.md)", () => {
-  const notes = README.split("\n").map((line, i) => ({ line: i + 1, text: line }))
-    .filter(({ text }) => /(?<![\d.])0\.\d+\.\d+(?![\d.])|\bNew in\b/.test(text));
-  assert.deepEqual(notes, []);
+test("public surfaces do not cite private design records or internal topology", () => {
+  const publicFiles = files(root).filter((f) => /\.(?:md|ipynb|html|css|ts|m?js|ya?ml)$/.test(f) && !f.startsWith("test/"));
+  const forbidden = /\bADRs?\b|\bADR[ _-]*\d+\b|\/adr\/|bounded_authority(?:_report_adapter|_protocol)?_private|\/Users\/|devbox-ovh|infra-1/;
+  assert.deepEqual(publicFiles.filter((f) => forbidden.test(read(f))), []);
 });

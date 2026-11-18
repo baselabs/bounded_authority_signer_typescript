@@ -47,6 +47,11 @@ try {
   // render their actual comments without requiring undocumented types to become new exports.
   options.validation = { ...options.validation, notDocumented: false, notExported: false };
   options.disableSources = false;
+  // Only documents present at the immutable release belong in its API reference.
+  // New guides graduate when the owner publishes a release containing them.
+  const { existsSync } = await import("node:fs");
+  options.projectDocuments = options.projectDocuments.filter((file) => existsSync(join(release, file)));
+  options.readme = "README.md";
   options.sourceLinkTemplate = `${repository.replace(/\.git$/, "")}/blob/${commit}/{path}#L{line}`;
   options.out = out;
   options.name = `${pkg.name} (released ${tag})`;

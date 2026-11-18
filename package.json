@@ -31,7 +31,12 @@
     "dist",
     "LICENSE",
     "NOTICE",
-    "README.md"
+    "README.md",
+    "SECURITY.md",
+    "CHANGELOG.md",
+    "CONTRIBUTING.md",
+    "usage-rules.md",
+    "docs"
   ],
   "engines": {
     "node": ">=22"
@@ -66,7 +71,12 @@
     "docs:api": "typedoc",
     "docs:api:release": "node tools/build-release-api.mjs",
     "test:network": "node --test --import tsx/esm test/*.network.ts",
-    "check:site": "node tools/check-site-badge.mjs"
+    "check:site": "node tools/check-site-badge.mjs",
+    "docs:samples:local": "BAP_SAMPLE_MODE=candidate node --test --import tsx/esm test/reader.ts",
+    "docs:samples:published": "BAP_SAMPLE_MODE=published node --test --import tsx/esm test/reader.ts",
+    "notebooks:local": "uv run --frozen python tools/check-notebooks.py --local",
+    "notebooks:published": "uv run --frozen python tools/check-notebooks.py --published",
+    "test:playground": "node --test --import tsx/esm test/playground.ts"
   },
   "dependencies": {
     "@bounded-authority-protocol/verifier": "^2.0.0"
@@ -83,7 +93,8 @@
     "tsx": "^4.23.15",
     "typedoc": "^0.28.20",
     "typescript": "6.0.3",
-    "typescript-eslint": "^8.73.0"
+    "typescript-eslint": "^8.73.0",
+    "markdown-it": "14.3.3"
   },
   "packageManager": "pnpm@10.20.0",
   "pnpm": {

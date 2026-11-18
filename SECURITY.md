@@ -1,3 +1,8 @@
+---
+title: "Security policy"
+category: Package policies
+---
+
 # Security policy
 
 ## Reporting a vulnerability
@@ -36,7 +41,7 @@ Earlier releases fall into two groups:
   under the protocol's governance (§ Soundness repairs) the repair has no advisory: the
   [errata registry](https://github.com/baselabs/bounded_authority_protocol/blob/main/docs/errata.md)
   entry is the disclosure, and those releases stay installable and are not deprecated. See
-  [Float-tagged integral selector values](README.md#float-tagged-integral-selector-values).
+  [Float-tagged integral selector values](docs/guides/errors.md#float-tagged-integral-selector-values).
 
 Upgrade to the latest release.
 

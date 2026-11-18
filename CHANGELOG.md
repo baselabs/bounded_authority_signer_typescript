@@ -1,6 +1,16 @@
+---
+title: "Changelog"
+category: Package policies
+---
+
 # Changelog
 
 ## [Unreleased]
+
+- Split integrator documentation into versioned guides; execute guide and API examples against
+  explicit candidate and registry installs, and browser examples in real engines.
+- Add Deno Jupyter journeys with candidate and published qualification jobs, strict documentation
+  currency, suite-specific playgrounds and shipped documentation sources.
 
 - Run every browser lane in the digest-pinned official Playwright 1.65.1 Noble image with preinstalled browsers and OS packages; refuse a different installed Playwright version before testing.
 - Audit locked dependencies in CI.
@@ -8,8 +18,8 @@
 - CI runs only on pushes to `kci/**`: the trigger has no `paths-ignore`, because a
   landing candidate whose files were all filtered gets no run and cannot land.
 
-- Rebuild Pages after approved npm publication through registry reconciliation. Check all built
-  HTML version claims against npm latest, including when the page identifies development source.
+- The owner dispatches Pages after approved npm publication; publication does not automatically
+  rebuild Pages. Check signer release claims in built HTML against npm latest.
 - Keep network documentation checks in a separate required CI and release lane. Verify release
   tags against remote peeled refs and run package commands portably on Windows.
 

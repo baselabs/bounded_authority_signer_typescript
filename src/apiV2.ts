@@ -25,7 +25,9 @@ import {
 import { defaultProofId } from "./proof-id.js";
 import { selectorsHoldIntegralFloat } from "./selector-value.js";
 
-/** A telemetry event from a v2 signer, passed to {@link V2SignOpts.onEvent}. */
+/** A telemetry event from a v2 signer, passed to {@link V2SignOpts.onEvent}.
+ * @see [Guide](https://github.com/baselabs/bounded_authority_signer_typescript/blob/main/docs/guides/api-overview.md)
+ */
 export interface V2SignerEvent {
   /** The signing operation that emitted this event. */
   readonly kind: "v2_report" | "v2_anchor" | "v2_grant" | "v2_key_transition";
@@ -33,7 +35,9 @@ export interface V2SignerEvent {
   readonly phase: "start" | "stop" | "error";
 }
 
-/** Options for the v2 signers: the same fields and defaults as `SignOpts`, with v2 event kinds. */
+/** Options for the v2 signers: the same fields and defaults as `SignOpts`, with v2 event kinds.
+ * @see [Guide](https://github.com/baselabs/bounded_authority_signer_typescript/blob/main/docs/guides/api-overview.md)
+ */
 export interface V2SignOpts {
   /** Size limits passed to the verifier's v2 producers and assembler. */
   readonly bounds?: Bounds;
@@ -47,7 +51,9 @@ export interface V2SignOpts {
   readonly onEvent?: (event: V2SignerEvent) => void;
 }
 
-/** The request a v2 holder proof binds (`signV2Report`); the fields mean what they mean in `ReportInput`. */
+/** The request a v2 holder proof binds (`signV2Report`); the fields mean what they mean in `ReportInput`.
+ * @see [Guide](https://github.com/baselabs/bounded_authority_signer_typescript/blob/main/docs/guides/api-overview.md)
+ */
 export interface V2ReportInput {
   /** The signed grant as ASCII compact JWS bytes; included unchanged in the returned envelope. */
   readonly grantCompact: Uint8Array;
@@ -65,7 +71,9 @@ export interface V2ReportInput {
   readonly nonce?: string;
 }
 
-/** A v2 boundary anchor (`signV2Anchor`); the fields mean what they mean in `AnchorInput`. */
+/** A v2 boundary anchor (`signV2Anchor`); the fields mean what they mean in `AnchorInput`.
+ * @see [Guide](https://github.com/baselabs/bounded_authority_signer_typescript/blob/main/docs/guides/api-overview.md)
+ */
 export interface V2AnchorInput {
   /** A non-empty identifier for this boundary anchor. */
   readonly anchorId: string;
@@ -77,7 +85,9 @@ export interface V2AnchorInput {
   readonly chainHash: Uint8Array; // 32 bytes
 }
 
-/** A v2 selector: the v1 kinds plus `lte` / `gte` with an integer- or float-tagged bound. */
+/** A v2 selector: the v1 kinds plus `lte` / `gte` with an integer- or float-tagged bound.
+ * @see [Guide](https://github.com/baselabs/bounded_authority_signer_typescript/blob/main/docs/guides/api-overview.md)
+ */
 export type V2SelectorInput =
   | "all"
   | {
@@ -117,7 +127,9 @@ export type V2SelectorInput =
     readonly value: Tagged
   };
 
-/** One operation a v2 grant allows, with its selectors. */
+/** One operation a v2 grant allows, with its selectors.
+ * @see [Guide](https://github.com/baselabs/bounded_authority_signer_typescript/blob/main/docs/guides/api-overview.md)
+ */
 export interface V2OperationInput {
   /** A non-empty operation name. */
   readonly name: string;
@@ -125,7 +137,9 @@ export interface V2OperationInput {
   readonly selectors: readonly V2SelectorInput[];
 }
 
-/** A v2 capability grant (`signV2Grant`); the fields mean what they mean in `GrantInput`, with v2 selectors. */
+/** A v2 capability grant (`signV2Grant`); the fields mean what they mean in `GrantInput`, with v2 selectors.
+ * @see [Guide](https://github.com/baselabs/bounded_authority_signer_typescript/blob/main/docs/guides/api-overview.md)
+ */
 export interface V2GrantInput {
   /** The issuer identifier as a StringOrURI, for example https://issuer.example. */
   readonly issuer: string;
@@ -145,7 +159,9 @@ export interface V2GrantInput {
   readonly operations: readonly V2OperationInput[];
 }
 
-/** A v2 key transition (`signV2KeyTransition`); the fields mean what they mean in `TransitionInput`. */
+/** A v2 key transition (`signV2KeyTransition`); the fields mean what they mean in `TransitionInput`.
+ * @see [Guide](https://github.com/baselabs/bounded_authority_signer_typescript/blob/main/docs/guides/api-overview.md)
+ */
 export interface V2TransitionInput {
   /** A non-empty identifier for the key transition. */
   readonly transitionId: string;
@@ -189,7 +205,40 @@ function validateReport(report: V2ReportInput): SignerResult<V2ReportInput> {
  *
  * @returns `{ ok: true, value: { grant, proof } }`, or `invalid_report`, `invalid_key_handle`,
  *   `producer_error` or `signing_failed`.
- * @example https://github.com/baselabs/bounded_authority_signer_typescript#contract-major-2-ed25519-with-range-selectors
+ * @category Grant and proof — major 2
+ * @see [Integrator guide](https://github.com/baselabs/bounded_authority_signer_typescript/blob/main/docs/guides/contract-major-2.md)
+ * @example
+ * <!-- readme-sample: run-dom -->
+ * ```ts
+ * import { ed25519KeyHandle, signV2Grant, signV2Report } from "@bounded-authority-protocol/signer";
+ * // WebKit for Linux can transiently refuse key generation; retry only OperationError.
+ * async function generatePair(algorithm: Algorithm | EcKeyGenParams, extractable = false): Promise<CryptoKeyPair> {
+ *   for (let attempt = 0; attempt < 3; attempt++) {
+ *     try { return await crypto.subtle.generateKey(algorithm, extractable, ["sign", "verify"]) as CryptoKeyPair; }
+ *     catch (error) { if ((error as { name?: string }).name !== "OperationError" || attempt === 2) throw error; }
+ *   }
+ *   throw new Error("key generation failed");
+ * }
+ *
+ * const pair = await generatePair({ name: "Ed25519" });
+ * const made = await ed25519KeyHandle(pair, { keyId: "example-key", role: "issuer" });
+ * if (!made.ok) throw new Error(made.error);
+ * const grant = await signV2Grant({ issuer: "https://issuer.example", grantId: "urn:example:grant:1",
+ *   audiences: ["https://resource.example"], issuedAt: 1000, notBefore: 1000, expiresAt: 2000,
+ *   holderThumbprint: await made.value.thumbprint(),
+ *   operations: [{ name: "read", selectors: [{ kind: "all" }] }] }, made.value);
+ * if (!grant.ok) throw new Error(grant.error);
+ * const result = await signV2Report({ grantCompact: grant.value.grant, operation: "read", method: "POST",
+ *   targetUri: "https://resource.example/read", invocationId: "550e8400-e29b-41d4-a716-446655440000",
+ *   castArguments: { t: "null" } }, made.value, { issuedAt: 1500, proofId: "urn:example:proof:1" });
+ * if (!result.ok) throw new Error(result.error);
+ * if (new TextDecoder().decode(result.value.proof).split(".").length !== 3) throw new Error("missing compact");
+ * console.log("signV2Report: compact assembled");
+ * ```
+ * <!-- readme-output -->
+ * ```text
+ * signV2Report: compact assembled
+ * ```
  */
 export async function signV2Report(report: V2ReportInput, handle: KeyHandle, opts: V2SignOpts = {}): Promise<SignerResult<Envelope>> {
   const emit = emitter(opts, "v2_report");
@@ -221,7 +270,34 @@ export async function signV2Report(report: V2ReportInput, handle: KeyHandle, opt
  * Sign a contract-major-2 boundary anchor. Same handle (`keyIdentity()` required), checks and errors as `signAnchor`.
  *
  * @returns `{ ok: true, value: { anchor } }`, or `invalid_anchor`, `invalid_key_handle`, `producer_error` or `signing_failed`.
- * @example https://github.com/baselabs/bounded_authority_signer_typescript#anchor-a-chain-and-rotate-its-key
+ * @category Anchors and transitions — major 2
+ * @see [Integrator guide](https://github.com/baselabs/bounded_authority_signer_typescript/blob/main/docs/guides/rotate-keys.md)
+ * @example
+ * <!-- readme-sample: run-dom -->
+ * ```ts
+ * import { ed25519KeyHandle, signV2Anchor } from "@bounded-authority-protocol/signer";
+ * // WebKit for Linux can transiently refuse key generation; retry only OperationError.
+ * async function generatePair(algorithm: Algorithm | EcKeyGenParams, extractable = false): Promise<CryptoKeyPair> {
+ *   for (let attempt = 0; attempt < 3; attempt++) {
+ *     try { return await crypto.subtle.generateKey(algorithm, extractable, ["sign", "verify"]) as CryptoKeyPair; }
+ *     catch (error) { if ((error as { name?: string }).name !== "OperationError" || attempt === 2) throw error; }
+ *   }
+ *   throw new Error("key generation failed");
+ * }
+ *
+ * const pair = await generatePair({ name: "Ed25519" });
+ * const made = await ed25519KeyHandle(pair, { keyId: "example-key", role: "issuer" });
+ * if (!made.ok) throw new Error(made.error);
+ * const result = await signV2Anchor({ anchorId: "urn:example:anchor:0", chainId: "urn:example:chain:1",
+ *   sequence: 0, chainHash: new Uint8Array(32) }, made.value, { anchoredAt: 1500 });
+ * if (!result.ok) throw new Error(result.error);
+ * if (new TextDecoder().decode(result.value.anchor).split(".").length !== 3) throw new Error("missing compact");
+ * console.log("signV2Anchor: compact assembled");
+ * ```
+ * <!-- readme-output -->
+ * ```text
+ * signV2Anchor: compact assembled
+ * ```
  */
 export async function signV2Anchor(input: V2AnchorInput, handle: KeyHandle, opts: V2SignOpts = {}): Promise<SignerResult<AnchorCompact>> {
   const emit = emitter(opts, "v2_anchor");
@@ -249,7 +325,36 @@ export async function signV2Anchor(input: V2AnchorInput, handle: KeyHandle, opts
  * Sign a contract-major-2 capability grant. Issuer-only: the issuer-role gate of `signGrant` applies.
  *
  * @returns `{ ok: true, value: { grant } }`, or `invalid_grant`, `invalid_key_handle`, `producer_error` or `signing_failed`.
- * @example https://github.com/baselabs/bounded_authority_signer_typescript#contract-major-2-ed25519-with-range-selectors
+ * @category Grant and proof — major 2
+ * @see [Integrator guide](https://github.com/baselabs/bounded_authority_signer_typescript/blob/main/docs/guides/contract-major-2.md)
+ * @example
+ * <!-- readme-sample: run-dom -->
+ * ```ts
+ * import { ed25519KeyHandle, signV2Grant } from "@bounded-authority-protocol/signer";
+ * // WebKit for Linux can transiently refuse key generation; retry only OperationError.
+ * async function generatePair(algorithm: Algorithm | EcKeyGenParams, extractable = false): Promise<CryptoKeyPair> {
+ *   for (let attempt = 0; attempt < 3; attempt++) {
+ *     try { return await crypto.subtle.generateKey(algorithm, extractable, ["sign", "verify"]) as CryptoKeyPair; }
+ *     catch (error) { if ((error as { name?: string }).name !== "OperationError" || attempt === 2) throw error; }
+ *   }
+ *   throw new Error("key generation failed");
+ * }
+ *
+ * const pair = await generatePair({ name: "Ed25519" });
+ * const made = await ed25519KeyHandle(pair, { keyId: "example-key", role: "issuer" });
+ * if (!made.ok) throw new Error(made.error);
+ * const result = await signV2Grant({ issuer: "https://issuer.example", grantId: "urn:example:grant:1",
+ *   audiences: ["https://resource.example"], issuedAt: 1000, notBefore: 1000, expiresAt: 2000,
+ *   holderThumbprint: await made.value.thumbprint(),
+ *   operations: [{ name: "read", selectors: [{ kind: "all" }] }] }, made.value);
+ * if (!result.ok) throw new Error(result.error);
+ * if (new TextDecoder().decode(result.value.grant).split(".").length !== 3) throw new Error("missing compact");
+ * console.log("signV2Grant: compact assembled");
+ * ```
+ * <!-- readme-output -->
+ * ```text
+ * signV2Grant: compact assembled
+ * ```
  */
 export async function signV2Grant(input: V2GrantInput, handle: KeyHandle, opts: V2SignOpts = {}): Promise<SignerResult<GrantCompact>> {
   const emit = emitter(opts, "v2_grant");
@@ -290,7 +395,37 @@ export async function signV2Grant(input: V2GrantInput, handle: KeyHandle, opts: 
  * Sign a contract-major-2 key transition. Same handle (`keyIdentity()` required), checks and errors as `signKeyTransition`.
  *
  * @returns `{ ok: true, value: { keyTransition } }`, or `invalid_transition`, `invalid_key_handle`, `producer_error` or `signing_failed`.
- * @example https://github.com/baselabs/bounded_authority_signer_typescript#anchor-a-chain-and-rotate-its-key
+ * @category Anchors and transitions — major 2
+ * @see [Integrator guide](https://github.com/baselabs/bounded_authority_signer_typescript/blob/main/docs/guides/rotate-keys.md)
+ * @example
+ * <!-- readme-sample: run-dom -->
+ * ```ts
+ * import { ed25519KeyHandle, signV2KeyTransition } from "@bounded-authority-protocol/signer";
+ * // WebKit for Linux can transiently refuse key generation; retry only OperationError.
+ * async function generatePair(algorithm: Algorithm | EcKeyGenParams, extractable = false): Promise<CryptoKeyPair> {
+ *   for (let attempt = 0; attempt < 3; attempt++) {
+ *     try { return await crypto.subtle.generateKey(algorithm, extractable, ["sign", "verify"]) as CryptoKeyPair; }
+ *     catch (error) { if ((error as { name?: string }).name !== "OperationError" || attempt === 2) throw error; }
+ *   }
+ *   throw new Error("key generation failed");
+ * }
+ *
+ * const pair = await generatePair({ name: "Ed25519" });
+ * const made = await ed25519KeyHandle(pair, { keyId: "example-key", role: "issuer" });
+ * if (!made.ok) throw new Error(made.error);
+ * const nextPair = await generatePair({ name: "Ed25519" });
+ * const next = await ed25519KeyHandle(nextPair, { keyId: "next-key" });
+ * if (!next.ok) throw new Error(next.error);
+ * const result = await signV2KeyTransition({ transitionId: "urn:example:transition:1", chainId: "urn:example:chain:1",
+ *   effectiveAt: 1600, nextKeyId: "next-key", nextPublicKey: await next.value.publicKey() }, made.value);
+ * if (!result.ok) throw new Error(result.error);
+ * if (new TextDecoder().decode(result.value.keyTransition).split(".").length !== 3) throw new Error("missing compact");
+ * console.log("signV2KeyTransition: compact assembled");
+ * ```
+ * <!-- readme-output -->
+ * ```text
+ * signV2KeyTransition: compact assembled
+ * ```
  */
 export async function signV2KeyTransition(input: V2TransitionInput, handle: KeyHandle, opts: V2SignOpts = {}): Promise<SignerResult<TransitionCompact>> {
   const emit = emitter(opts, "v2_key_transition");

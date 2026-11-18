@@ -31,7 +31,9 @@ import {
   type SignerResult,
 } from "./handle.js";
 
-/** A telemetry event from a v1 signer, passed to {@link SignOpts.onEvent}: one `start`, then one `stop` or `error`. */
+/** A telemetry event from a v1 signer, passed to {@link SignOpts.onEvent}: one `start`, then one `stop` or `error`.
+ * @see [Guide](https://github.com/baselabs/bounded_authority_signer_typescript/blob/main/docs/guides/api-overview.md)
+ */
 export interface SignerEvent {
   /** The signing operation that emitted this event. */
   readonly kind: "report" | "local_loopback_report" | "anchor" | "grant" | "key_transition";
@@ -39,7 +41,9 @@ export interface SignerEvent {
   readonly phase: "start" | "stop" | "error";
 }
 
-/** Options for the v1 signers. Every field is optional. */
+/** Options for the v1 signers. Every field is optional.
+ * @see [Guide](https://github.com/baselabs/bounded_authority_signer_typescript/blob/main/docs/guides/api-overview.md)
+ */
 export interface SignOpts {
   /** Size limits passed to the verifier's producers and assembler (default: the verifier's defaults). */
   readonly bounds?: Bounds;
@@ -53,7 +57,9 @@ export interface SignOpts {
   readonly onEvent?: (event: SignerEvent) => void;
 }
 
-/** The request a holder proof binds (`signReport`, `signLocalLoopbackReport`). */
+/** The request a holder proof binds (`signReport`, `signLocalLoopbackReport`).
+ * @see [Guide](https://github.com/baselabs/bounded_authority_signer_typescript/blob/main/docs/guides/api-overview.md)
+ */
 export interface ReportInput {
   /** The signed grant compact, as `signGrant` returned it. It passes through to the envelope untouched. */
   readonly grantCompact: Uint8Array;
@@ -71,7 +77,9 @@ export interface ReportInput {
   readonly nonce?: string;
 }
 
-/** A boundary anchor: a signed checkpoint of a hash chain (`signAnchor`). */
+/** A boundary anchor: a signed checkpoint of a hash chain (`signAnchor`).
+ * @see [Guide](https://github.com/baselabs/bounded_authority_signer_typescript/blob/main/docs/guides/api-overview.md)
+ */
 export interface AnchorInput {
   /** A non-empty anchor id. */
   readonly anchorId: string;
@@ -83,7 +91,9 @@ export interface AnchorInput {
   readonly chainHash: Uint8Array;
 }
 
-/** A capability grant (`signGrant`). The issuer key id comes from the handle's `signingIdentity()`. */
+/** A capability grant (`signGrant`). The issuer key id comes from the handle's `signingIdentity()`.
+ * @see [Guide](https://github.com/baselabs/bounded_authority_signer_typescript/blob/main/docs/guides/api-overview.md)
+ */
 export interface GrantInput {
   /** The issuer identifier (a StringOrURI, for example `https://issuer.example`). */
   readonly issuer: string;
@@ -103,7 +113,9 @@ export interface GrantInput {
   readonly operations: readonly OperationInput[];
 }
 
-/** A key transition: the current key (the handle's) hands a chain to the next key (`signKeyTransition`). */
+/** A key transition: the current key (the handle's) hands a chain to the next key (`signKeyTransition`).
+ * @see [Guide](https://github.com/baselabs/bounded_authority_signer_typescript/blob/main/docs/guides/api-overview.md)
+ */
 export interface TransitionInput {
   /** A non-empty transition id. */
   readonly transitionId: string;
@@ -117,24 +129,32 @@ export interface TransitionInput {
   readonly nextPublicKey: Uint8Array;
 }
 
-/** A report signer's value: the grant compact (unchanged) and the new proof compact, both ASCII bytes. */
+/** A report signer's value: the grant compact (unchanged) and the new proof compact, both ASCII bytes.
+ * @see [Guide](https://github.com/baselabs/bounded_authority_signer_typescript/blob/main/docs/guides/api-overview.md)
+ */
 export interface Envelope {
   /** The unchanged grant as ASCII compact JWS bytes. */
   readonly grant: Uint8Array;
   /** The fresh holder proof as ASCII compact JWS bytes. */
   readonly proof: Uint8Array
 }
-/** An anchor signer's value: the anchor compact. */
+/** An anchor signer's value: the anchor compact.
+ * @see [Guide](https://github.com/baselabs/bounded_authority_signer_typescript/blob/main/docs/guides/api-overview.md)
+ */
 export interface AnchorCompact {
   /** The signed boundary anchor as ASCII compact JWS bytes. */
   readonly anchor: Uint8Array
 }
-/** A grant signer's value: the grant compact. */
+/** A grant signer's value: the grant compact.
+ * @see [Guide](https://github.com/baselabs/bounded_authority_signer_typescript/blob/main/docs/guides/api-overview.md)
+ */
 export interface GrantCompact {
   /** The signed grant as ASCII compact JWS bytes. */
   readonly grant: Uint8Array
 }
-/** A key-transition signer's value: the transition compact. */
+/** A key-transition signer's value: the transition compact.
+ * @see [Guide](https://github.com/baselabs/bounded_authority_signer_typescript/blob/main/docs/guides/api-overview.md)
+ */
 export interface TransitionCompact {
   /** The signed key transition as ASCII compact JWS bytes. */
   readonly keyTransition: Uint8Array
@@ -203,7 +223,40 @@ async function signProofProfile(
  * @returns `{ ok: true, value: { grant, proof } }`, or `{ ok: false, error }` with `invalid_report`
  *   (a missing or mistyped field), `invalid_key_handle`, `producer_error` (the verifier's producer
  *   refused an input, for example a non-UUID `invocationId`, or no default `proofId`) or `signing_failed`.
- * @example See the README Quickstart: https://github.com/baselabs/bounded_authority_signer_typescript#quickstart
+ * @category Grant and proof — major 1
+ * @see [Integrator guide](https://github.com/baselabs/bounded_authority_signer_typescript/blob/main/docs/guides/getting-started.md)
+ * @example
+ * <!-- readme-sample: run-dom -->
+ * ```ts
+ * import { ed25519KeyHandle, signGrant, signReport } from "@bounded-authority-protocol/signer";
+ * // WebKit for Linux can transiently refuse key generation; retry only OperationError.
+ * async function generatePair(algorithm: Algorithm | EcKeyGenParams, extractable = false): Promise<CryptoKeyPair> {
+ *   for (let attempt = 0; attempt < 3; attempt++) {
+ *     try { return await crypto.subtle.generateKey(algorithm, extractable, ["sign", "verify"]) as CryptoKeyPair; }
+ *     catch (error) { if ((error as { name?: string }).name !== "OperationError" || attempt === 2) throw error; }
+ *   }
+ *   throw new Error("key generation failed");
+ * }
+ *
+ * const pair = await generatePair({ name: "Ed25519" });
+ * const made = await ed25519KeyHandle(pair, { keyId: "example-key", role: "issuer" });
+ * if (!made.ok) throw new Error(made.error);
+ * const grant = await signGrant({ issuer: "https://issuer.example", grantId: "urn:example:grant:1",
+ *   audiences: ["https://resource.example"], issuedAt: 1000, notBefore: 1000, expiresAt: 2000,
+ *   holderThumbprint: await made.value.thumbprint(),
+ *   operations: [{ name: "read", selectors: [{ kind: "all" }] }] }, made.value);
+ * if (!grant.ok) throw new Error(grant.error);
+ * const result = await signReport({ grantCompact: grant.value.grant, operation: "read", method: "POST",
+ *   targetUri: "https://resource.example/read", invocationId: "550e8400-e29b-41d4-a716-446655440000",
+ *   castArguments: { t: "null" } }, made.value, { issuedAt: 1500, proofId: "urn:example:proof:1" });
+ * if (!result.ok) throw new Error(result.error);
+ * if (new TextDecoder().decode(result.value.proof).split(".").length !== 3) throw new Error("missing compact");
+ * console.log("signReport: compact assembled");
+ * ```
+ * <!-- readme-output -->
+ * ```text
+ * signReport: compact assembled
+ * ```
  */
 export function signReport(report: ReportInput, handle: KeyHandle, opts: SignOpts = {}): Promise<SignerResult<Envelope>> {
   return signProofProfile("report", report, handle, opts);
@@ -217,7 +270,40 @@ export function signReport(report: ReportInput, handle: KeyHandle, opts: SignOpt
  *
  * @returns As {@link signReport}; a missing nonce is `invalid_report`, any other target (`localhost`
  *   included) is `producer_error`.
- * @example https://github.com/baselabs/bounded_authority_signer_typescript#sign-for-a-local-app-loopback
+ * @category Local loopback
+ * @see [Integrator guide](https://github.com/baselabs/bounded_authority_signer_typescript/blob/main/docs/guides/local-loopback.md)
+ * @example
+ * <!-- readme-sample: run-dom -->
+ * ```ts
+ * import { ed25519KeyHandle, signGrant, signLocalLoopbackReport } from "@bounded-authority-protocol/signer";
+ * // WebKit for Linux can transiently refuse key generation; retry only OperationError.
+ * async function generatePair(algorithm: Algorithm | EcKeyGenParams, extractable = false): Promise<CryptoKeyPair> {
+ *   for (let attempt = 0; attempt < 3; attempt++) {
+ *     try { return await crypto.subtle.generateKey(algorithm, extractable, ["sign", "verify"]) as CryptoKeyPair; }
+ *     catch (error) { if ((error as { name?: string }).name !== "OperationError" || attempt === 2) throw error; }
+ *   }
+ *   throw new Error("key generation failed");
+ * }
+ *
+ * const pair = await generatePair({ name: "Ed25519" });
+ * const made = await ed25519KeyHandle(pair, { keyId: "example-key", role: "issuer" });
+ * if (!made.ok) throw new Error(made.error);
+ * const grant = await signGrant({ issuer: "https://issuer.example", grantId: "urn:example:grant:1",
+ *   audiences: ["https://resource.example"], issuedAt: 1000, notBefore: 1000, expiresAt: 2000,
+ *   holderThumbprint: await made.value.thumbprint(),
+ *   operations: [{ name: "read", selectors: [{ kind: "all" }] }] }, made.value);
+ * if (!grant.ok) throw new Error(grant.error);
+ * const result = await signLocalLoopbackReport({ grantCompact: grant.value.grant, operation: "read", method: "POST",
+ *   targetUri: "http://127.0.0.1:47321/rpc", invocationId: "550e8400-e29b-41d4-a716-446655440000",
+ *   castArguments: { t: "null" }, nonce: "server-issued-challenge" }, made.value, { issuedAt: 1500, proofId: "urn:example:proof:1" });
+ * if (!result.ok) throw new Error(result.error);
+ * if (new TextDecoder().decode(result.value.proof).split(".").length !== 3) throw new Error("missing compact");
+ * console.log("signLocalLoopbackReport: compact assembled");
+ * ```
+ * <!-- readme-output -->
+ * ```text
+ * signLocalLoopbackReport: compact assembled
+ * ```
  */
 export function signLocalLoopbackReport(report: ReportInput, handle: KeyHandle, opts: SignOpts = {}): Promise<SignerResult<Envelope>> {
   return signProofProfile("local_loopback_report", report, handle, opts);
@@ -230,7 +316,34 @@ export function signLocalLoopbackReport(report: ReportInput, handle: KeyHandle, 
  *
  * @returns `{ ok: true, value: { anchor } }`, or `invalid_anchor`, `invalid_key_handle` (including a
  *   handle without `keyIdentity`), `producer_error` or `signing_failed`.
- * @example https://github.com/baselabs/bounded_authority_signer_typescript#anchor-a-chain-and-rotate-its-key
+ * @category Anchors and transitions — major 1
+ * @see [Integrator guide](https://github.com/baselabs/bounded_authority_signer_typescript/blob/main/docs/guides/rotate-keys.md)
+ * @example
+ * <!-- readme-sample: run-dom -->
+ * ```ts
+ * import { ed25519KeyHandle, signAnchor } from "@bounded-authority-protocol/signer";
+ * // WebKit for Linux can transiently refuse key generation; retry only OperationError.
+ * async function generatePair(algorithm: Algorithm | EcKeyGenParams, extractable = false): Promise<CryptoKeyPair> {
+ *   for (let attempt = 0; attempt < 3; attempt++) {
+ *     try { return await crypto.subtle.generateKey(algorithm, extractable, ["sign", "verify"]) as CryptoKeyPair; }
+ *     catch (error) { if ((error as { name?: string }).name !== "OperationError" || attempt === 2) throw error; }
+ *   }
+ *   throw new Error("key generation failed");
+ * }
+ *
+ * const pair = await generatePair({ name: "Ed25519" });
+ * const made = await ed25519KeyHandle(pair, { keyId: "example-key", role: "issuer" });
+ * if (!made.ok) throw new Error(made.error);
+ * const result = await signAnchor({ anchorId: "urn:example:anchor:0", chainId: "urn:example:chain:1",
+ *   sequence: 0, chainHash: new Uint8Array(32) }, made.value, { anchoredAt: 1500 });
+ * if (!result.ok) throw new Error(result.error);
+ * if (new TextDecoder().decode(result.value.anchor).split(".").length !== 3) throw new Error("missing compact");
+ * console.log("signAnchor: compact assembled");
+ * ```
+ * <!-- readme-output -->
+ * ```text
+ * signAnchor: compact assembled
+ * ```
  */
 export async function signAnchor(input: AnchorInput, handle: KeyHandle, opts: SignOpts = {}): Promise<SignerResult<AnchorCompact>> {
   const emit = emitter(opts, "anchor");
@@ -264,7 +377,36 @@ export async function signAnchor(input: AnchorInput, handle: KeyHandle, opts: Si
  * @returns `{ ok: true, value: { grant } }`, or `invalid_grant`, `invalid_key_handle`,
  *   `producer_error` (for example no operations, no audiences, or `expiresAt` not after `notBefore`)
  *   or `signing_failed`.
- * @example See the README Quickstart: https://github.com/baselabs/bounded_authority_signer_typescript#quickstart
+ * @category Grant and proof — major 1
+ * @see [Integrator guide](https://github.com/baselabs/bounded_authority_signer_typescript/blob/main/docs/guides/getting-started.md)
+ * @example
+ * <!-- readme-sample: run-dom -->
+ * ```ts
+ * import { ed25519KeyHandle, signGrant } from "@bounded-authority-protocol/signer";
+ * // WebKit for Linux can transiently refuse key generation; retry only OperationError.
+ * async function generatePair(algorithm: Algorithm | EcKeyGenParams, extractable = false): Promise<CryptoKeyPair> {
+ *   for (let attempt = 0; attempt < 3; attempt++) {
+ *     try { return await crypto.subtle.generateKey(algorithm, extractable, ["sign", "verify"]) as CryptoKeyPair; }
+ *     catch (error) { if ((error as { name?: string }).name !== "OperationError" || attempt === 2) throw error; }
+ *   }
+ *   throw new Error("key generation failed");
+ * }
+ *
+ * const pair = await generatePair({ name: "Ed25519" });
+ * const made = await ed25519KeyHandle(pair, { keyId: "example-key", role: "issuer" });
+ * if (!made.ok) throw new Error(made.error);
+ * const result = await signGrant({ issuer: "https://issuer.example", grantId: "urn:example:grant:1",
+ *   audiences: ["https://resource.example"], issuedAt: 1000, notBefore: 1000, expiresAt: 2000,
+ *   holderThumbprint: await made.value.thumbprint(),
+ *   operations: [{ name: "read", selectors: [{ kind: "all" }] }] }, made.value);
+ * if (!result.ok) throw new Error(result.error);
+ * if (new TextDecoder().decode(result.value.grant).split(".").length !== 3) throw new Error("missing compact");
+ * console.log("signGrant: compact assembled");
+ * ```
+ * <!-- readme-output -->
+ * ```text
+ * signGrant: compact assembled
+ * ```
  */
 export async function signGrant(input: GrantInput, handle: KeyHandle, opts: SignOpts = {}): Promise<SignerResult<GrantCompact>> {
   const emit = emitter(opts, "grant");
@@ -302,7 +444,37 @@ export async function signGrant(input: GrantInput, handle: KeyHandle, opts: Sign
  *
  * @returns `{ ok: true, value: { keyTransition } }`, or `invalid_transition`, `invalid_key_handle`,
  *   `producer_error` or `signing_failed`.
- * @example https://github.com/baselabs/bounded_authority_signer_typescript#anchor-a-chain-and-rotate-its-key
+ * @category Anchors and transitions — major 1
+ * @see [Integrator guide](https://github.com/baselabs/bounded_authority_signer_typescript/blob/main/docs/guides/rotate-keys.md)
+ * @example
+ * <!-- readme-sample: run-dom -->
+ * ```ts
+ * import { ed25519KeyHandle, signKeyTransition } from "@bounded-authority-protocol/signer";
+ * // WebKit for Linux can transiently refuse key generation; retry only OperationError.
+ * async function generatePair(algorithm: Algorithm | EcKeyGenParams, extractable = false): Promise<CryptoKeyPair> {
+ *   for (let attempt = 0; attempt < 3; attempt++) {
+ *     try { return await crypto.subtle.generateKey(algorithm, extractable, ["sign", "verify"]) as CryptoKeyPair; }
+ *     catch (error) { if ((error as { name?: string }).name !== "OperationError" || attempt === 2) throw error; }
+ *   }
+ *   throw new Error("key generation failed");
+ * }
+ *
+ * const pair = await generatePair({ name: "Ed25519" });
+ * const made = await ed25519KeyHandle(pair, { keyId: "example-key", role: "issuer" });
+ * if (!made.ok) throw new Error(made.error);
+ * const nextPair = await generatePair({ name: "Ed25519" });
+ * const next = await ed25519KeyHandle(nextPair, { keyId: "next-key" });
+ * if (!next.ok) throw new Error(next.error);
+ * const result = await signKeyTransition({ transitionId: "urn:example:transition:1", chainId: "urn:example:chain:1",
+ *   effectiveAt: 1600, nextKeyId: "next-key", nextPublicKey: await next.value.publicKey() }, made.value);
+ * if (!result.ok) throw new Error(result.error);
+ * if (new TextDecoder().decode(result.value.keyTransition).split(".").length !== 3) throw new Error("missing compact");
+ * console.log("signKeyTransition: compact assembled");
+ * ```
+ * <!-- readme-output -->
+ * ```text
+ * signKeyTransition: compact assembled
+ * ```
  */
 export async function signKeyTransition(input: TransitionInput, handle: KeyHandle, opts: SignOpts = {}): Promise<SignerResult<TransitionCompact>> {
   const emit = emitter(opts, "key_transition");

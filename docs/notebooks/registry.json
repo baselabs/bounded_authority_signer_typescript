@@ -1,0 +1,19 @@
+{
+  "notebooks": [
+    {
+      "file": "grant-and-proof.ipynb"
+    },
+    {
+      "file": "bounded-selectors-es256.ipynb"
+    },
+    {
+      "file": "key-custody.ipynb"
+    },
+    {
+      "file": "local-loopback.ipynb"
+    },
+    {
+      "file": "anchors-and-transitions.ipynb"
+    }
+  ]
+}

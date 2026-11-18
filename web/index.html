@@ -66,93 +66,19 @@
     <p class="custody-note"><svg class="ic"><use href="#i-lock"/></svg> Private keys stay in their custody backend. <strong>The demo follows the same handle contract.</strong>
     <span id="custody-mode" class="pill"></span></p>
     <ul class="badges">
-      <li>Development source</li><li>CI: green on Linux</li><li>Apache-2.0</li>
+      <li>Development source</li><li>Apache-2.0</li>
     </ul>
   </div>
 </section>
 
 <main>
-<section id="why" class="wrap why">
-  <div class="why-head">
-    <h2>Delegated access with request binding</h2>
-    <p>OAuth scopes express delegated permissions; resource servers enforce them.
-    BAP adds signed grants and holder proofs that bind those bounds to the method, URI, operation and JCS typed projection of cast_arguments.
-    These mechanisms have overlapping authorization concerns. BAP supplies a specific,
-    independently verifiable request contract alongside your OAuth deployment.</p>
-  </div>
-  <div class="grid3">
-    <article class="whycard">
-      <h3>Make the request explicit.</h3>
-      <p class="pain">A scope such as “read” can cover many requests. The permissions and
-      token protections depend on your OAuth profile and resource policy.</p>
-      <p class="answer"><svg class="ic"><use href="#i-check"/></svg> A BAP grant names operations,
-      resources, and a validity window. Each holder proof binds one request’s method, URI,
-      invocation ID, operation, and typed arguments to that grant.</p>
-    </article>
-    <article class="whycard">
-      <h3>Verify bytes; apply policy.</h3>
-      <p class="pain">A valid signature alone cannot select trusted issuers, determine live
-      revocation, or prevent an invocation from executing twice.</p>
-      <p class="answer"><svg class="ic"><use href="#i-check"/></svg> The pure verifier checks
-      signatures, holder binding, request matching, and validity windows against explicit inputs.
-      It returns cryptographic facts. Your host runtime makes the authorization decision and
-      atomically reserves each invocation before any side effect.</p>
-    </article>
-    <article class="whycard">
-      <h3>Your keys stay yours.</h3>
-      <p class="pain">An integration needs to sign without moving private-key bytes into the
-      protocol library.</p>
-      <p class="answer"><svg class="ic"><use href="#i-check"/></svg> Issuers and holders sign
-      through handles backed by their own custody, such as an HSM, KMS, or browser key store.
-      The signer receives public keys and signatures; private keys never enter the library.</p>
-    </article>
-  </div>
-</section>
-
 <section id="cases" class="wrap cases">
-  <div class="why-head">
-    <h2>Where request bounds help</h2>
-    <p>Agent authority spans domains. These are examples of request bounds a host can enforce
-    alongside OAuth permissions and its own authorization policy.</p>
-  </div>
+  <div class="why-head"><h2>Protocol examples</h2><p>Each example describes a request bound. The host separately applies authorization, replay and revocation policy.</p></div>
   <div class="grid4 cases-grid">
-    <article class="casecard">
-      <h3>A third-party tool</h3>
-      <p class="ctx">workspace files · MCP server</p>
-      <p class="pain">A tool needs selected attachments for one session, while its integration
-      may have broader delegated access.</p>
-      <p class="grantline">grant: read · selected attachments · this session</p>
-      <p class="answer"><svg class="ic"><use href="#i-check"/></svg> The resource checks each
-      request against the signed grant’s selectors and applies its host policy before serving files.</p>
-    </article>
-    <article class="casecard">
-      <h3>Just-in-time elevation</h3>
-      <p class="ctx">on-call engineer or automation · service deployment</p>
-      <p class="pain">A deployment needs temporary permission for a specific environment.</p>
-      <p class="grantline">grant: deploy + rollback · staging · 30 min</p>
-      <p class="answer"><svg class="ic"><use href="#i-check"/></svg> The verifier checks the
-      grant’s time window using the host’s evaluation time and clock skew. Early revocation
-      remains the host runtime’s responsibility.</p>
-    </article>
-    <article class="casecard">
-      <h3>Scoped support access</h3>
-      <p class="ctx">support agent · multi-tenant SaaS</p>
-      <p class="pain">A support workflow needs one record for one ticket, with the same isolation
-      policy applied to every tenant.</p>
-      <p class="grantline">grant: read · selected record · ticket lifetime</p>
-      <p class="answer"><svg class="ic"><use href="#i-check"/></svg> Selectors bind the record
-      arguments. The resource derives those arguments from the actual request and enforces tenant
-      isolation through its authorization policy.</p>
-    </article>
-    <article class="casecard">
-      <h3>An agent that can spend money</h3>
-      <p class="ctx">agent · payments API</p>
-      <p class="pain">A transfer needs a bounded account, amount, and validity window.</p>
-      <p class="grantline">grant: transfer · selected account · until 14:15</p>
-      <p class="answer"><svg class="ic"><use href="#i-check"/></svg> The API checks the exact
-      request against the grant, applies live authorization policy, and reserves the invocation
-      before transferring funds.</p>
-    </article>
+    <article class="casecard"><h3>Resource selection</h3><p>An equals selector binds a file request to a selected repository.</p></article>
+    <article class="casecard"><h3>Operation arguments</h3><p>Inclusive bounds constrain a temperature setpoint or a replica count.</p></article>
+    <article class="casecard"><h3>Validity windows</h3><p>A grant names the interval in which the resource may accept a proof.</p></article>
+    <article class="casecard"><h3>Request matching</h3><p>A holder proof binds the method, target URI, operation, invocation ID and typed arguments.</p></article>
   </div>
 </section>
 
@@ -162,6 +88,9 @@
     <p>Everything below is live: this page bundles the real <code>signer</code> and <code>verifier</code>
     packages and signs with a key generated in your browser. No server, no simulation, no mocks. Verification here is display-only: this page has no
     authorization policy, revocation check, or replay reservation. Verifying again does not execute a request.</p>
+    <label>Wire contract <select id="contract-major"><option value="1">1 · Ed25519</option><option value="2">2 · Ed25519 ranges</option><option value="3">3 · ES256</option></select></label>
+    <label>Demonstration custody <select id="custody"><option value="webcrypto">WebCrypto non-extractable</option><option value="noble">In-page key bytes</option></select></label>
+    <button id="selector-refusal" class="btn subtle">Try an integral float selector</button><output id="selector-result" aria-live="polite"></output>
     <button id="reset" class="btn subtle"><svg class="ic"><use href="#i-key"/></svg> New keys · reset</button>
   </div>
 
@@ -170,7 +99,7 @@
       <header><svg class="ic"><use href="#i-seal"/></svg> Issuer <span class="role-badge">grants authority</span></header>
       <div class="keychip" id="chip-issuer"></div>
       <dl class="props">
-        <div><dt>may</dt><dd><code>read_record</code> · <code>{ kind: "all" }</code></dd></div>
+        <div><dt>may</dt><dd><code>read_record</code> · <code>equals record 90112</code></dd></div>
         <div><dt>audience</dt><dd><code>resource.example.test</code></dd></div>
         <div><dt>window</dt><dd>t=1000 → 2000 <span class="dim">(evaluated at 1500)</span></dd></div>
       </dl>
@@ -182,7 +111,7 @@
       <header><svg class="ic"><use href="#i-person"/></svg> Holder <span class="role-badge">your agent</span></header>
       <div class="keychip" id="chip-holder"></div>
       <dl class="props">
-        <div><dt>request</dt><dd><code>POST /invoke</code> · <code>ticket: 90112</code></dd></div>
+        <div><dt>request</dt><dd><code>POST /invoke</code> · <code>record: 90112</code></dd></div>
         <div><dt>invocation</dt><dd><code>550e8400-…440000</code></dd></div>
       </dl>
       <button id="btn-proof" class="btn actorbtn holder" disabled><svg class="ic"><use href="#i-key"/></svg> Prove the request</button>
@@ -206,7 +135,7 @@
   <div class="tamper">
     <div class="panel-head"><div class="panel-badge"><svg class="ic"><use href="#i-wire"/></svg></div><div class="panel-titles"><span class="panel-title">Tamper deck</span><span class="panel-sub">Every button below produces a real, closed INVALID.</span></div></div>
     <div class="tamper-btns">
-      <button class="btn danger" data-tamper="payload" disabled>Change the request → ticket 90113</button>
+      <button class="btn danger" data-tamper="payload" disabled>Change the request → record 90113</button>
       <button class="btn danger" data-tamper="operation" disabled>Claim a different operation</button>
       <button class="btn danger" data-tamper="expiry" disabled>Evaluate after expiry</button>
       <button class="btn danger" data-tamper="impostor" disabled>Steal the grant with another key</button>
@@ -269,18 +198,43 @@
 </section>
 
 <section class="wrap" id="install">
-  <div class="sec-head"><h2>The key-handle contract</h2>
-  <p>One interface, every operation. Every method may be async, so remote custodians use the same interface.</p></div>
-  <pre class="code">interface KeyHandle {
-  sign(message: Uint8Array): Uint8Array | Promise&lt;Uint8Array&gt;;        // 64-byte Ed25519
-  publicKey(): Uint8Array | Promise&lt;Uint8Array&gt;;                       // 32 bytes
-  thumbprint(): string | Promise&lt;string&gt;;                              // RFC 7638, base64url
-  keyIdentity?(): { keyId, publicKey } | Promise&lt;…&gt;;                  // anchor + transition
-  signingIdentity?(): { role, keyId, publicKey } | Promise&lt;…&gt;;       // grants: role "issuer" only
-}</pre>
-  <div class="install-row">
-    <pre class="code slim">npm i @bounded-authority-protocol/signer    # Node >= 22, browsers, Deno, Bun; one runtime dep: the verifier</pre>
-  </div>
+  <div class="sec-head"><h2>Suite-specific key setup</h2><p>Ed25519 and P-256 have distinct public-key formats. Every custody method may be async.</p></div>
+  <div class="install-row"><pre class="code slim">npm install @bounded-authority-protocol/signer@2.0.0 @bounded-authority-protocol/verifier@2.0.0</pre></div>
+<h3>Contract major 1 (also major 2)</h3>
+<pre class="code" data-sample="run-dom" data-output="suite 1: 32-byte public key ready">import { ed25519KeyHandle } from &quot;@bounded-authority-protocol/signer&quot;;
+import { BACKEND_ID } from &quot;@bounded-authority-protocol/verifier&quot;;
+// WebKit for Linux can transiently refuse key generation; retry only OperationError.
+async function generatePair(algorithm: Algorithm | EcKeyGenParams, extractable = false): Promise&lt;CryptoKeyPair&gt; {
+  for (let attempt = 0; attempt &lt; 3; attempt++) {
+    try { return await crypto.subtle.generateKey(algorithm, extractable, [&quot;sign&quot;, &quot;verify&quot;]) as CryptoKeyPair; }
+    catch (error) { if ((error as { name?: string }).name !== &quot;OperationError&quot; || attempt === 2) throw error; }
+  }
+  throw new Error(&quot;key generation failed&quot;);
+}
+
+const pair = await generatePair({ name: &quot;Ed25519&quot; });
+const made = await ed25519KeyHandle(pair, { keyId: &quot;example-key&quot;, role: &quot;issuer&quot; });
+if (!made.ok) throw new Error(made.error);
+if ((await made.value.publicKey()).length !== 32 || BACKEND_ID !== &quot;portable&quot;) throw new Error(&quot;suite setup&quot;);
+console.log(&quot;suite 1: 32-byte public key ready&quot;);</pre>
+<h3>Contract major 3</h3>
+<pre class="code" data-sample="run-dom" data-output="suite 3: 65-byte public key ready">import { es256KeyHandle } from &quot;@bounded-authority-protocol/signer&quot;;
+import { BACKEND_ID } from &quot;@bounded-authority-protocol/verifier&quot;;
+// WebKit for Linux can transiently refuse key generation; retry only OperationError.
+async function generatePair(algorithm: Algorithm | EcKeyGenParams, extractable = false): Promise&lt;CryptoKeyPair&gt; {
+  for (let attempt = 0; attempt &lt; 3; attempt++) {
+    try { return await crypto.subtle.generateKey(algorithm, extractable, [&quot;sign&quot;, &quot;verify&quot;]) as CryptoKeyPair; }
+    catch (error) { if ((error as { name?: string }).name !== &quot;OperationError&quot; || attempt === 2) throw error; }
+  }
+  throw new Error(&quot;key generation failed&quot;);
+}
+
+const pair = await generatePair({ name: &quot;ECDSA&quot;, namedCurve: &quot;P-256&quot; });
+const made = await es256KeyHandle(pair, { keyId: &quot;example-key&quot;, role: &quot;issuer&quot; });
+if (!made.ok) throw new Error(made.error);
+if ((await made.value.publicKey()).length !== 65 || BACKEND_ID !== &quot;portable&quot;) throw new Error(&quot;suite setup&quot;);
+console.log(&quot;suite 3: 65-byte public key ready&quot;);</pre>
+  <p>Continue with the <a href="https://github.com/baselabs/bounded_authority_signer_typescript/blob/main/docs/guides/getting-started.md">integrator guides</a> and <a href="https://github.com/baselabs/bounded_authority_signer_typescript/tree/main/docs/notebooks">Deno notebooks</a>.</p>
 </section>
 </main>
 

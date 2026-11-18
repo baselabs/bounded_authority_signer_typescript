@@ -13,7 +13,7 @@ concurrency:
 
 jobs:
   verify:
-    timeout-minutes: 5 # Run 44122886989: slowest green lane 80s.
+    timeout-minutes: 90 # no green run yet for the expanded documentation gates.
     name: typecheck, lint, browser guards, size, unit, gates, oracle, node lanes (both verifier backends) (${{ matrix.os }}, node ${{ matrix.node }})
     strategy:
       fail-fast: false
@@ -23,7 +23,7 @@ jobs:
         # consumer floor ">= 22"), and 24.19.0 as an additional supported Node lane.
         # The strict self-verify runs on both, against both verifier backends
         # (node:crypto under default conditions, portable under bap-portable).
-        node: [22.23.1, 24.19.0]
+        node: [nodejs, nodejs-next]
     runs-on: ${{ matrix.os }}
     steps:
       - name: Check out source
@@ -31,11 +31,24 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Read exact runtime pins
+        id: pins
+        shell: bash
+        run: |
+          while read -r tool version compatibility; do
+            test -n "$tool" && test -n "$version"
+            printf '%s=%s\n' "$tool" "$version" >> "$GITHUB_OUTPUT"
+            if test "$tool" = nodejs; then
+              test -n "$compatibility"
+              printf 'nodejs-next=%s\n' "$compatibility" >> "$GITHUB_OUTPUT"
+            fi
+          done < .tool-versions
+
       - name: Set up Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          # Exact supported Node versions from the matrix above.
-          node-version: ${{ matrix.node }}
+          # Both supported lanes are pinned in .tool-versions.
+          node-version: ${{ steps.pins.outputs[matrix.node] }}
           package-manager-cache: false
       - name: Activate the declared pnpm with Corepack
         run: |
@@ -46,7 +59,7 @@ jobs:
           test "pnpm@$(pnpm --version)" = "$manager"
       - name: Refuse a different Node version
         env:
-          EXPECTED_NODE: ${{ matrix.node }}
+          EXPECTED_NODE: ${{ steps.pins.outputs[matrix.node] }}
         run: |
           test "$(node --version)" = "v$EXPECTED_NODE" || { echo "::error::Node must be exactly $EXPECTED_NODE"; exit 1; }
 
@@ -105,6 +118,19 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Read exact runtime pins
+        id: pins
+        shell: bash
+        run: |
+          while read -r tool version compatibility; do
+            test -n "$tool" && test -n "$version"
+            printf '%s=%s\n' "$tool" "$version" >> "$GITHUB_OUTPUT"
+            if test "$tool" = nodejs; then
+              test -n "$compatibility"
+              printf 'nodejs-next=%s\n' "$compatibility" >> "$GITHUB_OUTPUT"
+            fi
+          done < .tool-versions
+
       - name: Set up Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
@@ -126,13 +152,21 @@ jobs:
         if: matrix.runtime == 'deno'
         uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
         with:
-          deno-version: 2.5.6
+          deno-version: ${{ steps.pins.outputs.deno }}
 
       - name: Set up Bun
         if: matrix.runtime == 'bun'
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
-          bun-version: 1.3.14
+          bun-version: ${{ steps.pins.outputs.bun }}
+
+      - name: Refuse a different runtime version
+        shell: bash
+        env:
+          RUNTIME: ${{ matrix.runtime }}
+        run: |
+          if test "$RUNTIME" = deno; then test "$(deno --version | head -n 1)" = "deno ${{ steps.pins.outputs.deno }}"; fi
+          if test "$RUNTIME" = bun; then test "$(bun --version)" = "${{ steps.pins.outputs.bun }}"; fi
 
       - name: Install (frozen lockfile)
         run: pnpm install --frozen-lockfile
@@ -143,7 +177,7 @@ jobs:
         run: pnpm test:runtimes
 
   package:
-    timeout-minutes: 5 # Run 44122886989: slowest green lane 40s.
+    timeout-minutes: 90 # no green run yet for candidate and registry documentation journeys.
     # The packed tarball as a consumer receives it: typecheck with skipLibCheck false under each
     # resolution, lib and condition set, the leaked-type red-proof, the installed package run on
     # Node (both verifier backends), Deno and Bun, and the closed deep-import surface probed on
@@ -155,6 +189,19 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+
+      - name: Read exact runtime pins
+        id: pins
+        shell: bash
+        run: |
+          while read -r tool version compatibility; do
+            test -n "$tool" && test -n "$version"
+            printf '%s=%s\n' "$tool" "$version" >> "$GITHUB_OUTPUT"
+            if test "$tool" = nodejs; then
+              test -n "$compatibility"
+              printf 'nodejs-next=%s\n' "$compatibility" >> "$GITHUB_OUTPUT"
+            fi
+          done < .tool-versions
 
       - name: Set up Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -176,21 +223,27 @@ jobs:
       - name: Set up Deno
         uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
         with:
-          deno-version: 2.5.6
+          deno-version: ${{ steps.pins.outputs.deno }}
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
-          bun-version: 1.3.14
+          bun-version: ${{ steps.pins.outputs.bun }}
+
+      - name: Refuse different runtime versions
+        shell: bash
+        run: |
+          test "$(deno --version | head -n 1)" = "deno ${{ steps.pins.outputs.deno }}"
+          test "$(bun --version)" = "${{ steps.pins.outputs.bun }}"
 
       - name: Install (frozen lockfile)
         run: pnpm install --frozen-lockfile
 
-      - name: Packed tarball checks, the README Quickstart run as a reader runs it, the README version pins (builds first; uses the npm registry)
+      - name: Packed tarball and every Node documentation journey (explicit candidate and registry modes; builds first)
         run: pnpm test:tarball
 
   browser:
-    timeout-minutes: 5 # Run 44210463169: slowest green lane 51s in the pinned Playwright image.
+    timeout-minutes: 90 # no green run yet for the built playground and all DOM examples.
     # Real engines through Playwright under the strict CSP (an engine axis, not an OS axis: Linux only).
     # Each engine also runs the WebCrypto key-handle battery with its own keys (including a same-origin
     # iframe key) and the non-secure-context lane (http://bap.test routed by Playwright). Linux WebKit is
@@ -237,6 +290,17 @@ jobs:
           expected="1.65.1"
           actual="$(node -p 'require("playwright/package.json").version')"
           test "$actual" = "$expected" || { echo "::error::Installed Playwright $actual differs from container image Playwright $expected; update the lockfile and image together"; exit 1; }
+
+      - name: Build the public playground and candidate package
+        run: |
+          pnpm build
+          pnpm typecheck:web
+          pnpm build:site
+
+      - name: Built playground and browser documentation (candidate and registry)
+        env:
+          BAP_BROWSERS: ${{ matrix.engine }}
+        run: pnpm test:playground
 
       - name: Browser lane
         env:
@@ -315,9 +379,37 @@ jobs:
       - name: Dependency currency (classified exit; unverified never passes)
         run: node tools/check-currency.mjs
 
+  notebooks-local:
+    timeout-minutes: 90 # no green run yet
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install exact notebook toolchain and frozen dependencies
+        uses: ./.github/actions/notebook-tools
+      - name: Build and execute notebooks against the packed candidate
+        run: |
+          pnpm build
+          pnpm notebooks:local
+
+  notebooks-published:
+    timeout-minutes: 90 # no green run yet
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install exact notebook toolchain and frozen dependencies
+        uses: ./.github/actions/notebook-tools
+      - name: Execute unchanged notebooks against exact registry releases
+        run: pnpm notebooks:published
+
   qualified:
     if: always()
-    needs: [verify, runtimes, package, browser, supply-chain, dependency-currency]
+    needs: [verify, runtimes, package, browser, supply-chain, dependency-currency, notebooks-local, notebooks-published]
     runs-on: ubuntu-24.04
     timeout-minutes: 5 # Run 44210463169: green job 3s.
     steps:
