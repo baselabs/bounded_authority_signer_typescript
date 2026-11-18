@@ -23,7 +23,7 @@ The runner installs an isolated Deno Jupyter kernel and removes its workspace an
 It executes notebook cells in the real kernel, not a concatenated script. Every code cell has
 saved Jupyter output as its only golden result; compare computed meanings, never generated keys or signatures.
 
-Qualification installs this repository's own package only from the packed candidate.
+Candidate notebook and consumer journeys install this repository's package from the packed candidate.
 `publish.yml` runs published notebooks and the other registry checks after each upload in the
 keyless `published-notebooks` job. That job waits up to ten minutes for npm to serve the exact
 version. A maintainer can run `pnpm notebooks:published` and `pnpm docs:checks:published` on demand

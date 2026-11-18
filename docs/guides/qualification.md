@@ -48,7 +48,7 @@ or tagged version, builds the library and API docs, packs and inspects one archi
 checks its SHA-256, and stages those bytes with `npm stage publish --provenance`. It does not
 rerun qualification or create a tag.
 
-Qualification installs this repository's own package only from the packed candidate.
+Candidate notebook and consumer journeys install this repository's package from the packed candidate.
 `publish.yml` runs published notebooks and the other registry checks after each upload in the
 keyless `published-notebooks` job. That job waits up to ten minutes for npm to serve the exact
 version. A maintainer can run `pnpm notebooks:published` and `pnpm docs:checks:published` on demand
