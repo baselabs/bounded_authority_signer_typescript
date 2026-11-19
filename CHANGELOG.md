@@ -10,6 +10,7 @@ category: Package policies
 2.0.1 is a patch release: the API is unchanged; it requires verifier `^2.0.1` and ships the
 integrator guides, notebooks and packaged docs.
 
+- Fail CI, publication and documentation steps when any required command fails, including in pipelines.
 - Resume held npm publication only when the served SHA-512 and archive bytes match; refuse
   deprecated, changed or pending staged versions. Preserve inspected archives and checksums
   as `release-assets` for infra's GitHub release and document registry provenance verification.

@@ -7,6 +7,10 @@ on:
 permissions:
   contents: read
 
+defaults:
+  run:
+    shell: bash
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -49,7 +53,8 @@ jobs:
           case "$manager" in pnpm@[0-9]*.[0-9]*.[0-9]*) ;; *) echo "::error::Declare an exact pnpm packageManager"; exit 1 ;; esac
           corepack enable
           corepack prepare "$manager" --activate
-          test "pnpm@$(pnpm --version)" = "$manager"
+          version="$(pnpm --version)"
+          test "pnpm@$version" = "$manager"
       - name: Refuse a different Node version
         env:
           NODE_LANE: ${{ matrix.node == 'nodejs-next' && 'next' || 'primary' }}
@@ -126,7 +131,8 @@ jobs:
           case "$manager" in pnpm@[0-9]*.[0-9]*.[0-9]*) ;; *) echo "::error::Declare an exact pnpm packageManager"; exit 1 ;; esac
           corepack enable
           corepack prepare "$manager" --activate
-          test "pnpm@$(pnpm --version)" = "$manager"
+          version="$(pnpm --version)"
+          test "pnpm@$version" = "$manager"
       - name: Refuse a different Node version
         run: scripts/tool-versions.sh check nodejs
 
@@ -185,7 +191,8 @@ jobs:
           case "$manager" in pnpm@[0-9]*.[0-9]*.[0-9]*) ;; *) echo "::error::Declare an exact pnpm packageManager"; exit 1 ;; esac
           corepack enable
           corepack prepare "$manager" --activate
-          test "pnpm@$(pnpm --version)" = "$manager"
+          version="$(pnpm --version)"
+          test "pnpm@$version" = "$manager"
       - name: Refuse a different Node version
         run: scripts/tool-versions.sh check nodejs
 
@@ -249,7 +256,8 @@ jobs:
           case "$manager" in pnpm@[0-9]*.[0-9]*.[0-9]*) ;; *) echo "::error::Declare an exact pnpm packageManager"; exit 1 ;; esac
           corepack enable
           corepack prepare "$manager" --activate
-          test "pnpm@$(pnpm --version)" = "$manager"
+          version="$(pnpm --version)"
+          test "pnpm@$version" = "$manager"
       - name: Refuse a different Node version
         run: scripts/tool-versions.sh check nodejs
 
@@ -305,7 +313,8 @@ jobs:
           case "$manager" in pnpm@[0-9]*.[0-9]*.[0-9]*) ;; *) echo "::error::Declare an exact pnpm packageManager"; exit 1 ;; esac
           corepack enable
           corepack prepare "$manager" --activate
-          test "pnpm@$(pnpm --version)" = "$manager"
+          version="$(pnpm --version)"
+          test "pnpm@$version" = "$manager"
       - name: Refuse a different Node version
         run: scripts/tool-versions.sh check nodejs
 
@@ -346,7 +355,8 @@ jobs:
           case "$manager" in pnpm@[0-9]*.[0-9]*.[0-9]*) ;; *) echo "::error::Declare an exact pnpm packageManager"; exit 1 ;; esac
           corepack enable
           corepack prepare "$manager" --activate
-          test "pnpm@$(pnpm --version)" = "$manager"
+          version="$(pnpm --version)"
+          test "pnpm@$version" = "$manager"
       - name: Refuse a different Node version
         run: scripts/tool-versions.sh check nodejs
 

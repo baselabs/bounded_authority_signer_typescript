@@ -1,7 +1,8 @@
-#!/bin/sh
+#!/usr/bin/env bash
+set -efuo pipefail
+
 # One parser for exact primary and optional compatibility pins in .tool-versions.
 # Usage: tool-versions.sh read TOOL... | check TOOL [primary|next]
-set -efu
 
 fail() {
   printf 'tool-versions: %s\n' "$*" >&2
@@ -15,6 +16,8 @@ known_tool() {
 exact_version() (
   case "$1" in ''|*[!0-9.]*|.*|*.|*..*) exit 1 ;; esac
   IFS=.
+  # Split the version into components; -f already disables globbing.
+  # shellcheck disable=SC2086
   set -- $1
   [ "$#" -eq 3 ] || exit 1
   for component do
@@ -22,12 +25,15 @@ exact_version() (
   done
 )
 
-root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+script_directory=$(dirname -- "$0")
+root=$(CDPATH='' cd -- "$script_directory/.." && pwd)
 read_pins() {
   seen=' '
   while IFS= read -r line || [ -n "$line" ]; do
     # asdf permits comments and whitespace, but every tool has one or two exact pins.
     line=${line%%#*}
+    # Split the whitespace-delimited fields; -f already disables globbing.
+    # shellcheck disable=SC2086
     set -- $line
     [ "$#" -gt 0 ] || continue
     [ "$#" -eq 2 ] || [ "$#" -eq 3 ] || fail 'expected TOOL X.Y.Z [X.Y.Z]'
@@ -70,7 +76,8 @@ case "$command" in
     done
     : "${GITHUB_OUTPUT:?GITHUB_OUTPUT is required}"
     for tool do
-      printf '%s=%s\n' "$tool" "$(declared "$tool")" >> "$GITHUB_OUTPUT"
+      primary=$(declared "$tool")
+      printf '%s=%s\n' "$tool" "$primary" >> "$GITHUB_OUTPUT"
       if lane=$(declared "$tool-next"); then
         printf '%s-next=%s\n' "$tool" "$lane" >> "$GITHUB_OUTPUT"
       fi
@@ -86,6 +93,8 @@ case "$command" in
       *) fail "unknown lane: $2" ;;
     esac
     expected=$(declared "$pin") || fail "absent tool or lane: $pin"
+    # Deno, Python and uv report whitespace-delimited fields; -f disables globbing.
+    # shellcheck disable=SC2086
     case "$tool" in
       nodejs) actual=$(node --version); actual=${actual#v} ;;
       deno) version=$(deno --version); set -- $version; [ "${1:-}" = deno ] || fail 'unrecognized Deno version'; actual=${2:-} ;;
