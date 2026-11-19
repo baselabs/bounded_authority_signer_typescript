@@ -11,6 +11,7 @@ category: Package policies
 integrator guides, notebooks and packaged docs.
 
 - Fail CI, publication and documentation steps when any required command fails, including in pipelines.
+- Move the Node compatibility lane to 24.22.3, in step with the verifier.
 - Resume held npm publication only when the served SHA-512 and archive bytes match; refuse
   deprecated, changed or pending staged versions. Preserve inspected archives and checksums
   as `release-assets` for infra's GitHub release and document registry provenance verification.

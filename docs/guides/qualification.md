@@ -17,7 +17,7 @@ category: Guides
   have a test that fails when the check is removed.
 - **Every runtime.** One sign-then-verify battery (v1, loopback, v2 and v3 envelopes, grants,
   anchors and key transitions; a wrong-key handle on every major; 64 ES256 reports from a handle
-  that emits high-`s` about half the time) runs on Node 22.23.1 and 24.19.0 with each verifier
+  that emits high-`s` about half the time) runs on Node 22.23.1 and 24.22.3 with each verifier
   backend, on Deno 2.5.6 and Bun 1.3.14, and in Chromium, Firefox and WebKit through Playwright
   under the strict CSP. Every lane first asserts the verifier `BACKEND_ID` it expects. A lane on a
   non-secure origin, in each browser, checks the closed `producer_error` for a missing default

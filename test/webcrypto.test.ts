@@ -1,4 +1,4 @@
-// WebCrypto key handles on Node (pnpm test, on Node 22.23.1 and 24.19.0; pnpm test:portable under the
+// WebCrypto key handles on Node (pnpm test, on Node 22.23.1 and 24.22.3; pnpm test:portable under the
 // verifier's portable backend). Runs the shared battery (test/lanes/webcrypto.ts, the same one the Deno,
 // Bun and browser lanes run) with one node:test per check, and adds the Node-only rows: T4b's expected
 // value on Node, and the R3 evidence that on Node a non-extractable private key is exportable by any code
