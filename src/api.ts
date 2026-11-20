@@ -223,7 +223,7 @@ async function signProofProfile(
  * @returns `{ ok: true, value: { grant, proof } }`, or `{ ok: false, error }` with `invalid_report`
  *   (a missing or mistyped field), `invalid_key_handle`, `producer_error` (the verifier's producer
  *   refused an input, for example a non-UUID `invocationId`, or no default `proofId`) or `signing_failed`.
- * @category Grant and proof — major 1
+ * @category Grant and proof, major 1
  * @see [Integrator guide](https://github.com/baselabs/bounded_authority_signer_typescript/blob/main/docs/guides/getting-started.md)
  * @example
  * <!-- readme-sample: run-dom -->
@@ -316,7 +316,7 @@ export function signLocalLoopbackReport(report: ReportInput, handle: KeyHandle, 
  *
  * @returns `{ ok: true, value: { anchor } }`, or `invalid_anchor`, `invalid_key_handle` (including a
  *   handle without `keyIdentity`), `producer_error` or `signing_failed`.
- * @category Anchors and transitions — major 1
+ * @category Anchors and transitions, major 1
  * @see [Integrator guide](https://github.com/baselabs/bounded_authority_signer_typescript/blob/main/docs/guides/rotate-keys.md)
  * @example
  * <!-- readme-sample: run-dom -->
@@ -377,7 +377,7 @@ export async function signAnchor(input: AnchorInput, handle: KeyHandle, opts: Si
  * @returns `{ ok: true, value: { grant } }`, or `invalid_grant`, `invalid_key_handle`,
  *   `producer_error` (for example no operations, no audiences, or `expiresAt` not after `notBefore`)
  *   or `signing_failed`.
- * @category Grant and proof — major 1
+ * @category Grant and proof, major 1
  * @see [Integrator guide](https://github.com/baselabs/bounded_authority_signer_typescript/blob/main/docs/guides/getting-started.md)
  * @example
  * <!-- readme-sample: run-dom -->
@@ -444,7 +444,7 @@ export async function signGrant(input: GrantInput, handle: KeyHandle, opts: Sign
  *
  * @returns `{ ok: true, value: { keyTransition } }`, or `invalid_transition`, `invalid_key_handle`,
  *   `producer_error` or `signing_failed`.
- * @category Anchors and transitions — major 1
+ * @category Anchors and transitions, major 1
  * @see [Integrator guide](https://github.com/baselabs/bounded_authority_signer_typescript/blob/main/docs/guides/rotate-keys.md)
  * @example
  * <!-- readme-sample: run-dom -->

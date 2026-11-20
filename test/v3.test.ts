@@ -95,7 +95,7 @@ test("v3 producer: the raw EC fixture key is 65 bytes starting 0x04, and the JWK
   assert.equal(ecThumbprint(key.publicKey), key.thumbprint);
 });
 
-test("v3 producer: grant signing input — ES256 header, v:3 payload, typed selectors, cnf.jkt passthrough", () => {
+test("v3 producer: grant signing input (ES256 header, v:3 payload, typed selectors, cnf.jkt passthrough)", () => {
   const holder = ecRawKey();
   const produced = grantSigningInput({
     keyId: "issuer-key", ...grantFixture(holder.thumbprint),
@@ -134,7 +134,7 @@ test("v3 producer: grant signing input — ES256 header, v:3 payload, typed sele
   assert.deepEqual(sels[4], { kind: "gte", path: ["amount"], value: 0.5 });
 });
 
-test("v3 producer: proof signing input — byte-level header, BAP3 digest, ath, member order", () => {
+test("v3 producer: proof signing input (byte-level header, BAP3 digest, ath, member order)", () => {
   const holder = ecRawKey();
   const grantCompact = new TextEncoder().encode("aaa.bbb.ccc"); // scan-passable shape
   const produced = proofSigningInput({
@@ -176,7 +176,7 @@ test("v3 producer: proof signing input — byte-level header, BAP3 digest, ath, 
   assert.notEqual(payload.ba_req, b64(sha256Of(new TextEncoder().encode("BAP1-REQUEST\0"), new TextEncoder().encode(handDerivedJcs))));
 });
 
-test("v3 producer: anchor and transition signing inputs — fingerprints, v:3, closed rejections", () => {
+test("v3 producer: anchor and transition signing inputs (fingerprints, v:3, closed rejections)", () => {
   const signer = ecRawKey();
   const successor = ecRawKey();
   const chainHash = new Uint8Array(32); // genesis all-zero
@@ -350,7 +350,7 @@ test("v3 low-S property: fresh keys, every emitted s <= (n-1)/2, every signature
   console.log(`v3 low-S property run: ${ITERATIONS} signatures, ${naturalHigh} natural high-S normalized, ${naturalLow} natural low-S`);
 });
 
-test("v3 low-S: malleability is live on the backend — and excluded from the emitted set by construction", () => {
+test("v3 low-S: malleability is live on the backend and excluded from the emitted set by construction", () => {
   const key = ecRawKey();
   const message = new TextEncoder().encode("evidence bytes");
   const raw = new Uint8Array(ecSign("SHA256", message, { key: key.privateKey, dsaEncoding: "ieee-p1363" }));
@@ -451,7 +451,7 @@ test("v3 signers: anchor and key transition verify at the crypto level", async (
   assert.equal(ecVerify("SHA256", new TextEncoder().encode(`${tHead}.${tBody}`), { key: ecPublic(signer), dsaEncoding: "ieee-p1363" }, Buffer.from(decodeBytes(tSig))), true);
 });
 
-test("v3 gates: the C1 role gate — a holder handle cannot sign a grant, and sign() is never called", async () => {
+test("v3 gates: the C1 role gate prevents a holder handle from signing a grant, and sign() is never called", async () => {
   const calls = { count: 0 };
   const r = await signV3Grant(
     grantFixture(ecRawKey().thumbprint),

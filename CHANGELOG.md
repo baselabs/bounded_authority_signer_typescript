@@ -5,6 +5,11 @@ category: Package policies
 
 # Changelog
 
+## Unreleased
+
+- Use plain US English without em dashes in public prose, API categories and diagnostics.
+  Check all tracked text while preserving the playground's empty-value placeholders.
+
 ## [2.0.1] (2026-11-18)
 
 2.0.1 is a patch release: the API is unchanged; it requires verifier `^2.0.1` and ships the

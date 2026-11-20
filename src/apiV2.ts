@@ -205,7 +205,7 @@ function validateReport(report: V2ReportInput): SignerResult<V2ReportInput> {
  *
  * @returns `{ ok: true, value: { grant, proof } }`, or `invalid_report`, `invalid_key_handle`,
  *   `producer_error` or `signing_failed`.
- * @category Grant and proof — major 2
+ * @category Grant and proof, major 2
  * @see [Integrator guide](https://github.com/baselabs/bounded_authority_signer_typescript/blob/main/docs/guides/contract-major-2.md)
  * @example
  * <!-- readme-sample: run-dom -->
@@ -270,7 +270,7 @@ export async function signV2Report(report: V2ReportInput, handle: KeyHandle, opt
  * Sign a contract-major-2 boundary anchor. Same handle (`keyIdentity()` required), checks and errors as `signAnchor`.
  *
  * @returns `{ ok: true, value: { anchor } }`, or `invalid_anchor`, `invalid_key_handle`, `producer_error` or `signing_failed`.
- * @category Anchors and transitions — major 2
+ * @category Anchors and transitions, major 2
  * @see [Integrator guide](https://github.com/baselabs/bounded_authority_signer_typescript/blob/main/docs/guides/rotate-keys.md)
  * @example
  * <!-- readme-sample: run-dom -->
@@ -325,7 +325,7 @@ export async function signV2Anchor(input: V2AnchorInput, handle: KeyHandle, opts
  * Sign a contract-major-2 capability grant. Issuer-only: the issuer-role gate of `signGrant` applies.
  *
  * @returns `{ ok: true, value: { grant } }`, or `invalid_grant`, `invalid_key_handle`, `producer_error` or `signing_failed`.
- * @category Grant and proof — major 2
+ * @category Grant and proof, major 2
  * @see [Integrator guide](https://github.com/baselabs/bounded_authority_signer_typescript/blob/main/docs/guides/contract-major-2.md)
  * @example
  * <!-- readme-sample: run-dom -->
@@ -395,7 +395,7 @@ export async function signV2Grant(input: V2GrantInput, handle: KeyHandle, opts: 
  * Sign a contract-major-2 key transition. Same handle (`keyIdentity()` required), checks and errors as `signKeyTransition`.
  *
  * @returns `{ ok: true, value: { keyTransition } }`, or `invalid_transition`, `invalid_key_handle`, `producer_error` or `signing_failed`.
- * @category Anchors and transitions — major 2
+ * @category Anchors and transitions, major 2
  * @see [Integrator guide](https://github.com/baselabs/bounded_authority_signer_typescript/blob/main/docs/guides/rotate-keys.md)
  * @example
  * <!-- readme-sample: run-dom -->

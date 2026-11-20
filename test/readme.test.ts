@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -133,8 +134,42 @@ test("public functions and nested API members have docs and real examples, with 
   assert.equal(samples.filter((s) => s.source.startsWith("src/") && s.kind === "run-dom").length, functions.length);
 });
 
-test("public surfaces do not cite private design records or internal topology", () => {
+test("public text excludes em dashes, private design records and internal topology", () => {
   const publicFiles = files(root).filter((f) => /\.(?:md|ipynb|html|css|ts|m?js|ya?ml)$/.test(f) && !f.startsWith("test/"));
   const forbidden = /\bADRs?\b|\bADR[ _-]*\d+\b|\/adr\/|bounded_authority(?:_report_adapter|_protocol)?_private|\/Users\/|devbox-ovh|infra-1/;
   assert.deepEqual(publicFiles.filter((f) => forbidden.test(read(f))), []);
+
+  const dash = String.fromCodePoint(0x2014);
+  const emDash = /\u{2014}|\\u(?:2014)/iu;
+  // Exact lines and occurrence counts keep the four empty values as data, not prose.
+  const emptyValues = new Map<string, string[]>([
+    ["web/index.html", [
+      `        <div><dt>trusts issuer key</dt><dd><code id="trust-key">${dash}</code></dd></div>`,
+      `      <div id="facts-body">${dash}</div>`,
+    ]],
+    ["web/main.ts", Array<string>(2).fill(`  $("facts-body").textContent = "${dash}";`)],
+  ]);
+  const findings = (path: string, source: string): string[] => {
+    const allowed = [...(emptyValues.get(path) ?? [])];
+    return source.split(/\r?\n/).flatMap((line, index) => {
+      const allowance = allowed.indexOf(line);
+      if (allowance !== -1) { allowed.splice(allowance, 1); return []; }
+      return emDash.test(line) ? [`${path}:${index + 1}`] : [];
+    });
+  };
+
+  // Both spellings must fail in every tracked surface, including this guard's source.
+  for (const spelling of [dash, "\\u" + "2014"]) {
+    for (const path of ["README.md", "src/api.ts", "typedoc.json", "tools/check-currency.mjs", "test/readme.test.ts", ".gitattributes", "web/main.ts"]) {
+      assert.deepEqual(findings(path, `A public sentence ${spelling} continues.`), [`${path}:1`]);
+    }
+  }
+  for (const [path, lines] of emptyValues) {
+    assert.deepEqual(findings(path, lines.join("\n")), []);
+    assert.equal(findings(path, [...lines, lines[0]!].join("\n")).length, 1, "extra placeholders must fail");
+    assert.equal(findings(path, lines[0]! + ` Extra prose ${dash} must fail.`).length, 1);
+  }
+  const tracked = execFileSync("git", ["ls-files", "-z"], { cwd: root, encoding: "utf8" }).split("\0").filter(Boolean);
+  assert.ok(tracked.includes("AGENTS.md"), "tracked text inventory must not be empty");
+  assert.deepEqual(tracked.flatMap((path) => findings(path, read(path))), []);
 });
