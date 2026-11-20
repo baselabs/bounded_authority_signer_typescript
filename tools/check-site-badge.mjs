@@ -4,16 +4,36 @@ import assert from "node:assert/strict";
 import spawn from "cross-spawn";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join, relative } from "node:path";
+import { parseArgs } from "node:util";
 
-const root = process.argv[2] ?? process.cwd();
-const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
-const result = spawn.sync("npm", ["view", `${pkg.name}@latest`, "version", "--fetch-retries=1", "--fetch-timeout=20000"], {
-  cwd: root, encoding: "utf8", timeout: 90_000, stdio: ["ignore", "pipe", "pipe"],
+const { values, positionals } = parseArgs({
+  options: { source: { type: "string", default: "release" } }, allowPositionals: true,
 });
-if (result.error) throw result.error;
-assert.equal(result.status, 0, "could not read npm latest; site version checks fail closed");
-const latest = result.stdout.trim();
-assert.match(latest, /^\d+\.\d+\.\d+$/, "npm latest must be a stable release");
+const source = values.source;
+assert.ok(source === "release" || source === "commit", "source must be release or commit");
+assert.ok(positionals.length <= 1, "expected at most one site root");
+const root = positionals[0] ?? process.cwd();
+const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
+const run = (command, args) => {
+  const result = spawn.sync(command, args, {
+    cwd: root, encoding: "utf8", timeout: 90_000, stdio: ["ignore", "pipe", "pipe"],
+  });
+  if (result.error) throw result.error;
+  assert.equal(result.status, 0, command === "npm"
+    ? "could not read npm latest; site version checks fail closed" : `could not read committed package: ${result.stderr}`);
+  return result.stdout.trim();
+};
+let expected, commit;
+if (source === "commit") {
+  commit = run("git", ["rev-parse", "HEAD"]);
+  const committed = JSON.parse(run("git", ["show", `${commit}:package.json`]));
+  assert.equal(committed.name, pkg.name);
+  expected = committed.version;
+} else {
+  expected = run("npm", ["view", `${pkg.name}@latest`, "version", "--fetch-retries=1", "--fetch-timeout=20000"]);
+  assert.match(expected, /^\d+\.\d+\.\d+$/, "npm latest must be a stable release");
+}
+const expectation = source === "release" ? `npm latest ${expected}` : `commit ${commit} version ${expected}`;
 const escape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const coordinate = `(?:${[pkg.name, pkg.name.replace("/", "+"), encodeURIComponent(pkg.name)].map(escape).join("|")})`;
 const version = String.raw`(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?)`;
@@ -25,7 +45,7 @@ let pages = 0, claims = 0;
 const stale = [];
 function record(path, actual) {
   claims++;
-  if (actual !== latest) stale.push(`${relative(root, path)}: signer ${actual}`);
+  if (actual !== expected) stale.push(`${relative(root, path)}: signer ${actual}`);
 }
 function check(dir) {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -50,9 +70,18 @@ const releaseFile = join(site, "api/release.json");
 if (existsSync(releaseFile)) {
   const release = JSON.parse(readFileSync(releaseFile, "utf8"));
   assert.equal(release.package, pkg.name);
-  assert.equal(release.tag, `v${release.version}`);
-  record(releaseFile, release.version);
+  assert.equal(release.version, expected, "API version must match the selected source");
+  assert.equal(release.source, source);
+  if (source === "commit") {
+    assert.equal(release.commit, commit);
+    assert.equal(release.tag, undefined, "commit API must not claim a release tag");
+  } else assert.equal(release.tag, `v${release.version}`);
+}
+const documentation = join(site, "api/documentation.json");
+if (existsSync(documentation)) {
+  assert.equal(JSON.parse(readFileSync(documentation, "utf8")).version, expected,
+    "site documentation must target the selected source version");
 }
 assert.ok(pages > 0, "the built site must contain HTML");
-assert.deepEqual(stale, [], `signer release claims must equal npm latest ${latest}`);
-console.log(`site badge: PASS (${pages} built pages, ${claims} signer release claims, npm latest ${latest})`);
+assert.deepEqual(stale, [], `signer release claims must equal ${expectation}`);
+console.log(`site badge: PASS (${pages} built pages, ${claims} signer release claims, ${expectation})`);

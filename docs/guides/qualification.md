@@ -58,19 +58,21 @@ The keyless `published-notebooks` job runs only after byte-for-byte registry rea
 A maintainer can run `pnpm notebooks:published` and `pnpm docs:checks:published` on demand
 once that version is available. The upload job and its environment gate are separate.
 
-The separate `site` qualification job runs `pnpm site` from a frozen install before any library
-build: web typecheck, playground build, browser bundle scan, released API build, released API
-checks and npm version checks. The API step uses the tag matching npm latest and that release's
-own TypeDoc, plugins and types from its frozen install. A missing TypeDoc fails closed.
+The separate `site` qualification job runs `pnpm site --source=commit` from a frozen install
+before any library build: web typecheck, playground build, browser bundle scan, API build,
+API checks and version checks. It exports HEAD into a separate clean checkout, renders with
+that export's own frozen TypeDoc, and checks claims against the committed package version
+without querying this package's registry metadata or release tags. A missing TypeDoc fails closed.
 
 The publication workflow publishes new versions of existing npm packages only and
 refuses a package name the registry has never had. A first publication is the owner's decision.
 
 Staging success is not publication: the owner approves the version on npmjs.com. Infra reads
 the publication back and tags the published commit. The owner then dispatches `pages.yml` from
-the default branch in environment `github-pages`; it runs the same `pnpm site` pipeline required
-by qualification, rebuilding the site from that branch and the API reference from the tag
-matching npm latest. Registry or Pages read failures fail closed.
+the default branch in environment `github-pages`; it selects the default release source of the same pipeline
+with `pnpm site`, rebuilding the site from that branch and the API reference from the tag
+matching npm latest and checking version claims against npm latest. Registry or Pages read
+failures fail closed.
 
 Verify npm registry provenance with `npm audit signatures` and compare the archive and
 `SHA256SUMS` from the corresponding

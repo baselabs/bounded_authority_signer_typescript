@@ -68,7 +68,7 @@
     "typecheck:web": "tsc -p tsconfig.web.json",
     "build:site": "node web/build.mjs && esbuild web/main.ts --bundle --minify --format=iife --target=es2022 --outfile=site-dist/app.js",
     "guard:site": "node tools/browser-guard.mjs --scan site-dist/app.js",
-    "site": "pnpm typecheck:web && pnpm build:site && pnpm guard:site && pnpm docs:api:release && pnpm test:network:pages && pnpm check:site",
+    "site": "node tools/build-site.mjs",
     "docs:api": "typedoc",
     "docs:api:release": "node tools/build-release-api.mjs",
     "test:network": "node --test --import tsx/esm test/*.network.ts",

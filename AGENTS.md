@@ -18,7 +18,10 @@ Preserve owner-dispatched publication and Pages triggers, environments and keys.
 checkout disables persisted credentials, tool versions are strict and installs are frozen.
 Do not use organization secrets or variables in public CI.
 
-The `site` qualification job runs `pnpm site` from a frozen install, before any library build.
-Pages uses the same command to typecheck and build the playground, scan the browser bundle,
-build and check the released API, and check npm version claims. The release's own TypeDoc
-uses its frozen dependency graph.
+The `site` qualification job runs `pnpm site --source=commit` from a frozen install, before
+any library build. CI exports HEAD, builds the API with that export's own frozen TypeDoc, and
+checks version claims against the committed package version, without querying this package's
+registry metadata or release tags. Pages runs the same ordered pipeline with `pnpm site`:
+typecheck and build the playground, scan the browser bundle, build and check the API from the
+npm-latest release tag, and check claims against npm latest. Both sources fail closed if their
+separate frozen install has no TypeDoc.
