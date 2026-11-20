@@ -17,3 +17,8 @@ Preserve owner-dispatched publication and Pages triggers, environments and keys.
 `kci/**`; every job is required by the last `qualified` job. Actions are pinned to full commits,
 checkout disables persisted credentials, tool versions are strict and installs are frozen.
 Do not use organization secrets or variables in public CI.
+
+The `site` qualification job runs `pnpm site` from a frozen install, before any library build.
+Pages uses the same command to typecheck and build the playground, scan the browser bundle,
+build and check the released API, and check npm version claims. The release's own TypeDoc
+uses its frozen dependency graph.

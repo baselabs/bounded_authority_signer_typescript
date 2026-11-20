@@ -12,6 +12,11 @@ No credential or service is required for documentation checks; npm registry acce
 Run `pnpm build`, `pnpm typecheck`, `pnpm typecheck:browser`, `pnpm typecheck:web`, `pnpm lint`,
 `pnpm guard:browser`, `pnpm size`, `pnpm test`, `pnpm test:portable`, `pnpm test:network`,
 `pnpm test:tarball`, `pnpm test:runtimes`, `pnpm docs:api` and `pnpm check:currency` for qualification.
+`pnpm site` runs the web typecheck, playground build, browser bundle scan, released API build,
+released API checks and npm version checks, in that order. The separate `site` qualification
+job runs it from a frozen install before any library build; Pages runs the same command.
+The released API uses the tag's own TypeDoc, plugins and types from its frozen install,
+and fails closed if that install has no TypeDoc.
 `pnpm test:tarball` executes every Node documentation journey against the packed candidate.
 `pnpm test:playground` also uses the candidate; the published variants run only after upload.
 Install the Playwright browsers with `pnpm exec playwright install --with-deps`, build the site with
@@ -50,8 +55,9 @@ Candidate notebook and consumer journeys install this repository's package from 
 archive. Pending owner approval fails that run clearly; dispatch the same commit after approval.
 The keyless `published-notebooks` job runs only after byte-for-byte registry read-back succeeds.
 A maintainer can run `pnpm notebooks:published` and `pnpm docs:checks:published` on demand
-once that version is available. Infra tags the release; `pages.yml` then builds `/api/` from
-that tag and runs `pnpm test:network:pages`, so no publication job waits on a tag.
+once that version is available. Infra tags the release; `pages.yml` then runs `pnpm site`,
+which builds `/api/` from that tag and checks it with `pnpm test:network:pages`.
+Qualification checks the current npm release through the same pipeline; no publication job waits on a tag.
 The upload job and its environment gate are separate.
 
 Author guides under `docs/guides/`, notebooks under `docs/notebooks/`, and register notebooks in

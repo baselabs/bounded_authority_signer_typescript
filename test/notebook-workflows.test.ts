@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
+import { parse } from "yaml";
+
+interface SiteStep { run?: string; uses?: string; with?: Record<string, unknown> }
+interface SiteJob { steps: SiteStep[]; needs?: string[]; "runs-on": string; "timeout-minutes": number }
+interface SiteWorkflow { defaults: { run: { shell: string } }; jobs: Record<string, SiteJob> }
 
 const read = (file: string): string => readFileSync(new URL(`../${file}`, import.meta.url), "utf8");
 const ci = read(".github/workflows/ci.yml");
@@ -48,10 +53,35 @@ test("one keyless job checks the exact published version after the upload", () =
   assert.ok(order.every((position, index) => position >= 0 && (index === 0 || position > order[index - 1]!)));
   assert.doesNotMatch(job, /ls-remote|refs\/tags/, "post-upload checks must not wait for infra's tag");
   const pages = read(".github/workflows/pages.yml");
-  const releaseBuild = pages.indexOf("run: pnpm docs:api:release\n");
-  const releaseCheck = pages.indexOf("run: pnpm test:network:pages\n");
+  assert.match(pages, /run: pnpm site\n/);
+  const releaseBuild = scripts.site!.indexOf("pnpm docs:api:release");
+  const releaseCheck = scripts.site!.indexOf("pnpm test:network:pages");
   assert.ok(releaseBuild >= 0 && releaseCheck > releaseBuild, "Pages checks the released API after building it from the tag");
   assert.match(scripts["docs:checks:published"]!, /pnpm docs:samples:published/);
+});
+
+test("Pages and qualification run the same complete site pipeline without a prior library build", () => {
+  const pages = parse(read(".github/workflows/pages.yml")) as SiteWorkflow;
+  const candidate = parse(ci) as SiteWorkflow;
+  assert.deepEqual(scripts.site!.split(" && "), ["pnpm typecheck:web", "pnpm build:site",
+    "pnpm guard:site", "pnpm docs:api:release", "pnpm test:network:pages", "pnpm check:site"]);
+  assert.equal(scripts["guard:site"], "node tools/browser-guard.mjs --scan site-dist/app.js");
+  const pagesRuns = pages.jobs.build!.steps.filter(s => s.run).map(s => s.run);
+  const site = candidate.jobs.site;
+  assert.ok(site, "site must be a qualification job");
+  assert.equal(pagesRuns.at(-1), "pnpm site");
+  assert.deepEqual(site.steps.filter(s => s.run).map(s => s.run), pagesRuns.slice(1),
+    "CI uses the same setup and sole build command as Pages, without the deployment ref gate");
+  assert.doesNotMatch(site.steps.map(s => s.run ?? "").join("\n"), /\bpnpm (?:run )?build(?:\s|$)/);
+  assert.equal(candidate.defaults.run.shell, "bash");
+  assert.equal(site["runs-on"], "ubuntu-24.04");
+  assert.equal(site["timeout-minutes"], 5);
+  assert.ok(candidate.jobs.qualified!.needs!.includes("site"));
+  for (const step of site.steps.filter(s => s.uses)) {
+    assert.match(step.uses!, /@[a-f\d]{40}$/);
+    if (step.uses!.startsWith("actions/checkout@")) assert.equal(step.with?.["persist-credentials"], false);
+    if (step.uses!.startsWith("actions/setup-node@")) assert.equal(step.with?.["package-manager-cache"], false);
+  }
 });
 
 test("publication resumes only an identical, nondeprecated release and reads its archive back", () => {
@@ -130,6 +160,7 @@ test("qualified keeps its exact check name and requires every candidate job", ()
   const jobs = [...ci.split("\njobs:\n")[1]!.matchAll(/^  ([\w-]+):$/gm)]
     .map((match) => match[1]!).filter((name) => name !== "qualified");
   assert.deepEqual(new Set(needs), new Set(jobs));
+  assert.ok(needs?.includes("site"), "the complete Pages pipeline must qualify before landing");
   assert.match(qualified, /job\['result'\] != 'success'/);
   assert.doesNotMatch(ci, /workflow_dispatch:|schedule:|time\.sleep|time\.monotonic/);
 });

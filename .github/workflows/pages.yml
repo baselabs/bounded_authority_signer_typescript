@@ -1,6 +1,7 @@
 # GitHub Pages serves the envelope playground and versioned API reference. Static bundle built from this
 # repository's development signer source plus the published verifier package; no backend,
 # no secrets, deploy-only permissions.
+# The complete build and checks run through pnpm site, also required by CI qualification.
 name: Pages
 
 on:
@@ -57,25 +58,10 @@ jobs:
       - name: Install (frozen lockfile)
         run: pnpm install --frozen-lockfile
 
-      - name: Typecheck the site
-        run: pnpm typecheck:web
-
-      - name: Build the bundle
-        run: pnpm build:site
-
       # The bundle is built with no node:crypto shim and no Buffer polyfill (the verifier resolves its
       # portable backend for the browser); a free Node global anywhere in it fails the deploy.
-      - name: Browser guard over the bundle (no unresolved globals, eval or Function constructor)
-        run: pnpm guard:site
-
-      - name: Build /api/ from the release tag matching npm latest
-        run: pnpm docs:api:release
-
-      - name: Check the released API against its real release tag
-        run: pnpm test:network:pages
-
-      - name: Every built-site version claim must match npm latest
-        run: pnpm check:site
+      - name: Build and check the complete Pages site
+        run: pnpm site
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@0252fc4ba7626f0298f0cf00902a25c6afc77fa8 # v3.0.0
