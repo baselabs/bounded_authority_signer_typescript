@@ -7,7 +7,7 @@ category: Package policies
 
 ## Unreleased
 
-- Discover documentation from tracked files, scope linting to library sources, and clean up
+- Discover documentation from tracked files, scope linting to the library and its tooling, and clean up
   temporary API documentation fixtures. Keep public-text checks generic and independently probed.
 - Use plain US English without em dashes in public prose, API categories and diagnostics.
   Check all tracked text while preserving the playground's empty-value placeholders.

@@ -19,7 +19,6 @@
 // destructured, or routed through .call, .apply or .bind. Signing is otherwise always the caller's
 // handle.sign().
 import { builtinModules } from "node:module";
-import { defineConfig } from "eslint/config";
 import tseslint from "typescript-eslint";
 
 const NODE_MESSAGE = "Node built-in modules are forbidden in src/ (browser safety)";
@@ -149,11 +148,16 @@ const BASE_PROPERTIES = [...NODE_GLOBAL_PROPERTIES, ...keyMaterialProperties(KEY
 // src/webcrypto.ts: the shared entries minus exactly the .exportKey property ban.
 const WEBCRYPTO_PROPERTIES = [...NODE_GLOBAL_PROPERTIES, ...keyMaterialProperties(KEY_MATERIAL_NAMES.filter((name) => name !== "exportKey"))];
 
-export default defineConfig(
+export default tseslint.config(
   {
-    // Only library sources enter this gate. Browser pages have their own typechecks.
+    // Lint only the library and its tooling, independent of local workspace state. web/** (the
+    // GitHub Pages playground) and browser/** (the browser test page) are DOM-context code,
+    // typechecked by their own tsc configs, outside the library gate above.
+    ignores: ["**/*", "!src/", "!src/**", "!tools/", "!tools/**", "!eslint.config.js"],
+  },
+  ...tseslint.configs.recommended,
+  {
     files: ["src/**/*.ts"],
-    extends: [tseslint.configs.recommended],
     rules: {
       "no-restricted-imports": RESTRICTED_IMPORTS,
       "no-restricted-globals": ["error", ...NETWORK_GLOBALS, ...NODE_GLOBALS],

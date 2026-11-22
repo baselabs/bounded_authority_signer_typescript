@@ -103,8 +103,13 @@ test("the real src/ is lint-clean under these rules", async () => {
   assert.deepEqual(problems, []);
 });
 
-test("lint configuration does not apply to unrelated local TypeScript files", async () => {
-  assert.equal(await eslint.calculateConfigForFile(join(REPO, "local-workspace/probe.ts")), undefined);
+test("lint scope covers the library and tooling without local workspace directories", async () => {
+  for (const file of ["src/index.ts", "tools/documentation.mjs", "eslint.config.js"]) {
+    assert.equal(await eslint.isPathIgnored(join(REPO, file)), false, file);
+  }
+  for (const file of ["local-workspace/probe.ts", "test/guards.test.ts", "web/main.ts", "browser/main.ts"]) {
+    assert.equal(await eslint.isPathIgnored(join(REPO, file)), true, file);
+  }
 });
 
 // ---- browser typecheck: the real tsconfig.browser.json, extended by one fixture at a time ----
