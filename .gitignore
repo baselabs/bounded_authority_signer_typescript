@@ -5,3 +5,6 @@ build-pack/
 # Site build output and browser-session artifacts
 site-dist/
 .playwright-mcp/
+
+# Bytecode from the standalone local identifier guard tests.
+/scripts/__pycache__/

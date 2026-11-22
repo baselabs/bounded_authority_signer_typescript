@@ -418,6 +418,10 @@ jobs:
           persist-credentials: false
       - name: Install exact notebook toolchain and frozen dependencies
         uses: ./.github/actions/notebook-tools
+      - name: Test local identifier hooks
+        run: |
+          command -v git >/dev/null
+          python3 scripts/test_private_identifier_guard.py
       # deno fmt --check misreports notebooks on a cold cache; compare the formatted bytes.
       - name: Refuse unformatted notebook cells
         run: |

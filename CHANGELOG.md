@@ -7,6 +7,9 @@ category: Package policies
 
 ## Unreleased
 
+- Add generic local identifier hooks for staged content, commit messages and outgoing Git
+  objects, with ignored owner policy and synthetic real-Git guard tests in CI.
+
 - Discover documentation from tracked files, scope linting to the library and its tooling, and clean up
   temporary API documentation fixtures. Keep public-text checks generic and independently probed.
 - Use plain US English without em dashes in public prose, API categories and diagnostics.

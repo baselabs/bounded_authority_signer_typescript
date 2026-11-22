@@ -83,3 +83,10 @@ workflows, push release tags, publish packages or deploy Pages. Releases and Pag
 owner-dispatched workflows. Report security issues through [SECURITY.md](SECURITY.md).
 
 Apache-2.0 contributions must keep the public-key-only protocol boundary intact.
+
+## Maintainer checks
+
+Install the tracked hooks with `bash scripts/install-hooks.sh`. Local confidential-identifier
+checks require an ignored owner policy; contributors without it get an inactive notice.
+See the [maintainer checks](https://github.com/baselabs/bounded_authority_signer_typescript/blob/main/docs/maintainer-checks.md)
+for activation, coverage and the standalone guard tests. Public CI uses only synthetic identifiers.
