@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -11,9 +12,7 @@ const options = JSON.parse(readFileSync(join(REPO, "typedoc.json"), "utf8")) as 
 test("API docs: exports-map discovery covers every code entry point and rejects undocumented exports", () => {
   // Use the real TypeDoc CLI and the project's validation settings. The fixture has no services,
   // cryptography, or store; it is an isolated package with two independently exported entry points.
-  const cache = join(REPO, ".kimosabe/tmp");
-  mkdirSync(cache, { recursive: true });
-  const dir = mkdtempSync(join(cache, "bap-api-"));
+  const dir = mkdtempSync(join(tmpdir(), "bap-api-"));
   try {
     mkdirSync(join(dir, "src"));
     writeFileSync(join(dir, "package.json"), JSON.stringify({

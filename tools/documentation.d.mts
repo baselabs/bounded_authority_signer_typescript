@@ -8,6 +8,6 @@ export interface Sample {
 }
 export function parse(markdown: string, source?: string): Sample[];
 export function discover(root: string): Sample[];
-export function files(root: string, directory?: string): string[];
+export function files(root: string): string[];
 export function anchors(markdown: string): Set<string>;
 export function links(markdown: string): string[];

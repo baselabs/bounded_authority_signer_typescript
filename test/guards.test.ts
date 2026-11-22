@@ -103,6 +103,10 @@ test("the real src/ is lint-clean under these rules", async () => {
   assert.deepEqual(problems, []);
 });
 
+test("lint configuration does not apply to unrelated local TypeScript files", async () => {
+  assert.equal(await eslint.calculateConfigForFile(join(REPO, "local-workspace/probe.ts")), undefined);
+});
+
 // ---- browser typecheck: the real tsconfig.browser.json, extended by one fixture at a time ----
 
 function browserDiagnostics(extraFile: string | null): string[] {
@@ -324,7 +328,7 @@ test("T14 lint: the two direct calls and the CryptoKey.prototype getter reads ar
 
 test("T14 lint: the src/webcrypto.ts override is built from the shared arrays (every base entry is present there)", async () => {
   const config = await realConfig();
-  const base = config.find((b) => b.files?.includes("src/**/*.ts"))!.rules!;
+  const base = config.find((b) => b.files?.includes("src/**/*.ts") && b.rules?.["no-restricted-syntax"])!.rules!;
   const override = config.find((b) => b.files?.includes(WEBCRYPTO_FILE))!.rules!;
   const messages = (rule: string, rules: Record<string, unknown>) => ((rules[rule] as { message?: string }[] | undefined) ?? []).slice(1).map((e) => e.message);
   const allowed = (m: string | undefined) => /crypto\.subtle\) is forbidden|\.exportKey is a key-generation|^the strings /.test(m ?? "");

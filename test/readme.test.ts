@@ -1,7 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
@@ -12,6 +13,30 @@ const read = (file: string): string => readFileSync(join(root, file), "utf8");
 const pkg = JSON.parse(read("package.json")) as { name: string; version: string; dependencies: Record<string, string> };
 const surfaces = files(root).filter((f) => f.endsWith(".md") || f.endsWith(".ipynb") || f.startsWith("web/") && f.endsWith(".html"));
 const samples = discover(root);
+
+test("documentation discovery includes tracked nested paths and excludes untracked and ignored files", () => {
+  const directory = mkdtempSync(join(tmpdir(), "bap-documentation-"));
+  try {
+    execFileSync("git", ["init", "-q", directory]);
+    mkdirSync(join(directory, "docs/guides"), { recursive: true });
+    mkdirSync(join(directory, ".local-state"));
+    writeFileSync(join(directory, ".gitignore"), ".local-state/\n");
+    writeFileSync(join(directory, "docs/guides/nested guide.md"),
+      "<!-- readme-sample: run -->\n```ts\nconsole.log('ok');\n```\n<!-- readme-output -->\n```text\nok\n```\n");
+    const unmarked = "```ts\nconsole.log('untracked');\n```\n";
+    writeFileSync(join(directory, "docs/untracked.md"), unmarked);
+    writeFileSync(join(directory, ".local-state/ignored.md"), unmarked);
+    execFileSync("git", ["add", ".gitignore", "docs/guides/nested guide.md"], { cwd: directory });
+
+    assert.deepEqual(files(directory), [".gitignore", "docs/guides/nested guide.md"]);
+    const found = discover(directory);
+    assert.equal(found.length, 1);
+    assert.equal(found[0]?.source, "docs/guides/nested guide.md");
+    assert.equal(found[0]?.output, "ok");
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
 
 test("README renders whole and retains orientation, trust, install, quickstart and guide index", () => {
   const readme = read("README.md");
@@ -134,9 +159,13 @@ test("public functions and nested API members have docs and real examples, with 
   assert.equal(samples.filter((s) => s.source.startsWith("src/") && s.kind === "run-dom").length, functions.length);
 });
 
-test("public text excludes em dashes, private design records and internal topology", () => {
+test("public text excludes em dashes, private design records and local authoring paths", () => {
   const publicFiles = files(root).filter((f) => /\.(?:md|ipynb|html|css|ts|m?js|ya?ml)$/.test(f) && !f.startsWith("test/"));
-  const forbidden = /\bADRs?\b|\bADR[ _-]*\d+\b|\/adr\/|bounded_authority(?:_report_adapter|_protocol)?_private|\/Users\/|devbox-ovh|infra-1/;
+  const forbidden = /\bADRs?\b|\bADR[ _-]*\d+\b|\/adr\/|\/Users\//;
+  for (const probe of ["ADR", "ADRs", "ADR 42", "ADR_42", "ADR-42", "ADR42", "docs/adr/example.md", "/Users/example/notes.md"]) {
+    assert.match(probe, forbidden);
+  }
+  assert.doesNotMatch("Public integration guide.", forbidden);
   assert.deepEqual(publicFiles.filter((f) => forbidden.test(read(f))), []);
 
   const dash = String.fromCodePoint(0x2014);

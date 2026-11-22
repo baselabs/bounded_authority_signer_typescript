@@ -1,7 +1,8 @@
-// CommonMark is parsed by the same maintained parser used by TypeDoc. Discovery is recursive;
-// executable samples are never an independently maintained list of paths.
+// CommonMark is parsed by the same maintained parser used by TypeDoc. Discovery follows Git's
+// tracked file inventory; executable samples are never an independently maintained list of paths.
 import assert from "node:assert/strict";
-import { readFileSync, readdirSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import MarkdownIt from "markdown-it";
 
@@ -38,12 +39,8 @@ export function parse(markdown, source = "README.md") {
   }
   return samples;
 }
-export function files(root, directory = "") {
-  return readdirSync(join(root, directory), { withFileTypes: true }).flatMap((entry) => {
-    if ([".git", "node_modules", "dist", "site-dist", "build-pack", ".venv", ".kimosabe", ".playwright-mcp", "__pycache__"].includes(entry.name)) return [];
-    const path = join(directory, entry.name);
-    return entry.isDirectory() ? files(root, path) : [path];
-  });
+export function files(root) {
+  return execFileSync("git", ["ls-files", "-z"], { cwd: root, encoding: "utf8" }).split("\0").filter(Boolean);
 }
 export function discover(root) {
   const found = [];
