@@ -126,7 +126,7 @@ test("notebook qualification uses the pinned shared composite action and frozen 
   const node = action.indexOf("uses: actions/setup-node@");
   const refusal = action.indexOf('run: scripts/toolchain.sh --installed "nodejs=$TOOLCHAIN_NODE_VERSION"');
   assert.ok(reader >= 0 && node > reader && refusal > node);
-  for (const [tool, variable] of [["nodejs", "NODE"], ["deno", "DENO"], ["python", "PYTHON"], ["uv", "UV"]]) {
+  for (const [tool, variable] of [["nodejs", "NODE"], ["deno", "DENO"], ["python", "PYTHON"], ["uv", "UV"]] as const) {
     assert.ok(action.includes(`steps.pins.outputs.${tool}`), tool);
     assert.ok(action.includes(`run: scripts/toolchain.sh --installed "${tool}=$TOOLCHAIN_${variable}_VERSION"`),
       `${tool}: refuse a different installed notebook tool`);
