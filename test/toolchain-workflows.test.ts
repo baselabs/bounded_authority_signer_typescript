@@ -6,6 +6,7 @@ import { parse } from "yaml";
 
 interface Step {
   id?: string;
+  if?: string;
   run?: string;
   uses?: string;
   env?: Record<string, string>;
@@ -21,7 +22,6 @@ interface Workflow { jobs?: Record<string, Job>; runs?: { steps: Step[] } }
 
 const read = (file: string): string => readFileSync(new URL(`../${file}`, import.meta.url), "utf8");
 const reader = 'scripts/toolchain.sh >> "$GITHUB_OUTPUT"';
-const refusal = 'scripts/toolchain.sh --installed "nodejs=$TOOLCHAIN_NODE_VERSION"';
 
 function yamlFiles(directory: URL): URL[] {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -34,18 +34,18 @@ function yamlFiles(directory: URL): URL[] {
 test("the shared toolchain reader keeps its exact bytes and executable mode", () => {
   const file = new URL("../scripts/toolchain.sh", import.meta.url);
   assert.equal(createHash("sha256").update(readFileSync(file)).digest("hex"),
-    "b29bfeb6ec4ec8f5b7e3ac3c963f04b6d3c73483172e5bd59ea40f20b102f1eb");
+    "25bbfa023b7f031256428b498fe300fcc460988fea81277072355e4c0d933764");
   assert.equal(statSync(file).mode & 0o777, 0o755);
 });
 
-test("all runtime setup uses shared outputs and checks Node immediately after installation", () => {
+test("all runtime setup uses shared outputs and checks every installed tool immediately", () => {
   const files = yamlFiles(new URL("../.github/", import.meta.url));
-  const setups: Record<string, [string, string]> = {
-    "actions/setup-node": ["nodejs", "node-version"],
-    "actions/setup-python": ["python", "python-version"],
-    "denoland/setup-deno": ["deno", "deno-version"],
-    "oven-sh/setup-bun": ["bun", "bun-version"],
-    "astral-sh/setup-uv": ["uv", "version"],
+  const setups: Record<string, [string, string, string]> = {
+    "actions/setup-node": ["nodejs", "node-version", "TOOLCHAIN_NODE_VERSION"],
+    "actions/setup-python": ["python", "python-version", "TOOLCHAIN_PYTHON_VERSION"],
+    "denoland/setup-deno": ["deno", "deno-version", "TOOLCHAIN_DENO_VERSION"],
+    "oven-sh/setup-bun": ["bun", "bun-version", "TOOLCHAIN_BUN_VERSION"],
+    "astral-sh/setup-uv": ["uv", "version", "TOOLCHAIN_UV_VERSION"],
   };
   assert.ok(files.length > 0);
   let installations = 0;
@@ -60,20 +60,19 @@ test("all runtime setup uses shared outputs and checks Node immediately after in
       const steps = job.steps;
       const pinIndex = steps.findIndex(step => step.id === "pins" && step.run === reader);
       for (const [index, step] of steps.entries()) {
-        if (step.run?.includes("--installed")) assert.equal(step.run, refusal, file.pathname);
         const setup = setups[step.uses?.split("@")[0] ?? ""];
         if (!setup) continue;
         installations++;
-        const [tool, input] = setup;
-        const matrixLane = file.pathname.endsWith("/workflows/ci.yml") && name === "verify";
+        const [tool, input, variable] = setup;
+        const matrixLane = tool === "nodejs" && file.pathname.endsWith("/workflows/ci.yml") && name === "verify";
         const expected = matrixLane ? "${{ matrix.node }}" : `\${{ steps.pins.outputs.${tool} }}`;
         if (!matrixLane) assert.ok(pinIndex >= 0 && pinIndex < index, `${file.pathname}: ${name}: reader before setup`);
         assert.equal(step.with?.[input], expected, `${file.pathname}: ${name}: ${tool}`);
-        if (tool === "nodejs") {
-          const check = steps[index + 1];
-          assert.equal(check?.run, refusal, `${file.pathname}: ${name}: Node refusal after setup`);
-          assert.equal(check?.env?.TOOLCHAIN_NODE_VERSION, expected, `${file.pathname}: ${name}: check the installed lane`);
-        }
+        const check = steps[index + 1];
+        assert.equal(check?.run, `scripts/toolchain.sh --installed "${tool}=$${variable}"`,
+          `${file.pathname}: ${name}: ${tool} refusal after setup`);
+        assert.equal(check?.env?.[variable], expected, `${file.pathname}: ${name}: check the installed lane`);
+        assert.equal(check?.if, step.if, `${file.pathname}: ${name}: ${tool} refusal matches setup condition`);
       }
     }
   }
@@ -96,7 +95,7 @@ test("the Node matrix uses shared default and compatibility outputs", () => {
     "keep the existing qualification check names");
 });
 
-test("notebook runtime checks consume shared outputs and check only Node", () => {
+test("notebook runtime checks consume shared outputs through an absolute reader path", () => {
   const runner = read("scripts/check_notebooks.py");
   assert.ok(runner.includes('toolchain = str(ROOT / "scripts/toolchain.sh")'));
   assert.ok(runner.includes('run(toolchain, cwd=ROOT, env=dict(os.environ))'));

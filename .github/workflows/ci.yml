@@ -152,12 +152,22 @@ jobs:
         uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
         with:
           deno-version: ${{ steps.pins.outputs.deno }}
+      - name: Refuse a different Deno version
+        if: matrix.runtime == 'deno'
+        env:
+          TOOLCHAIN_DENO_VERSION: ${{ steps.pins.outputs.deno }}
+        run: scripts/toolchain.sh --installed "deno=$TOOLCHAIN_DENO_VERSION"
 
       - name: Set up Bun
         if: matrix.runtime == 'bun'
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version: ${{ steps.pins.outputs.bun }}
+      - name: Refuse a different Bun version
+        if: matrix.runtime == 'bun'
+        env:
+          TOOLCHAIN_BUN_VERSION: ${{ steps.pins.outputs.bun }}
+        run: scripts/toolchain.sh --installed "bun=$TOOLCHAIN_BUN_VERSION"
 
       - name: Install (frozen lockfile)
         run: pnpm install --frozen-lockfile
@@ -208,11 +218,19 @@ jobs:
         uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
         with:
           deno-version: ${{ steps.pins.outputs.deno }}
+      - name: Refuse a different Deno version
+        env:
+          TOOLCHAIN_DENO_VERSION: ${{ steps.pins.outputs.deno }}
+        run: scripts/toolchain.sh --installed "deno=$TOOLCHAIN_DENO_VERSION"
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version: ${{ steps.pins.outputs.bun }}
+      - name: Refuse a different Bun version
+        env:
+          TOOLCHAIN_BUN_VERSION: ${{ steps.pins.outputs.bun }}
+        run: scripts/toolchain.sh --installed "bun=$TOOLCHAIN_BUN_VERSION"
 
       - name: Install (frozen lockfile)
         run: pnpm install --frozen-lockfile
@@ -458,6 +476,10 @@ jobs:
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: ${{ steps.pins.outputs.python }}
+      - name: Refuse a different Python version
+        env:
+          TOOLCHAIN_PYTHON_VERSION: ${{ steps.pins.outputs.python }}
+        run: scripts/toolchain.sh --installed "python=$TOOLCHAIN_PYTHON_VERSION"
       - name: Require every qualification job to succeed
         env:
           NEEDS_JSON: ${{ toJSON(needs) }}

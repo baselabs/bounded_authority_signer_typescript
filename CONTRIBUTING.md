@@ -8,9 +8,9 @@ category: Package policies
 Use Node, Deno, Python, Bun and uv at the exact versions in `.tool-versions` and the pnpm version
 in `package.json`. CI reads defaults and compatibility lanes only through the shared toolchain
 reader at `scripts/toolchain.sh`, installed as an executable and called by path. Its output goes
-to `GITHUB_OUTPUT`; setup actions take exact versions from those outputs. After Node setup,
-`scripts/toolchain.sh --installed nodejs=VERSION` refuses a different installed version. Deno,
-Bun, Python and uv use exact setup inputs without repository-owned version probes.
+to `GITHUB_OUTPUT`; setup actions take exact versions from those outputs. Immediately after each
+Node, Deno, Bun, Python or uv setup, `scripts/toolchain.sh --installed TOOL=VERSION` refuses a
+different installed version using the same output or matrix lane and setup condition.
 Activate the declared pnpm with Corepack, then run `pnpm install --frozen-lockfile`.
 No credential or service is required for documentation checks; npm registry access is required.
 

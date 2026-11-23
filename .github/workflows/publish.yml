@@ -59,6 +59,10 @@ jobs:
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: ${{ steps.pins.outputs.python }}
+      - name: Refuse a different Python version
+        env:
+          TOOLCHAIN_PYTHON_VERSION: ${{ steps.pins.outputs.python }}
+        run: scripts/toolchain.sh --installed "python=$TOOLCHAIN_PYTHON_VERSION"
       - name: Pin archive tooling
         run: npm install --global npm@11.19.0 --ignore-scripts
       - name: Install with the frozen lockfile
