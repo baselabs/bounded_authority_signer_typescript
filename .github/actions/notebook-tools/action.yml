@@ -6,12 +6,17 @@ runs:
     - name: Read exact tool pins
       id: pins
       shell: bash
-      run: scripts/tool-versions.sh read nodejs deno python uv
+      run: scripts/toolchain.sh >> "$GITHUB_OUTPUT"
     - name: Set up Node
       uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
       with:
         node-version: ${{ steps.pins.outputs.nodejs }}
         package-manager-cache: false
+    - name: Refuse a different Node version
+      shell: bash
+      env:
+        TOOLCHAIN_NODE_VERSION: ${{ steps.pins.outputs.nodejs }}
+      run: scripts/toolchain.sh --installed "nodejs=$TOOLCHAIN_NODE_VERSION"
     - name: Set up Deno
       uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
       with:
@@ -26,13 +31,6 @@ runs:
         version: ${{ steps.pins.outputs.uv }}
         enable-cache: false
         save-cache: false
-    - name: Refuse differing tool versions
-      shell: bash
-      run: |
-        scripts/tool-versions.sh check nodejs
-        scripts/tool-versions.sh check deno
-        scripts/tool-versions.sh check python
-        scripts/tool-versions.sh check uv
     - name: Activate the declared package manager
       shell: bash
       run: |

@@ -15,7 +15,10 @@ force-push, publish, tag, dispatch workflows or change release credentials.
 
 Preserve owner-dispatched publication and Pages triggers, environments and keys. CI runs only on
 `kci/**`; every job is required by the last `qualified` job. Actions are pinned to full commits,
-checkout disables persisted credentials, tool versions are strict and installs are frozen.
+checkout disables persisted credentials and installs are frozen. Runtime defaults and compatibility
+lanes come only from the executable shared reader at `scripts/toolchain.sh`. Pass its outputs to
+setup actions, then use `--installed` to refuse a different Node version. Deno, Bun, Python and
+uv use exact setup inputs without repository-owned version probes. Keep the shared reader byte-identical.
 Do not use organization secrets or variables in public CI.
 
 The `site` qualification job runs `pnpm site --source=commit` from a frozen install, before

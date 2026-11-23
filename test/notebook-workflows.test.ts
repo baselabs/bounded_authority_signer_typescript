@@ -90,7 +90,12 @@ test("Pages and qualification share every ordered site step with different API s
   assert.equal(site["timeout-minutes"], 5);
   assert.ok(candidate.jobs.qualified!.needs!.includes("site"));
   assert.match(siteRuns.join("\n"), /corepack prepare "\$manager" --activate/);
-  assert.ok(siteRuns.includes("scripts/tool-versions.sh check nodejs"));
+  const reader = site.steps.findIndex(step => step.run === 'scripts/toolchain.sh >> "$GITHUB_OUTPUT"');
+  const setup = site.steps.findIndex(step => step.uses?.startsWith("actions/setup-node@"));
+  const refusal = site.steps.findIndex(step => step.run === 'scripts/toolchain.sh --installed "nodejs=$TOOLCHAIN_NODE_VERSION"');
+  assert.ok(reader >= 0 && setup > reader && refusal > setup);
+  assert.equal(site.steps[setup]!.with?.["node-version"], "${{ steps.pins.outputs.nodejs }}");
+  assert.doesNotMatch(ci, /(?:[\w-]+-)?version-file:/);
   assert.ok(siteRuns.includes("pnpm install --frozen-lockfile"));
   for (const step of site.steps.filter(s => s.uses)) {
     assert.match(step.uses!, /@[a-f\d]{40}$/);

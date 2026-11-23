@@ -43,7 +43,8 @@ category: Guides
 CI runs on Linux (`ubuntu-24.04`). Linux WebKit is evidence for this code on that WebKit build,
 not for Safari. Qualification runs every candidate lane before a release commit lands. The owner then
 dispatches `publish.yml` from the default branch in environment `publish`. It installs the exact
-`.tool-versions` runtime and declared pnpm with frozen dependencies, refuses a tagged version,
+runtimes emitted by the shared toolchain reader at `scripts/toolchain.sh` and the declared pnpm
+with frozen dependencies, refuses a different installed Node version and a tagged version,
 builds the library and API docs, packs and inspects one archive, and checks its SHA-256.
 An already served version must have the inspected archive's SHA-512 and must not be deprecated;
 otherwise it stages the archive with `npm stage publish --provenance`. An existing pending

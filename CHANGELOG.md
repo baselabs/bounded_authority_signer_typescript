@@ -7,6 +7,10 @@ category: Package policies
 
 ## Unreleased
 
+- Use the shared toolchain reader for runtime setup across qualification, publication, Pages and
+  notebook tools. Derive Node compatibility lanes from its outputs and refuse different installed
+  Node versions; install Deno, Bun, Python and uv exactly without repository-owned version probes.
+
 - Limit new-ref identifier checks to commits outside the pushing remote's tracking refs.
   Keep full-history checks for unconfigured remotes and remotes without tracking refs.
 

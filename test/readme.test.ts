@@ -122,8 +122,12 @@ test("notebook qualification uses the pinned shared composite action and frozen 
   assert.ok(action.includes("pnpm install --frozen-lockfile"));
   assert.ok(action.includes("uv lock --check") && action.indexOf("uv lock --check") < action.indexOf("uv sync --frozen"));
   assert.ok(action.includes("enable-cache: false") && action.includes("save-cache: false"));
-  assert.ok(action.includes("run: scripts/tool-versions.sh read nodejs deno python uv"));
-  for (const tool of ["nodejs", "deno", "python", "uv"]) assert.ok(action.includes(`scripts/tool-versions.sh check ${tool}`), tool);
+  const reader = action.indexOf('run: scripts/toolchain.sh >> "$GITHUB_OUTPUT"');
+  const node = action.indexOf("uses: actions/setup-node@");
+  const refusal = action.indexOf('run: scripts/toolchain.sh --installed "nodejs=$TOOLCHAIN_NODE_VERSION"');
+  assert.ok(reader >= 0 && node > reader && refusal > node);
+  for (const tool of ["nodejs", "deno", "python", "uv"]) assert.ok(action.includes(`steps.pins.outputs.${tool}`), tool);
+  assert.doesNotMatch(action, /(?:[\w-]+-)?version-file:|--installed (?:deno|python|uv)=/);
   const scripts = JSON.parse(read("package.json")) as { scripts: Record<string, string> };
   for (const mode of ["local", "published"]) assert.ok(scripts.scripts[`notebooks:${mode}`]?.includes(`scripts/check_notebooks.py --${mode}`));
 });
