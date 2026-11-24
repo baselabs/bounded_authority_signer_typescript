@@ -7,6 +7,8 @@ category: Package policies
 
 ## Unreleased
 
+- Update typescript-eslint to 8.74.0, the newest release within its declared range.
+
 - Update the shared toolchain reader and refuse different installed Node, Deno, Bun, Python and
   uv versions after every setup across qualification, publication, Pages and notebook tools.
   Derive exact setup versions and Node compatibility lanes from the reader's outputs.
