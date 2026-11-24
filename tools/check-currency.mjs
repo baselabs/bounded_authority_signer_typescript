@@ -47,14 +47,14 @@ import process from "node:process";
 import semver from "semver";
 
 // typescript 7.x was adopted 2026-09-27 and is pinned back to 6.x on 2026-10-13, matching the
-// verifier package: the browser-safety lint (eslint.config.js) needs typescript-eslint, whose latest
-// release (8.71.2) peers typescript <6.1.0, and the guard and tarball tests use the JS compiler API
+// verifier package: the browser-safety lint (eslint.config.js) needs typescript-eslint, whose releases
+// through 8.74.0 (checked 2026-11-24) peer typescript <6.1.0, and the guard and tarball tests use the JS compiler API
 // (ts.createProgram) that the 7.x package no longer ships. 6.0.3 and 7.0.2 emit identical JS and
 // declarations for src/ (diff -r -w over both outputs, empty). Move both repositories together.
 const DELIBERATE_PINS = new Map([
   [
     "typescript",
-    "7.x drops the JS compiler API the guard and tarball tests use (ts.createProgram), and typescript-eslint 8.71.2 (latest) peers typescript <6.1.0, so the browser-safety lint cannot load on 7.x. Stay on 6.x until both move (the verifier package carries the same pin)",
+    "7.x drops the JS compiler API the guard and tarball tests use (ts.createProgram), and typescript-eslint through 8.74.0 (checked 2026-11-24) peers typescript <6.1.0, so the browser-safety lint cannot load on 7.x. Stay on 6.x until both move (the verifier package carries the same pin)",
   ],
 ]);
 
