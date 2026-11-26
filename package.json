@@ -88,7 +88,7 @@
   },
   "devDependencies": {
     "@noble/curves": "^2.4.0",
-    "@types/node": "^26.6.7",
+    "@types/node": "^26.6.11",
     "cross-spawn": "^7.0.6",
     "esbuild": "^0.28.2",
     "eslint": "^10.15.0",
