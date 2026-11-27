@@ -45,6 +45,22 @@ test("README renders whole and retains orientation, trust, install, quickstart a
   for (const id of ["when-to-use-it", "when-not-to-use-it", "trust-boundary", "install", "quickstart", "documentation", "notebooks", "security", "development", "license"]) assert.ok(ids.has(id), id);
 });
 
+test("the signer identifies its steward and publishes its IP statement", () => {
+  const config = JSON.parse(read("typedoc.json")) as { projectDocuments: string[] };
+  assert.ok(config.projectDocuments.includes("IPR.md"));
+  assert.match(read("README.md"), /\]\(IPR\.md\) for contributions and use of the name\./);
+  assert.match(read("CONTRIBUTING.md"), /Developer Certificate of Origin sign-off \(`git commit -s`\)/);
+  assert.match(read("LICENSE"), /^   Copyright 2026 BaseLabs Holdings LLC$/m);
+  assert.equal(read("NOTICE"), [
+    "@bounded-authority-protocol/signer",
+    "Copyright 2026 BaseLabs Holdings LLC",
+    "",
+    "This product includes software developed by BaseLabs Holdings LLC",
+    "(https://github.com/baselabs).",
+    "",
+  ].join("\n"));
+});
+
 test("CommonMark discovery includes indented, nested and tilde fences; missing outputs fail", () => {
   const nested = "> <!-- readme-sample: run -->\n> ~~~~typescript\n> console.log('ok');\n> ~~~~\n> <!-- readme-output -->\n> ~~~~text\n> ok\n> ~~~~\n";
   assert.equal(parse(nested)[0]?.output, "ok");

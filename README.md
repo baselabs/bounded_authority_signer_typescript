@@ -1,4 +1,4 @@
-# @bounded-authority-protocol/signer
+# Bounded Authority Protocol™ TypeScript signer
 
 [![npm](https://img.shields.io/npm/v/@bounded-authority-protocol/signer)](https://www.npmjs.com/package/@bounded-authority-protocol/signer)
 [![CI](https://github.com/baselabs/bounded_authority_signer_typescript/actions/workflows/ci.yml/badge.svg)](https://github.com/baselabs/bounded_authority_signer_typescript/actions/workflows/ci.yml)
@@ -231,4 +231,5 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for qualification commands and [CHANGELOG
 
 ## License
 
-Apache-2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
+Apache-2.0, maintained by BaseLabs Holdings LLC. See [LICENSE](LICENSE) and [NOTICE](NOTICE),
+and [IPR.md](IPR.md) for contributions and use of the name.

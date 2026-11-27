@@ -87,7 +87,9 @@ Commit named files. Maintainers qualify a commit through a push to `kci/<sha>`; 
 workflows, push release tags, publish packages or deploy Pages. Releases and Pages are separate,
 owner-dispatched workflows. Report security issues through [SECURITY.md](SECURITY.md).
 
-Apache-2.0 contributions must keep the public-key-only protocol boundary intact.
+Contributions are licensed under Apache-2.0, as section 5 of the license describes, and
+every commit carries a Developer Certificate of Origin sign-off (`git commit -s`). See
+[IPR.md](IPR.md).
 
 ## Maintainer checks
 

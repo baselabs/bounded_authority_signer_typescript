@@ -192,7 +192,7 @@ test("the exports map closes deep imports: every dist path refuses, on each runt
 
 test("the tarball ships the built package and no source, tests or tools", () => {
   const files = run("tar", ["-tzf", tarball], scratch).split("\n").filter(Boolean);
-  for (const f of ["package/dist/src/index.js", "package/dist/src/index.d.ts", "package/dist/src/apiV2.js", "package/dist/src/es256.js", "package/dist/src/webcrypto.js", "package/dist/src/webcrypto.d.ts", "package/LICENSE", "package/NOTICE", "package/SECURITY.md", "package/CHANGELOG.md", "package/CONTRIBUTING.md", "package/usage-rules.md", "package/docs/guides/getting-started.md", "package/docs/notebooks/grant-and-proof.ipynb"]) {
+  for (const f of ["package/dist/src/index.js", "package/dist/src/index.d.ts", "package/dist/src/apiV2.js", "package/dist/src/es256.js", "package/dist/src/webcrypto.js", "package/dist/src/webcrypto.d.ts", "package/LICENSE", "package/NOTICE", "package/SECURITY.md", "package/CHANGELOG.md", "package/CONTRIBUTING.md", "package/IPR.md", "package/usage-rules.md", "package/docs/guides/getting-started.md", "package/docs/notebooks/grant-and-proof.ipynb"]) {
     assert.ok(files.includes(f), `${f} is packed`);
   }
   assert.ok(!files.some((f) => /^package\/(src|test|tools|web|browser)\//.test(f)), "no source, tests, tools or pages");
